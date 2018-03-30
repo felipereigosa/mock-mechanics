@@ -1,0 +1,24 @@
+
+create red cube
+snap cube to grid
+place various sized cubes on grid
+use placed cube faces as new cube cells for placing
+place axle on cell (four sided)
+place door on axle cell
+place end-point on door cell
+place pulley on ground
+place motor on ground
+connect line from door to motor through pulley
+activate and release motor
+add spring between door and support
+
+create falling red cube
+create ground
+reboot physics
+
+
+---------------------------------------------------- later
+
+---------------------------------------------------- done
+
+

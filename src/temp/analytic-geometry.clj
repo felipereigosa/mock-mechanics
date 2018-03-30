@@ -1,0 +1,134 @@
+
+(in-ns 'temp.core)
+
+;;###################################################### need's refactoring
+
+(defn line-get-point [[pl vl] k]
+  (vector-add pl (vector-multiply vl k)))
+
+(defn line-plane-intersection [line plane] ;;######### reimplement with line-plane-distance
+  (let [[pl vl] line
+        [p0 p1 p2] plane
+        v1 (vector-subtract p1 p0)
+        v2 (vector-subtract p2 p0)
+        v (vector-subtract p0 pl)
+        n (vector-cross-product v1 v2)
+        dp (vector-dot-product vl n)]
+    (if (= dp 0.0)
+      nil
+      (let [d (/ (vector-dot-product v n) dp)]
+        (line-get-point line d)))))
+
+(defn cylinder-plane-intersection [axis radius plane]
+  (let [[axis-point axis-dir] axis
+        [a b c] plane
+        v1 (vector-subtract b a)
+        v2 (vector-subtract c a)
+        vn (vector-normalize (vector-cross-product v1 v2))
+        center-point (line-plane-intersection axis plane)
+        minor-dir (vector-normalize (vector-cross-product vn axis-dir))
+        minor-point (line-get-point [center-point minor-dir] radius)
+        radial-dir (vector-normalize (vector-cross-product minor-dir axis-dir))
+        major-point-above (line-get-point [axis-point radial-dir] radius)
+        major-point (line-plane-intersection [major-point-above axis-dir] plane)]
+    [center-point major-point minor-point]))
+
+(defn sphere-plane-intersection [ps rs [a b c]]
+  (let [v1 (vector-subtract b a)
+        v2 (vector-subtract c a)
+        vn (vector-normalize (vector-cross-product v2 v1))
+        k (/ (vector-dot-product (vector-subtract a ps) vn) (pow (vector-length vn) 2))]
+    (if (> (abs k) rs)
+      nil
+      (let [pc (vector-add ps (vector-multiply vn k))
+            rc (sqrt (- (* rs rs) (* k k)))]
+        [pc rc]))))
+
+(defn get-affine-coordinates [v1 v2 vp]
+  (let [a (vector-dot-product vp v1)
+        b (vector-dot-product v1 v1)
+        c (vector-dot-product v1 v2)
+        d (vector-dot-product vp v2)
+        e (vector-dot-product v2 v2)
+        cb (/ c b)
+        t (/ (- d  (* a cb)) (- e (* c cb)))
+        s (/ (- a (* t c))  b)]
+    [s t]))
+
+(defn point-plane-distance [point plane]
+  (let [[a b c] plane
+        v1 (vector-subtract b a)
+        v2 (vector-subtract c a)
+        normal (vector-cross-product v1 v2)
+        line [point normal]
+        projected-point (line-plane-intersection line plane)
+        to-point (vector-subtract point projected-point)]
+    (vector-length to-point)))
+
+;;####################################################### reimplement with ^
+(defn point-above-plane? [point plane]
+  (let [[a b c] plane
+        v1 (vector-subtract b a)
+        v2 (vector-subtract c a)
+        normal (vector-cross-product v1 v2)
+        line [point normal]
+        projected-point (line-plane-intersection line plane)
+        to-point (vector-subtract point projected-point)]
+    (> (vector-dot-product normal to-point) 0.0)))
+
+(defn line-plane-distance [line plane] ;;######### use to reimplement line-triangle-distance
+  (let [[pl vl] line
+        [p0 p1 p2] plane
+        v1 (vector-subtract p1 p0)
+        v2 (vector-subtract p2 p0)
+        v (vector-subtract p0 pl)
+        n (vector-cross-product v1 v2)
+        dp (vector-dot-product vl n)]
+    (if (= dp 0.0)
+      nil
+      (/ (vector-dot-product v n) dp))))
+
+(defn line-triangle-distance [[pl vl] [p0 p1 p2]]
+  (let [v1 (vector-subtract p1 p0)
+        v2 (vector-subtract p2 p0)
+        v (vector-subtract p0 pl)
+        n (vector-cross-product v1 v2)
+        den (vector-dot-product vl n)]
+    (if (= den 0.0)
+      nil
+      (let [dist (/ (vector-dot-product v n) den)
+            point (line-get-point [pl vl] dist)
+            vp (vector-subtract point p0)
+            [s t] (get-affine-coordinates v1 v2 vp)]
+        (if (and (>= s 0.0)
+                 (<= s 1.0)
+                 (>= t 0.0)
+                 (<= t 1.0)
+                 (<= (+ s t) 1.0))
+          dist
+          nil)))))
+
+(defn point-line-projection [point [pl vl]]
+  (let [vl (vector-normalize vl)
+        point-n (vector-subtract point pl)
+        k (vector-scalar-projection point-n vl)]
+    (line-get-point [pl vl] k)))
+
+(defn point-line-distance [point line]
+  (let [pl (point-line-projection point line)
+        v (vector-subtract point pl)]
+    (vector-length v)))
+
+(defn sphere-line-intersection [[sp r] [lp v]]
+  (let [w (vector-subtract lp sp)
+        a (vector-dot-product v v)
+        b (* 2 (vector-dot-product v w))
+        c (- (vector-dot-product w w) (* r r))
+        delta (- (* b b) (* 4 a c))
+        t-fn (fn [d]
+               (/ (- d b) (* 2 a)))]
+    (cond
+      (< delta 0.0) []
+      (= delta 0.0) [(t-fn 0)]
+      :else (let [sd (sqrt delta)]
+              [(t-fn (- sd)) (t-fn sd)]))))
