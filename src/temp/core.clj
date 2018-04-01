@@ -41,9 +41,9 @@
 (import javax.vecmath.Matrix4f)
 
 (load "util")
+(load "vector")
 (load "world")
 (load "matrix")
-(load "vector")
 (load "analytic-geometry")
 (load "svg")
 
@@ -1420,6 +1420,51 @@
 (do
 1
 
+(defn create-structure-mesh! [structure]
+  (dotimes [y 4]
+    (dotimes [z 4]
+      (dotimes [x 4]
+        (if (= (get-in structure [y z x]) 1)
+          (let [px (- x 1.5)
+                py (+ y 0.5)
+                pz (- z 1.5)
+                name (keyword (str x y z))
+                ]
+            (set-thing! [:meshes name]
+                        (create-cube-mesh [px py pz] [1 0 0 0] [1 1 1] :red))
+          ))))))
+
+(defn num-instances [elm coll key-fn comparator]
+  (count (filter #(comparator (key-fn elm) %) (map key-fn coll))))
+
+(defn remove-duplicated [coll key-fn comparator]
+  (filter (fn [e]
+            (= (num-instances e coll key-fn comparator) 1))
+          coll))
+
+(defn compute-snap-points [structure]
+  (let [coordinates (create-combinations (range 4) (range 4) (range 4))
+        filled (filter (fn [[x y z]]
+                         (= (get-in structure [y z x]) 1))
+                       coordinates)
+        points (mapcat (fn [location]
+                         (let [center (vector-add location [-1.5 0.5 -1.5])
+                               ]
+                           (map (fn [d]
+                                  [(vector-add d center) (vector-normalize d)])
+                                [[0.5 0 0] [-0.5 0 0]
+                                 [0 0.5 0] [0 -0.5 0]
+                                 [0 0 0.5] [0 0 -0.5]])))
+                       filled)]
+    (remove-duplicated points first vector=)))
+
+;;######################################################## -y
+(defn point-mesh-towards [mesh direction]
+  (let [position (get-mesh-position mesh)
+        rotation (quaternion-from-normal direction)
+        transform (make-transform position rotation)]
+  (assoc-in mesh [:transform] transform)))
+
 (defn create-world! []
   (set-thing! [] {})
   (set-thing! [:programs :basic] (create-program "basic"))
@@ -1435,15 +1480,38 @@
 
   (update-thing! [] (slots create-camera _ [0 0 1] 50 25 -35))
   ;; (update-thing! [] (slots create-axis-mesh _ 10 0.1))
-  (update-thing! [] #(create-grid-mesh % 24 1))
+  (update-thing! [] #(create-grid-mesh % 12 5))
   (set-thing! [:output] (create-ortho-mesh))
   (clear-output!)
 
-  (set-thing! [:meshes :red-cube]
-              (create-cube-mesh [0.5 0.5 0.5] [0 0 1 0] [1 1 1] :red))
+  ;; (set-thing! [:meshes :cube] (create-cube-mesh [0 0 0] [1 0 0 0]
+  ;;                                               [1 1 1] :red))
 
-  (set-thing! [:meshes :yellow-cube]
-              (create-cube-mesh [5 0.5 0] [0 0 1 0] [1 1 1] :yellow))
+  (let [structure [[[0 0 0 0]
+                    [0 1 1 0]
+                    [0 0 1 0]
+                    [0 0 0 0]]
+                   [[0 0 0 0]
+                    [0 0 0 0]
+                    [0 0 0 0]
+                    [0 0 0 0]]
+                   [[0 0 0 0]
+                    [0 0 0 0]
+                    [0 0 0 0]
+                    [0 0 0 0]]
+                   [[0 0 0 0]
+                    [0 0 0 0]
+                    [0 0 0 0]
+                    [0 0 0 0]]]
+        ]
+    (set-thing! [:structure] structure)
+    (create-structure-mesh! structure)
+
+    (set-thing! [:snap-points] (compute-snap-points structure))
+    (set-thing! [:meshes :cone]
+                (create-cone-mesh [0 0 2.5] [1 0 0 0] [0.2 0.5 0.2] :yellow))
+    ;; (update-thing! [:meshes :cone] #(point-mesh-towards % [0 -1 0]))
+    )
   )
 (reset-world!)
 )
@@ -1453,12 +1521,32 @@
     (assoc-in world [:moving-mesh] moving-mesh)
     (assoc-in world [:last-point] [(:x event) (:y event)])))
 
+(defn get-camera-plane [world point]
+  (let [camera (:camera world)
+        to-camera (vector-subtract (:eye camera) (:pivot camera))
+        x-axis (vector-cross-product [0 1 0] to-camera)
+        y-axis (vector-cross-product x-axis to-camera)
+        p1 point
+        p2 (vector-add point x-axis)
+        p3 (vector-add point y-axis)]
+    [p1 p2 p3]))
+
 (defn mouse-moved [world event]
   (if-let [moving-mesh (:moving-mesh world)]
     (let [line (unproject-point world [(:x event) (:y event)])
-          plane [[0 0.5 0] [1 0.5 0] [0 0.5 1]]
-          point (line-plane-intersection line plane)]      
-      (update-in world [:meshes moving-mesh] #(set-mesh-position % point)))
+          plane (get-camera-plane world [0 0 0])
+          plane-point (line-plane-intersection line plane)
+          snap-points (:snap-points world)
+          close-points (filter (fn [[p n]]
+                                 (< (point-line-distance p line) 0.2))
+                               snap-points)
+          eye (get-in world [:camera :eye])
+          snap (first (sort-by (fn [[p n]]
+                                 (distance p eye)) close-points))
+          [final-point final-normal] (or snap [plane-point [0 1 0]])]
+      (-> world
+          (update-in [:meshes moving-mesh] #(set-mesh-position % final-point))
+          (update-in [:meshes moving-mesh] #(point-mesh-towards % final-normal))))
     (let [[x y] (:last-point world)
           dx (- (:x event) x)
           dy (- (:y event) y)]

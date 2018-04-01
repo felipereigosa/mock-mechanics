@@ -39,11 +39,6 @@
         y (- y oy)]
     [(sqrt (+ (* x x) (* y y))) (atan2 y x)]))
 
-(defn distance [x1 y1 x2 y2]
-  (let [dx (- x1 x2)
-        dy (- y1 y2)]
-    (Math/sqrt (+ (* dx dx) (* dy dy)))))
-
 (defn within [value min max]
   (cond
     (< value min) min
@@ -130,11 +125,6 @@
 
 (defn gen-keyword [base]
   (keyword (gensym (symbol (subs (str base) 1)))))
-
-(defn distance [x1 y1 x2 y2]
-  (let [dx (- x1 x2)
-        dy (- y1 y2)]
-    (sqrt (+ (* dx dx) (* dy dy)))))
 
 (defn find-if [pred coll]
   (first (filter pred coll)))

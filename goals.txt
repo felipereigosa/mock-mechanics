@@ -1,8 +1,19 @@
 
-create red cube
-snap cube to grid
-place various sized cubes on grid
-use placed cube faces as new cube cells for placing
+X create red cube
+X create arbitrary 3d structure from array
+X snap sphere to snap points
+X compute snap points from structure
+X snap sphere to any face of structure
+X use closest snap point
+X point cone in the direction of normal
+X compute normal of snap points
+X point cone in direction of snap point normal
+
+---------------------------------------------------- later
+don't create internal faces
+place z range on snap (no long jumps)
+use closest snap point as plane center (don't hide piece)
+
 place axle on cell (four sided)
 place door on axle cell
 place end-point on door cell
@@ -17,7 +28,6 @@ create ground
 reboot physics
 
 
----------------------------------------------------- later
 
 ---------------------------------------------------- done
 
