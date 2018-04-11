@@ -1,4 +1,29 @@
 
+attach cube to grid
+attach cube to other cubes
+attach axle to cube
+attach cube to axle
+create falling red cube
+create ground
+reboot physics
+create point and hinge constraints
+toggle interact and build
+attach pulley to cube
+attach end-point to cube
+attach motor
+connect line
+attach button
+program motor and buttons manually for now
+
+
+---------------------------------------------------- later
+create prefab object
+place z range on snap (no long jumps)
+activate and release motor
+add spring between door and support
+
+---------------------------------------------------- done
+
 X create red cube
 X create arbitrary 3d structure from array
 X snap sphere to snap points
@@ -8,27 +33,3 @@ X use closest snap point
 X point cone in the direction of normal
 X compute normal of snap points
 X point cone in direction of snap point normal
-
----------------------------------------------------- later
-don't create internal faces
-place z range on snap (no long jumps)
-use closest snap point as plane center (don't hide piece)
-
-place axle on cell (four sided)
-place door on axle cell
-place end-point on door cell
-place pulley on ground
-place motor on ground
-connect line from door to motor through pulley
-activate and release motor
-add spring between door and support
-
-create falling red cube
-create ground
-reboot physics
-
-
-
----------------------------------------------------- done
-
-
