@@ -1,22 +1,46 @@
 
-attach cube to grid
-attach cube to other cubes
-attach axle to cube
-attach cube to axle
+X attach cube to grid
+X better name
+X pick base of object
+X snap base of object
+X create part structure
+X draw parts
+X implement get-part-at
+X get all cube faces
+X test with cone
+X attach cube to other cubes
+X attach axle to cube
+X attach cube to axle
+X panning
+X draw line between two points (thin cylinder)
+
+create modes
+connect line between anchors
+pass line through pulleys
+create modes buttons (move, interact, wire)
+
+snap to floating pulley
+remove paired snap points
 create falling red cube
 create ground
 reboot physics
 create point and hinge constraints
 toggle interact and build
-attach pulley to cube
-attach end-point to cube
-attach motor
-connect line
-attach button
-program motor and buttons manually for now
 
 
 ---------------------------------------------------- later
+don't pick cable
+set color of any part
+create bounding boxes for parts (faster picking)
+grid islands
+create pulley model
+create hinge model
+create anchor model
+attach motor
+attach button
+program motor and buttons manually for now
+draw guide points
+don't snap if there is collision
 create prefab object
 place z range on snap (no long jumps)
 activate and release motor

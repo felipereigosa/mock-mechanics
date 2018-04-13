@@ -168,3 +168,5 @@
 
 (defn float-equals? [a b]
   (< (abs (- a b)) 0.0001))
+
+(def not-nil? (comp not nil?))
