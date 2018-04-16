@@ -1332,61 +1332,43 @@
 
 ;;-------------------------------------------------------------------------------;;
 
-(defn -main [& args]
-  (window-init!)
-  (reset! out *out*))
-
-(defn draw-part! [world part]
-  (let [position (:position part)
-        rotation (:rotation part)
-        mesh (-> (get-in world [:info (:type part) :model])
-                 (assoc-in [:transform] (make-transform position rotation))
-                 (set-mesh-color (:color part)))]
-    (draw-mesh! world mesh)))
-
-(defn point-mesh-towards [mesh direction]
-  (let [position (get-mesh-position mesh)
-        rotation (quaternion-from-normal direction)
-        transform (make-transform position rotation)]
-  (assoc-in mesh [:transform] transform)))
-
-(defn draw-cable! [world cable]
-  (let [{:keys [start end]} cable
-        position (vector-multiply (vector-add end start) 0.5)
-        rotation [1 0 0 0]
-        thickness (get-in world [:info :cable :thickness])
-        v (vector-subtract end start)
-        length (vector-length v)
-        scale [thickness length thickness]
-        mesh (-> (get-in world [:info :cable :model])
-                 (assoc-in [:transform] (make-transform position rotation))
-                 (set-mesh-color (:color cable))
-                 (point-mesh-towards v)
-                 (assoc-in [:scale] scale))]
-    (draw-mesh! world mesh)))
+(def redraw-flag (atom true))
+(declare draw-2d!)
+(declare draw-3d!)
 
 (defn draw-world! [world]
-  (doseq [mesh (vals (:background-meshes world))]
-    (draw-mesh! world mesh))
-
-  (doseq [mesh (vals (:meshes world))]
-    (draw-mesh! world mesh))
-
-  (doseq [part (vals (:parts world))]
-    (draw-part! world part))
-
-  (doseq [cable (vals (:cables world))]
-    (draw-cable! world cable))
+  (try
+    (draw-3d! world)
+    (catch Exception e))
+  
+  (when @redraw-flag
+    (clear-top!)
+    (try
+      (draw-2d! world)
+      (catch Exception e))
+    (reset! redraw-flag false))
 
   (GL11/glViewport 0 0 window-width window-height)
   (draw-ortho-mesh! world (:output world))
   )
 
+(defn redraw [world]
+  (reset! redraw-flag true)
+  world)
+
+(defn redraw! []
+  (reset! redraw-flag true))
+
+(defn -main [& args]
+  (window-init!)
+  (reset! out *out*))
+
 (defn reset-world! []
   (gl-thread
    (do
      (create-world!)
-     (clear-top!))))
+     (redraw!))))
+
 
 ;;-------------------------------------------------------------------------------;;
 ;; begin
@@ -1470,10 +1452,81 @@
        (in? name names) name
        :else nil))))
 
+(defn get-part-at [world px py]
+  (let [line (unproject-point world [px py])
+        distances (map (fn [[name part]]
+                         (let [{:keys [position type]} part
+                               mesh (get-in world [:info type :model])
+                               mesh (set-mesh-position mesh position)
+                               [_ d _] (get-mesh-collision
+                                        mesh (:transform mesh) line)]
+                           (if (nil? d)
+                             nil
+                             [name d])))
+                       (:parts world))]
+    (first (first (sort-by second (remove-nil distances))))))
+
 ;;-------------------------------------------------------------------------------;;
+
+(declare move-mouse-pressed)
+(declare move-mouse-moved)
+(declare move-mouse-released)
+(declare cable-mouse-pressed)
+(declare cable-mouse-moved)
+(declare cable-mouse-released)
+(declare interact-mouse-pressed)
+(declare interact-mouse-moved)
+(declare interact-mouse-released)
+
+(defn button-pressed [world button]
+  (let [function (get-in world [:buttons button :fn])]
+    (function world)))
+
+(defn get-button-at [world x y]
+  (first
+   (find-if (fn [[name button]]
+              (inside-box? button x y))
+            (:buttons world))))
+
+(defn mouse-pressed [world event]
+  (if-let [button (get-button-at world (:x event) (:y event))]
+    (-> world
+        (button-pressed button)
+        (assoc-in [:button-pressed] true))
+    (case (:mode world)
+      :move (move-mouse-pressed world event)
+      :cable (cable-mouse-pressed world event)
+      :interact (interact-mouse-pressed world event)
+      world)))
+
+(defn mouse-moved [world event]
+  (if (:button-pressed world)
+    world
+    (case (:mode world)
+      :move (move-mouse-moved world event)
+      :cable (cable-mouse-moved world event)
+      :interact (interact-mouse-moved world event)
+      world)))
+
+(defn mouse-released [world event]
+  (if (:button-pressed world)
+    (dissoc-in world [:button-pressed])
+    (case (:mode world)
+      :move (move-mouse-released world event)
+      :cable (cable-mouse-released world event)
+      :interact (interact-mouse-released world event)
+      world)))
 
 (do
 1
+
+(defn set-chosen [world which]
+  (redraw
+   (reduce (fn [w name]
+             (assoc-in w [:buttons name :chosen] (= which name)))
+           world
+           (keys (:buttons world)))))
+
 (defn create-world! []
   (set-thing! [] {})
   (set-thing! [:programs :basic] (create-program "basic"))
@@ -1519,6 +1572,10 @@
                                :offset [0 0 0]
                                })
 
+  (set-thing! [:info :cable] {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                                           [0.2 1 0.2] :white)
+                              :thickness 0.03})
+  
   (set-thing! [:parts :c1] {:type :cube
                             :position [0.5 0.5 0.5]
                             :rotation [1 0 0 0]
@@ -1543,30 +1600,151 @@
                             :color :blue
                             })
 
-  (set-thing! [:parts :e1] {:type :anchor
-                            :position [2.5 0 1.5]
+  (set-thing! [:parts :p2] {:type :pulley
+                            :position [1.5 0 -1.5]
                             :rotation [1 0 0 0]
-                            :color :white
+                            :color :blue
                             })
 
-  ;;######################
-  
-  (set-thing! [:info :cable] {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                                           [0.2 1 0.2] :white)
-                              :thickness 0.05})
-  
-  (set-thing! [:meshes :p1] (create-sphere-mesh [0 2 3] [1 0 0 0]
-                                                [0.2 0.2 0.2] :green))
+  (set-thing! [:parts :p3] {:type :pulley
+                            :position [3.5 0 -1.5]
+                            :rotation [1 0 0 0]
+                            :color :blue
+                            })
 
-  (set-thing! [:meshes :p2] (create-sphere-mesh [3 0 3] [1 0 0 0]
-                                                [0.2 0.2 0.2] :red))
+  (set-thing! [:parts :e1] {:type :anchor
+                            :position [2.5 0 3.5]
+                            :rotation [1 0 0 0]
+                            :color :dark-gray
+                            })
 
-  (set-thing! [:cables :c1] {:start [0 2 3]
-                             :end [3 0 3]
-                             :color :white})
+  (set-thing! [:parts :e2] {:type :anchor
+                            :position [2.5 0 -3.5]
+                            :rotation [1 0 0 0]
+                            :color :dark-gray
+                            })
+
+  (set-thing! [:parts :e3] {:type :anchor
+                            :position [-1 0 -3.5]
+                            :rotation [1 0 0 0]
+                            :color :dark-gray
+                            })
+
+  ;; (set-thing! [:cables :c1] {:points [:e1 :p2 [0 2 0]]
+  ;;                            :color :white})
+  (set-thing! [:mode] :move)
+
+  (set-thing! [:busy-pulleys] [])
+  (set-thing! [:buttons] {:move {:x 100
+                                 :y 25
+                                 :w 100
+                                 :h 50
+                                 :text "Move"
+                                 :chosen true
+                                 :fn (fn [w]
+                                       (-> w
+                                           (assoc-in [:mode] :move)
+                                           (set-chosen :move)))
+                                 }
+
+                          :cable {:x 200
+                                 :y 25
+                                 :w 100
+                                 :h 50
+                                 :text "Cable"
+                                 :chosen false
+                                 :fn (fn [w]
+                                       (-> w
+                                           (assoc-in [:mode] :cable)
+                                           (set-chosen :cable)))
+                                 }
+
+                          :interact {:x 300
+                                     :y 25
+                                     :w 100
+                                     :h 50
+                                     :text "Interact"
+                                     :chosen false
+                                     :fn (fn [w]
+                                           (-> w
+                                               (assoc-in [:mode] :interact)
+                                               (set-chosen :interact)))
+                                     }
+                          })
+                          
   )
 (reset-world!)
 )
+
+(defn draw-part! [world part]
+  (let [position (:position part)
+        rotation (:rotation part)
+        mesh (-> (get-in world [:info (:type part) :model])
+                 (assoc-in [:transform] (make-transform position rotation))
+                 (set-mesh-color (:color part)))]
+    (draw-mesh! world mesh)))
+
+(defn point-mesh-towards [mesh direction]
+  (let [position (get-mesh-position mesh)
+        rotation (quaternion-from-normal direction)
+        transform (make-transform position rotation)]
+  (assoc-in mesh [:transform] transform)))
+
+(defn draw-segment! [world start end color]
+  (let [v (vector-subtract end start)
+        length (vector-length v)]
+    (when (not (float-equals? length 0.0))
+      (let [position (vector-multiply (vector-add end start) 0.5)
+            rotation [1 0 0 0]
+            thickness (get-in world [:info :cable :thickness])
+            scale [thickness length thickness]
+            mesh (-> (get-in world [:info :cable :model])
+                     (assoc-in [:transform] (make-transform position rotation))
+                     (set-mesh-color color)
+                     (point-mesh-towards v)
+                     (assoc-in [:scale] scale))]
+        (draw-mesh! world mesh)))))
+
+(defn draw-cable! [world cable]
+  (let [points (map (fn [p]
+                      (if (keyword? p)
+                        (let [part (get-in world [:parts p])]
+                          (:position part))
+                        p))
+                    (:points cable))]
+    (dotimes [i (dec (count points))]
+      (draw-segment! world
+                     (nth points i)
+                     (nth points (inc i))
+                       (:color cable)))))
+
+(defn draw-3d! [world]
+  (doseq [mesh (vals (:background-meshes world))]
+    (draw-mesh! world mesh))
+
+  (doseq [mesh (vals (:meshes world))]
+    (draw-mesh! world mesh))
+
+  (doseq [part (vals (:parts world))]
+    (draw-part! world part))
+
+  (doseq [cable (vals (:cables world))]
+    (draw-cable! world cable))
+  )
+
+(defn draw-button! [button]
+  (let [{:keys [x y w h text chosen]} button
+        hw (/ w 2)]
+    (if chosen
+      (fill-rect! :orange x y w h)
+      (fill-rect! :gray x y w h))      
+    (draw-rect! :black x y w h)
+    (draw-text! :black text (- x hw -7) (+ y 5) 21)))
+
+(defn draw-2d! [world]
+  (doseq [button (vals (:buttons world))]
+    (draw-button! button))
+  )
 
 (defn make-spec [position rotation point]
   (let [rotation-transform (make-transform [0 0 0] rotation)
@@ -1603,33 +1781,7 @@
                                (make-spec position rotation p))
                              points))))
                   (:parts world))))]
-    (println! (:moving-part world))
     (vec (concat grid-specs face-specs))))
-
-(defn get-part-at [world px py]
-  (let [line (unproject-point world [px py])
-        distances (map (fn [[name part]]
-                         (let [{:keys [position type]} part
-                               mesh (get-in world [:info type :model])
-                               mesh (set-mesh-position mesh position)
-                               [_ d _] (get-mesh-collision
-                                        mesh (:transform mesh) line)]
-                           (if (nil? d)
-                             nil
-                             [name d])))
-                       (:parts world))]
-    (first (first (sort-by second (remove-nil distances))))))
-
-(defn mouse-pressed [world event]
-  (if-let [moving-part (get-part-at world (:x event) (:y event))]
-    (let [part (get-in world [:parts moving-part])]
-      (-> world
-          (assoc-in [:moving-part] moving-part)
-          (assoc-in [:start-rotation] (:rotation part))
-          ((fn [w]
-             (assoc-in w [:snap-specs] (get-snap-specs w))))
-          (assoc-in [:plane] (get-camera-plane world (:position part)))))
-    (assoc-in world [:last-point] [(:x event) (:y event)])))
 
 (defn mouse-rotate [world event]
   (let [[x y] (:last-point world)
@@ -1670,7 +1822,18 @@
         (assoc-in [:parts moving-part :position] final-point)
         (assoc-in [:parts moving-part :rotation] final-rotation))))
 
-(defn mouse-moved [world event]
+(defn move-mouse-pressed [world event]
+  (if-let [moving-part (get-part-at world (:x event) (:y event))]
+    (let [part (get-in world [:parts moving-part])]
+      (-> world
+          (assoc-in [:moving-part] moving-part)
+          (assoc-in [:start-rotation] (:rotation part))
+          ((fn [w]
+             (assoc-in w [:snap-specs] (get-snap-specs w))))
+          (assoc-in [:plane] (get-camera-plane world (:position part)))))
+    (assoc-in world [:last-point] [(:x event) (:y event)])))
+
+(defn move-mouse-moved [world event]
   (cond
     (not-nil? (:moving-part world)) (mouse-place world event)
 
@@ -1682,8 +1845,104 @@
     
     :else world))
 
-(defn mouse-released [world event]
+(defn move-mouse-released [world event]
   (-> world
       (dissoc-in [:last-point])
       (dissoc-in [:moving-part])
       (dissoc-in [:snap-specs])))
+
+(defn cable-mouse-pressed [world event]
+  (if-let [part-name (get-part-at world (:x event) (:y event))]
+    (let [part (get-in world [:parts part-name])]
+      (if (= (:type part) :anchor)
+        (let [cable-name (gen-keyword :cable)
+              points [part-name (:position part)]]
+          (-> world
+              (assoc-in [:saved-busy-pulleys] (:busy-pulleys world))
+              (assoc-in [:current-cable] cable-name)
+              (assoc-in [:cables cable-name] {:points points
+                                              :color :white})
+              (assoc-in [:plane] (get-camera-plane world (:position part)))))
+        world))
+    world))
+
+(defn get-parts-with-type [parts type]
+  (filter (fn [part]
+            (= (get-in parts [part :type]) type))
+          (keys parts)))
+
+(defn get-close-parts [world line]
+  (let [colinear-parts (remove-nil
+                          (map (fn [part-name]
+                                 (let [part (get-in world [:parts part-name])
+                                       position (:position part)
+                                       d (point-line-distance position line)]
+                                   (if (< d 0.2)
+                                     part-name
+                                     nil)))
+                               (keys (:parts world))))
+        eye (get-in world [:camera :eye])]
+    (sort-by (fn [part-name]
+               (let [part (get-in world [:parts part-name])
+                     position (:position part)]
+                 (distance position eye)))
+             colinear-parts)))
+
+(defn get-close-pulley [world line]
+  (let [pulleys (get-parts-with-type (:parts world) :pulley)
+        pulleys (filter (fn [p]
+                          (not (in? p (:busy-pulleys world))))
+                        pulleys)
+        close-parts (get-close-parts world line)]
+    (find-if #(in? % pulleys) close-parts)))
+
+(defn get-close-anchor [world line]
+  (let [anchors (get-parts-with-type (:parts world) :anchor)
+        first-anchor (get-in world [:cables (:current-cable world) :points 0])
+        anchors (filter #(not= % first-anchor) anchors)
+        close-parts (get-close-parts world line)]
+    (find-if #(in? % anchors) close-parts)))
+
+(defn cable-mouse-moved [world event]
+  (if-let [current-cable (:current-cable world)]
+    (let [plane (:plane world)
+          line (unproject-point world [(:x event) (:y event)])
+          n (count (get-in world [:cables current-cable :points]))
+          point (line-plane-intersection line plane)]
+      (if-let [close-pulley-name (get-close-pulley world line)]
+        (let [close-pulley (get-in world [:parts close-pulley-name])
+              pulley-position (:position close-pulley)]
+          (-> world
+              (assoc-in [:cables current-cable :points (dec n)] close-pulley-name)
+              (update-in [:cables current-cable :points] #(conj % point))
+              (assoc-in [:plane] (get-camera-plane world pulley-position))
+              (update-in [:busy-pulleys] #(conj % close-pulley-name))))
+        (if-let [close-anchor-name (get-close-anchor world line)]
+          (-> world
+              (assoc-in [:cables current-cable :points (dec n)] close-anchor-name)
+              (dissoc-in [:current-cable])
+              (dissoc-in [:plane]))
+          (assoc-in world [:cables current-cable :points (dec n)] point))))
+    world))
+
+(defn cable-mouse-released [world event]
+  (if-let [current-cable (:current-cable world)]
+    (-> world
+        (dissoc-in [:cables current-cable])
+        (dissoc-in [:current-cable])
+        (dissoc-in [:plane])
+        (assoc-in [:busy-pulleys] (:saved-busy-pulleys world))
+        (dissoc-in [:saved-busy-pulleys]))
+    world))
+
+(defn interact-mouse-pressed [world event]
+  (println! "interact pressed")
+  world)
+
+(defn interact-mouse-moved [world event]
+  (println! "interact moved")
+  world)
+
+(defn interact-mouse-released [world event]
+  (println! "interact released")
+  world)

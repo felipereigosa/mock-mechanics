@@ -170,3 +170,15 @@
   (< (abs (- a b)) 0.0001))
 
 (def not-nil? (comp not nil?))
+
+(defn inside-box? [box x y]
+  (let [bx (:x box)
+        by (:y box)
+        hw (/ (:w box) 2)
+        hh (/ (:h box) 2)
+        x1 (- bx hw)
+        x2 (+ bx hw)
+        y1 (- by hh)
+        y2 (+ by hh)]
+    (and (< x1 x x2)
+         (< y1 y y2))))

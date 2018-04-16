@@ -1,4 +1,63 @@
 
+X snap cable to pulley and create second segment
+X update busy pulleys
+X snap cable to anchor and finish cable
+X create get-close-part
+X reimplement get-close-pulley
+X delete cable if not found an anchor
+X create redraw flag
+X create mode buttons (move, interact, wire)
+X create interaction mode
+X change wire to cable
+
+create falling red cube
+create ground
+reboot physics
+create point and hinge constraints
+reboot mouse force
+store cable length after finished
+enforce cable constraints
+
+---------------------------------------------------- later
+create sliding part (snap to cable, can be snapped to)
+create winding part (snap to cable and change cable size when rotated)
+recompute cable lenght after moving its parts
+grid islands
+create pulley model
+create hinge model
+create anchor model
+create motor part
+create button part
+create spring part
+create video feature
+
+don't allow double cable between anchors
+parameterize snap point distance (placement and cable)
+pan and rotate in wire mode
+snap to floating pulley
+use cable algorithm to create electrical wires
+don't snap if there is collision
+don't snap anchors to axles, etc
+set color of any part
+create bounding boxes for parts (faster picking)
+program motor and buttons manually for now
+draw guide snap points
+create prefab object
+place z limit on snap (no long jumps)
+activate and release motor
+add spring between door and support
+publish on steam
+
+---------------------------------------------------- done
+X create red cube
+X create arbitrary 3d structure from array
+X snap sphere to snap points
+X compute snap points from structure
+X snap sphere to any face of structure
+X use closest snap point
+X point cone in the direction of normal
+X compute normal of snap points
+X point cone in direction of snap point normal
 X attach cube to grid
 X better name
 X pick base of object
@@ -13,47 +72,6 @@ X attach axle to cube
 X attach cube to axle
 X panning
 X draw line between two points (thin cylinder)
-
-create modes
-connect line between anchors
-pass line through pulleys
-create modes buttons (move, interact, wire)
-
-snap to floating pulley
-remove paired snap points
-create falling red cube
-create ground
-reboot physics
-create point and hinge constraints
-toggle interact and build
-
-
----------------------------------------------------- later
-don't pick cable
-set color of any part
-create bounding boxes for parts (faster picking)
-grid islands
-create pulley model
-create hinge model
-create anchor model
-attach motor
-attach button
-program motor and buttons manually for now
-draw guide points
-don't snap if there is collision
-create prefab object
-place z range on snap (no long jumps)
-activate and release motor
-add spring between door and support
-
----------------------------------------------------- done
-
-X create red cube
-X create arbitrary 3d structure from array
-X snap sphere to snap points
-X compute snap points from structure
-X snap sphere to any face of structure
-X use closest snap point
-X point cone in the direction of normal
-X compute normal of snap points
-X point cone in direction of snap point normal
+X create modes
+X create multi-step cable
+X create cable between anchor and mouse
