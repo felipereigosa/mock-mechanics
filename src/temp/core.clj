@@ -46,6 +46,7 @@
 (load "matrix")
 (load "analytic-geometry")
 (load "svg")
+(load "physics")
 
 (defn create-world! [])
 (defn draw-world! [world])
@@ -196,7 +197,7 @@
       (GLFW/glfwDestroyWindow window)
       (GLFW/glfwTerminate)))))))
 
-;;-----------------------------------------------------------------------------------------;;
+;;-------------------------------------------------------------------------------;;
 ;; opengl
 
 (defmacro gl-thread [form] ;;############################## forms
@@ -336,7 +337,7 @@
      :uniforms uniforms
      :attributes attributes}))
 
-;;------------------------------------------------------------------------------------------;;
+;;-------------------------------------------------------------------------------;;
 ;; textures
 
 (defn new-image [width height]
@@ -519,7 +520,7 @@
                           GL11/GL_LINEAR_MIPMAP_LINEAR)
     mesh))
 
-;;------------------------------------------------------------------------------------;;
+;;-------------------------------------------------------------------------------;;
 ;; meshes
 
 (defn axis-angle->quaternion [[ax ay az] angle]
@@ -592,6 +593,12 @@
     (if (= axis [0.0 0.0 0.0])
       [0 1 0 0]
       (conj axis angle))))
+
+(defn point-mesh-towards [mesh direction]
+  (let [position (get-mesh-position mesh)
+        rotation (quaternion-from-normal direction)
+        transform (make-transform position rotation)]
+  (assoc-in mesh [:transform] transform)))
 
 (defn get-cube-vertices []
   (let [corners [[-0.5 0.5 0.5] [0.5 0.5 0.5] [-0.5 -0.5 0.5] [0.5 -0.5 0.5]
@@ -1150,7 +1157,7 @@
         vector (into-array Float/TYPE (conj (into [] point) 1))]
     (into [] (butlast (multiply-matrix-vector matrix vector)))))
 
-;;------------------------------------------------------------------------------------------;;
+;;-------------------------------------------------------------------------------;;
 ;; output
 
 (def output (atom ""))
@@ -1467,6 +1474,7 @@
     (first (first (sort-by second (remove-nil distances))))))
 
 ;;-------------------------------------------------------------------------------;;
+;; input sorting
 
 (declare move-mouse-pressed)
 (declare move-mouse-moved)
@@ -1517,178 +1525,32 @@
       :interact (interact-mouse-released world event)
       world)))
 
-(do
-1
+(defn mouse-rotate [world event]
+  (let [[x y] (:last-point world)
+        dx (- (:x event) x)
+        dy (- (:y event) y)]
+    (-> world
+        (rotate-camera dx dy)
+        (assoc-in [:last-point] [(:x event) (:y event)]))))
 
-(defn set-chosen [world which]
-  (redraw
-   (reduce (fn [w name]
-             (assoc-in w [:buttons name :chosen] (= which name)))
-           world
-           (keys (:buttons world)))))
+(defn mouse-pan [world event]
+  (let [[x1 y1] (:last-point world)
+        x2 (:x event)
+        y2 (:y event)]
+    (-> world
+        (pan-camera x1 y1 x2 y2)
+        (assoc-in [:last-point] [x2 y2]))))
 
-(defn create-world! []
-  (set-thing! [] {})
-  (set-thing! [:programs :basic] (create-program "basic"))
-  (set-thing! [:programs :flat] (create-program "flat"))
-  (set-thing! [:programs :textured] (create-program "textured"))
-  (set-thing! [:programs :ortho] (create-program "ortho"))
-
-  (GL11/glEnable GL11/GL_SCISSOR_TEST)
-  (GL11/glClearColor 0 0.5 0.8 0)
-
-  (set-thing! [:projection-matrix] (get-perspective-matrix
-                                    10 (/ window-width window-height) 3 1000))
-
-  (update-thing! [] (slots create-camera _ [0 0 1] 50 25 -35))
-  ;; (update-thing! [] (slots create-axis-mesh _ 10 0.1))
-  (update-thing! [] #(create-grid-mesh % 12 1))
-  (set-thing! [:output] (create-ortho-mesh))
-  (clear-output!)
-
-  (set-thing! [:info :cube] {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                                      [1 1 1] :white)
-                             :points [[0.5 0 0] [-0.5 0 0]
-                                      [0 0.5 0] [0 -0.5 0]
-                                      [0 0 0.5] [0 0 -0.5]]
-                             :offset [0 0.5 0]
-                             })
-
-  (set-thing! [:info :axle] {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                                          [0.3 1 0.3] :white)
-                             :points [[0 0.5 0] [0 -0.5 0]]
-                             :offset [0 0.5 0]
-                             })
-
-  (set-thing! [:info :pulley] {:model (create-cone-mesh [0 0 0] [1 0 0 0]
-                                                        [0.3 0.3 0.3] :white)
-                               :points [[0 -0.5 0]]
-                               :offset [0 0 0]
-                               })
-
-  (set-thing! [:info :anchor] {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                                          [0.2 0.2 0.2] :white)
-                               :points [[0 -0.5 0]]
-                               :offset [0 0 0]
-                               })
-
-  (set-thing! [:info :cable] {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                                           [0.2 1 0.2] :white)
-                              :thickness 0.03})
-  
-  (set-thing! [:parts :c1] {:type :cube
-                            :position [0.5 0.5 0.5]
-                            :rotation [1 0 0 0]
-                            :color :red
-                            })
-
-  (set-thing! [:parts :c2] {:type :cube
-                            :position [-1.5 0.5 0.5]
-                            :rotation [1 0 0 0]
-                            :color :yellow
-                            })
-
-  (set-thing! [:parts :a1] {:type :axle
-                            :position [-1.5 0.5 1.5]
-                            :rotation [1 0 0 0]
-                            :color :green
-                            })
-
-  (set-thing! [:parts :p1] {:type :pulley
-                            :position [1.5 0 1.5]
-                            :rotation [1 0 0 0]
-                            :color :blue
-                            })
-
-  (set-thing! [:parts :p2] {:type :pulley
-                            :position [1.5 0 -1.5]
-                            :rotation [1 0 0 0]
-                            :color :blue
-                            })
-
-  (set-thing! [:parts :p3] {:type :pulley
-                            :position [3.5 0 -1.5]
-                            :rotation [1 0 0 0]
-                            :color :blue
-                            })
-
-  (set-thing! [:parts :e1] {:type :anchor
-                            :position [2.5 0 3.5]
-                            :rotation [1 0 0 0]
-                            :color :dark-gray
-                            })
-
-  (set-thing! [:parts :e2] {:type :anchor
-                            :position [2.5 0 -3.5]
-                            :rotation [1 0 0 0]
-                            :color :dark-gray
-                            })
-
-  (set-thing! [:parts :e3] {:type :anchor
-                            :position [-1 0 -3.5]
-                            :rotation [1 0 0 0]
-                            :color :dark-gray
-                            })
-
-  ;; (set-thing! [:cables :c1] {:points [:e1 :p2 [0 2 0]]
-  ;;                            :color :white})
-  (set-thing! [:mode] :move)
-
-  (set-thing! [:busy-pulleys] [])
-  (set-thing! [:buttons] {:move {:x 100
-                                 :y 25
-                                 :w 100
-                                 :h 50
-                                 :text "Move"
-                                 :chosen true
-                                 :fn (fn [w]
-                                       (-> w
-                                           (assoc-in [:mode] :move)
-                                           (set-chosen :move)))
-                                 }
-
-                          :cable {:x 200
-                                 :y 25
-                                 :w 100
-                                 :h 50
-                                 :text "Cable"
-                                 :chosen false
-                                 :fn (fn [w]
-                                       (-> w
-                                           (assoc-in [:mode] :cable)
-                                           (set-chosen :cable)))
-                                 }
-
-                          :interact {:x 300
-                                     :y 25
-                                     :w 100
-                                     :h 50
-                                     :text "Interact"
-                                     :chosen false
-                                     :fn (fn [w]
-                                           (-> w
-                                               (assoc-in [:mode] :interact)
-                                               (set-chosen :interact)))
-                                     }
-                          })
-                          
-  )
-(reset-world!)
-)
+;;-------------------------------------------------------------------------------;;
+;; drawing
 
 (defn draw-part! [world part]
-  (let [position (:position part)
-        rotation (:rotation part)
+  (let [body (:body part)
+        transform (get-body-transform body)
         mesh (-> (get-in world [:info (:type part) :model])
-                 (assoc-in [:transform] (make-transform position rotation))
+                 (assoc-in [:transform] transform)
                  (set-mesh-color (:color part)))]
     (draw-mesh! world mesh)))
-
-(defn point-mesh-towards [mesh direction]
-  (let [position (get-mesh-position mesh)
-        rotation (quaternion-from-normal direction)
-        transform (make-transform position rotation)]
-  (assoc-in mesh [:transform] transform)))
 
 (defn draw-segment! [world start end color]
   (let [v (vector-subtract end start)
@@ -1732,19 +1594,21 @@
     (draw-cable! world cable))
   )
 
-(defn draw-button! [button]
+(defn draw-button! [mode [name button]]
   (let [{:keys [x y w h text chosen]} button
         hw (/ w 2)]
-    (if chosen
+    (if (= name mode)
       (fill-rect! :orange x y w h)
-      (fill-rect! :gray x y w h))      
+      (fill-rect! :gray x y w h))
     (draw-rect! :black x y w h)
     (draw-text! :black text (- x hw -7) (+ y 5) 21)))
 
 (defn draw-2d! [world]
-  (doseq [button (vals (:buttons world))]
-    (draw-button! button))
-  )
+  (doseq [button (:buttons world)]
+    (draw-button! (:mode world) button)))
+
+;;-------------------------------------------------------------------------------;;
+;; snap specs
 
 (defn make-spec [position rotation point]
   (let [rotation-transform (make-transform [0 0 0] rotation)
@@ -1783,21 +1647,8 @@
                   (:parts world))))]
     (vec (concat grid-specs face-specs))))
 
-(defn mouse-rotate [world event]
-  (let [[x y] (:last-point world)
-        dx (- (:x event) x)
-        dy (- (:y event) y)]
-    (-> world
-        (rotate-camera dx dy)
-        (assoc-in [:last-point] [(:x event) (:y event)]))))
-
-(defn mouse-pan [world event]
-  (let [[x1 y1] (:last-point world)
-        x2 (:x event)
-        y2 (:y event)]
-    (-> world
-        (pan-camera x1 y1 x2 y2)
-        (assoc-in [:last-point] [x2 y2]))))
+;;-------------------------------------------------------------------------------;;
+;; move mode
 
 (defn mouse-place [world event]
   (let [moving-part (:moving-part world)
@@ -1850,6 +1701,9 @@
       (dissoc-in [:last-point])
       (dissoc-in [:moving-part])
       (dissoc-in [:snap-specs])))
+
+;;-------------------------------------------------------------------------------;;
+;; cable mode
 
 (defn cable-mouse-pressed [world event]
   (if-let [part-name (get-part-at world (:x event) (:y event))]
@@ -1934,6 +1788,130 @@
         (assoc-in [:busy-pulleys] (:saved-busy-pulleys world))
         (dissoc-in [:saved-busy-pulleys]))
     world))
+
+;;-------------------------------------------------------------------------------;;
+
+(defn create-buttons! []
+  (set-thing! [:buttons] {:move {:x 100
+                                 :y 25
+                                 :w 100
+                                 :h 50
+                                 :text "Move"
+                                 :fn (fn [w]
+                                       (-> w
+                                           (assoc-in [:mode] :move)
+                                           (redraw)))
+                                 }
+
+                          :cable {:x 200
+                                  :y 25
+                                  :w 100
+                                  :h 50
+                                  :text "Cable"
+                                  :fn (fn [w]
+                                        (-> w
+                                            (assoc-in [:mode] :cable)
+                                            (redraw)))
+                                  }
+
+                          :interact {:x 300
+                                     :y 25
+                                     :w 100
+                                     :h 50
+                                     :text "Interact"
+                                     :fn (fn [w]
+                                           (-> w
+                                               (assoc-in [:mode] :interact)
+                                               (redraw)))
+                                     }
+                          }))
+
+(defn create-infos! []
+  (set-thing! [:info :cube] {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                                      [1 1 1] :white)
+                             :points [[0.5 0 0] [-0.5 0 0]
+                                      [0 0.5 0] [0 -0.5 0]
+                                      [0 0 0.5] [0 0 -0.5]]
+                             :offset [0 0.5 0]
+                             })
+
+  (set-thing! [:info :axle] {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                                          [0.3 1 0.3] :white)
+                             :points [[0 0.5 0] [0 -0.5 0]]
+                             :offset [0 0.5 0]
+                             })
+
+  (set-thing! [:info :pulley] {:model (create-cone-mesh [0 0 0] [1 0 0 0]
+                                                        [0.3 0.3 0.3] :white)
+                               :points [[0 -0.5 0]]
+                               :offset [0 0 0]
+                               })
+
+  (set-thing! [:info :anchor] {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                                        [0.2 0.2 0.2] :white)
+                               :points [[0 -0.5 0]]
+                               :offset [0 0 0]
+                               })
+
+  (set-thing! [:info :cable] {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                                           [0.2 1 0.2] :white)
+                              :thickness 0.03}
+              ))
+
+(do
+1
+
+(defn create-world! []
+  (set-thing! [] {})
+  (set-thing! [:programs :basic] (create-program "basic"))
+  (set-thing! [:programs :flat] (create-program "flat"))
+  (set-thing! [:programs :textured] (create-program "textured"))
+  (set-thing! [:programs :ortho] (create-program "ortho"))
+
+  (GL11/glEnable GL11/GL_SCISSOR_TEST)
+  (GL11/glClearColor 0 0.5 0.8 0)
+
+  (set-thing! [:projection-matrix] (get-perspective-matrix
+                                    10 (/ window-width window-height) 3 1000))
+
+  (update-thing! [] (slots create-camera _ [0 0 1] 50 25 -35))
+  ;; (update-thing! [] (slots create-axis-mesh _ 10 0.1))
+  (update-thing! [] #(create-grid-mesh % 12 1))
+  (set-thing! [:output] (create-ortho-mesh))
+  (clear-output!)
+
+  ;;-------------------------------------------------;;
+  (create-planet!)
+  (create-ground!)
+  (set-thing! [:mode] :interact)
+  (set-thing! [:busy-pulleys] [])
+  (create-infos!)
+  (create-buttons!)
+                          
+  (set-thing! [:parts :c1] {:type :cube
+                            :color :red
+                            :body (create-cube-body
+                                   [1 1 1] 1
+                                   (make-transform [0 5 0] [1 0 0 0])
+                                   1 1)
+                            })
+
+  (set-thing! [:parts :c2] {:type :cube
+                            :color :yellow
+                            :body (create-cube-body
+                                   [1 1 1] 1
+                                   (make-transform [0.5 7 0] [1 0 0 0])
+                                   1 1)
+                            })
+  )
+
+(reset-world!)
+)
+
+(defn update-world [world elapsed]
+  (when (= (:mode world) :interact)
+    (step-simulation! elapsed))
+  world)
 
 (defn interact-mouse-pressed [world event]
   (println! "interact pressed")

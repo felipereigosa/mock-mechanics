@@ -1,55 +1,71 @@
-;; ;;------------------------------------------------------------------------------------------;;
-;; ;; physics
+(ns temp.core)
 
-;; (def planet (atom nil))
+(import [com.bulletphysics.collision.dispatch DefaultCollisionConfiguration
+         CollisionDispatcher])
+(import com.bulletphysics.collision.broadphase.AxisSweep3)
+(import [com.bulletphysics.collision.shapes CollisionShape
+         StaticPlaneShape BoxShape
+         SphereShape CylinderShape])
+(import [com.bulletphysics.linearmath Transform DefaultMotionState])
 
-;; (defn create-planet! []
-;;   (let [collision-configuration (new DefaultCollisionConfiguration)
-;;         dispatcher (new CollisionDispatcher collision-configuration)
-;;         gravity (new Vector3f 0 -4.0 0)
-;;         world-aabb-min (new Vector3f -10000 -10000 -10000)
-;;         world-aabb-max (new Vector3f 10000 10000 10000)
-;;         overlapping-pair-cache (new AxisSweep3 world-aabb-min world-aabb-max)
-;;         solver (new SequentialImpulseConstraintSolver)
-;;         my-planet (new DiscreteDynamicsWorld dispatcher overlapping-pair-cache
-;;                        solver collision-configuration)]
-;;     (.setGravity my-planet gravity)
-;;     (set! (.-allowedCcdPenetration (.getDispatchInfo my-planet)) 0)
-;;     (reset! planet my-planet)))
+(import [com.bulletphysics.dynamics
+         constraintsolver.SequentialImpulseConstraintSolver
+         DiscreteDynamicsWorld RigidBodyConstructionInfo RigidBody])
+(import com.bulletphysics.dynamics.constraintsolver.Point2PointConstraint)
+(import com.bulletphysics.dynamics.constraintsolver.HingeConstraint)
+(import com.bulletphysics.dynamics.constraintsolver.SliderConstraint)
+(import com.bulletphysics.dynamics.constraintsolver.Generic6DofConstraint)
 
-;; (defn create-static-plane [[nx ny nz] d]
-;;   (let [shape (new StaticPlaneShape (new Vector3f nx ny nz) d)
-;;         transform (let [t (new Transform)]
-;;                            (.setIdentity t)
-;;                            t)
-;;         motion-state (new DefaultMotionState transform)
-;;         construction-info (new RigidBodyConstructionInfo 0 motion-state
-;;                                       shape (new Vector3f 0 0 0))
-;;         rigid-body (new RigidBody construction-info)]
-;;     (.addRigidBody @planet rigid-body 1 0xffffffff)))
+(def planet (atom nil))
 
-;; (defn create-ground! []
-;;   (create-static-plane [0 1 0] 0)
-;;   (create-static-plane [0 0 1] -30)
-;;   (create-static-plane [0 0 -1] -30)
-;;   (create-static-plane [1 0 0] -30)
-;;   (create-static-plane [-1 0 0] -30))
+(defn create-planet! []
+  (let [collision-configuration (new DefaultCollisionConfiguration)
+        dispatcher (new CollisionDispatcher collision-configuration)
+        gravity (new Vector3f 0 -1 0)
+        world-aabb-min (new Vector3f -10000 -10000 -10000)
+        world-aabb-max (new Vector3f 10000 10000 10000)
+        overlapping-pair-cache (new AxisSweep3 world-aabb-min world-aabb-max)
+        solver (new SequentialImpulseConstraintSolver)
+        my-planet (new DiscreteDynamicsWorld dispatcher overlapping-pair-cache
+                       solver collision-configuration)]
+    (.setGravity my-planet gravity)
+    (set! (.-allowedCcdPenetration (.getDispatchInfo my-planet)) 0)
+    (reset! planet my-planet)))
 
-;; (defn create-body [shape mass transform group collides]
-;;   (let [motion-state (new DefaultMotionState transform)
-;;         local-inertia (let [vec (new Vector3f)]
-;;                         (.calculateLocalInertia shape mass vec)
-;;                         vec)
-;;         construction-info (new RigidBodyConstructionInfo mass motion-state
-;;                                shape local-inertia)
-;;         rigid-body (new RigidBody construction-info)]
-;;     (.forceActivationState rigid-body RigidBody/DISABLE_DEACTIVATION)
-;;     (.addRigidBody @planet rigid-body group collides)
-;;     rigid-body))
+  
+(defn create-static-plane [[nx ny nz] d]
+  (let [shape (new StaticPlaneShape (new Vector3f nx ny nz) d)
+        transform (let [t (new Transform)]
+                           (.setIdentity t)
+                           t)
+        motion-state (new DefaultMotionState transform)
+        construction-info (new RigidBodyConstructionInfo 0 motion-state
+                                      shape (new Vector3f 0 0 0))
+        rigid-body (new RigidBody construction-info)]
+    (.addRigidBody @planet rigid-body 1 0xffffffff)))
 
-;; (defn create-cube-body [[w h d] mass transform group collides]
-;;   (let [shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))]
-;;     (create-body shape mass transform group collides)))
+(defn create-ground! []
+  (create-static-plane [0 1 0] 0)
+  (create-static-plane [0 0 1] -30)
+  (create-static-plane [0 0 -1] -30)
+  (create-static-plane [1 0 0] -30)
+  (create-static-plane [-1 0 0] -30))
+
+(defn create-body [shape mass transform group collides]
+  (let [motion-state (new DefaultMotionState transform)
+        local-inertia (let [vec (new Vector3f)]
+                        (.calculateLocalInertia shape mass vec)
+                        vec)
+        construction-info (new RigidBodyConstructionInfo mass motion-state
+                               shape local-inertia)
+        rigid-body (new RigidBody construction-info)]
+    (.forceActivationState rigid-body RigidBody/DISABLE_DEACTIVATION)
+    (.addRigidBody @planet rigid-body group collides)
+    rigid-body))
+
+(defn create-cube-body [[w h d] mass transform group collides]
+  (let [shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))]
+    (create-body shape mass transform group collides)))
 
 ;; (defn create-cube-object [mass position rotation scale skin group collides]
 ;;   {:mesh (create-cube-mesh [0 0 0] [0 1 0 0] scale skin)
@@ -73,19 +89,12 @@
 ;;                              mass (make-transform position rotation)
 ;;                              group collides)})
 
-;; (defn step-simulation! [elapsed]
-;;   (.stepSimulation @planet elapsed 7 (/ 1 60.0)))
+(defn get-body-transform [body]
+  (let [transform (new Transform)]
+    (.getWorldTransform (.getMotionState body) transform)))
 
-;; (defn get-body-transform [body]
-;;   (let [transform (new Transform)]
-;;     (.getWorldTransform (.getMotionState body) transform)))
-
-;; (defn draw-object! [world object]
-;;   (let [mesh (:mesh object)
-;;         body (:body object)
-;;         transform (get-body-transform body)
-;;         draw-fn (:draw-fn mesh)]
-;;     (draw-fn world mesh transform)))
+(defn step-simulation! [elapsed]
+  (.stepSimulation @planet elapsed 7 (/ 1 60.0)))
 
 ;; (defn apply-torque [object torque]
 ;;   (let [body (:body object)]

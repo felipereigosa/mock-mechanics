@@ -1,24 +1,24 @@
 
-X snap cable to pulley and create second segment
-X update busy pulleys
-X snap cable to anchor and finish cable
-X create get-close-part
-X reimplement get-close-pulley
-X delete cable if not found an anchor
-X create redraw flag
-X create mode buttons (move, interact, wire)
-X create interaction mode
-X change wire to cable
+X break up subsystems
+X create falling red cube
+X reboot physics
+X create ground
+X create separate physics file
+X pause physics if not in interact mode
 
-create falling red cube
-create ground
-reboot physics
-create point and hinge constraints
+reboot snapping
+reboot cable creation
+
+create part creation functions
 reboot mouse force
-store cable length after finished
-enforce cable constraints
+create/delete point and hinge constraints
 
 ---------------------------------------------------- later
+store cable length after finished
+enforce cable constraints
+create part menu
+show that part is selected
+create part properties pane (color, dimensions)
 create sliding part (snap to cable, can be snapped to)
 create winding part (snap to cable and change cable size when rotated)
 recompute cable lenght after moving its parts
@@ -75,3 +75,13 @@ X draw line between two points (thin cylinder)
 X create modes
 X create multi-step cable
 X create cable between anchor and mouse
+X snap cable to pulley and create second segment
+X update busy pulleys
+X snap cable to anchor and finish cable
+X create get-close-part
+X reimplement get-close-pulley
+X delete cable if not found an anchor
+X create redraw flag
+X create mode buttons (move, interact, wire)
+X create interaction mode
+X change wire to cable
