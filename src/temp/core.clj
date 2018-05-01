@@ -1337,6 +1337,11 @@
         p3 (vector-add point y-axis)]
     [p1 p2 p3]))
 
+(defn zoom-camera [world amount]
+  (-> world
+      (update-in [:camera :distance] #(* % amount))
+      (compute-camera)))
+
 ;;-------------------------------------------------------------------------------;;
 
 (def redraw-flag (atom true))
@@ -1347,7 +1352,7 @@
   (try
     (draw-3d! world)
     (catch Exception e))
-  
+
   (when @redraw-flag
     (clear-top!)
     (try
@@ -1462,11 +1467,10 @@
 (defn get-part-at [world px py]
   (let [line (unproject-point world [px py])
         distances (map (fn [[name part]]
-                         (let [{:keys [position type]} part
+                         (let [type (:type part)
                                mesh (get-in world [:info type :model])
-                               mesh (set-mesh-position mesh position)
-                               [_ d _] (get-mesh-collision
-                                        mesh (:transform mesh) line)]
+                               transform (get-body-transform (:body part))
+                               [_ d _] (get-mesh-collision mesh transform line)]
                            (if (nil? d)
                              nil
                              [name d])))
@@ -1541,12 +1545,18 @@
         (pan-camera x1 y1 x2 y2)
         (assoc-in [:last-point] [x2 y2]))))
 
+(defn mouse-scrolled [world event]
+  (let [amount (+ 1 (* (:y event) -0.05))]
+    (zoom-camera world amount)))
+
 ;;-------------------------------------------------------------------------------;;
 ;; drawing
 
 (defn draw-part! [world part]
   (let [body (:body part)
-        transform (get-body-transform body)
+        transform (if (nil? body)
+                    (make-transform (:position part) (:rotation part))
+                    (get-body-transform body))
         mesh (-> (get-in world [:info (:type part) :model])
                  (assoc-in [:transform] transform)
                  (set-mesh-color (:color part)))]
@@ -1567,11 +1577,16 @@
                      (assoc-in [:scale] scale))]
         (draw-mesh! world mesh)))))
 
+(defn get-part-position [part]
+  (if-let [body (:body part)]
+    (get-transform-position (get-body-transform body))
+    (:position part)))
+
 (defn draw-cable! [world cable]
   (let [points (map (fn [p]
                       (if (keyword? p)
                         (let [part (get-in world [:parts p])]
-                          (:position part))
+                          (get-part-position part))
                         p))
                     (:points cable))]
     (dotimes [i (dec (count points))]
@@ -1613,24 +1628,24 @@
 (defn make-spec [position rotation point]
   (let [rotation-transform (make-transform [0 0 0] rotation)
         transform (make-transform position rotation)
-        n (->> point
-               (apply-transform rotation-transform)
-               (vector-normalize)
-               ((partial map round))
-               (vec))                
         p (apply-transform transform point)
-        normal-table {[ 1  0  0] [0 0 1 -90] ;;############# inclined normals?
+        normal-table {[ 1  0  0] [0 0 1 -90]
                       [-1  0  0] [0 0 1 90]
                       [ 0  1  0] [1 0 0 0]
                       [ 0 -1  0] [1 0 0 180]
                       [ 0  0  1] [1 0 0 90]
-                      [ 0  0 -1] [1 0 0 -90]}]
-    [p (get normal-table n)]))
+                      [ 0  0 -1] [1 0 0 -90]}
+        extra-rotation (get normal-table (map round (vector-normalize point)))
+        final-rotation (get-transform-rotation
+                        (combine-transforms
+                         (make-transform [0 0 0] extra-rotation)
+                         (make-transform [0 0 0] rotation)))]
+    [p final-rotation]))
 
 (defn get-snap-specs [world]
   (let [grid-specs (vec (map (fn [[a b]]
-                               [[(- a 5.5) 0 (- b 5.5)] [1 0 0 0]])
-                             (create-combinations (range 12) (range 12))))
+                                [[(- a 5.5) 0 (- b 5.5)] [1 0 0 0]])
+                              (create-combinations (range 12) (range 12))))
         moving-part (:moving-part world)
         face-specs
         (vec
@@ -1638,17 +1653,91 @@
           (mapcat (fn [[name part]]
                     (if (= name moving-part)
                       nil
-                      (let [position (:position part)
-                            rotation (:rotation part)
+                      (let [part (get-in world [:parts name])
+                            transform (get-body-transform (:body part))
+                            position (get-transform-position transform)
+                            rotation (get-transform-rotation transform)
                             points (get-in world [:info (:type part) :points])]
                         (map (fn [p]
                                (make-spec position rotation p))
                              points))))
-                  (:parts world))))]
+                        (:parts world))))]
     (vec (concat grid-specs face-specs))))
 
 ;;-------------------------------------------------------------------------------;;
+;; part creation
+
+(defn create-info []
+  {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                    [1 1 1] :white)
+           :points [[0.5 0 0] [-0.5 0 0]
+                    [0 0.5 0] [0 -0.5 0]
+                    [0 0 0.5] [0 0 -0.5]]
+           :scale [1 1 1]
+           }
+
+   :axle {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                       [0.2 1 0.2] :white)
+          :points [[0 0.5 0] [0 -0.5 0]]
+          :scale [0.2 1 0.2]
+          }
+
+   :pulley {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                     [0.3 0.3 0.3] :white)
+            :points [[0 -0.15 0]]
+            :scale [0.3 0.3 0.3]
+            }
+
+   :anchor {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                     [0.2 0.2 0.2] :white)
+            :points [[0 -0.1 0]]
+            :scale [0.2 0.2 0.2]
+            }
+
+   :cable {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                        [0.2 1 0.2] :white)
+           :thickness 0.03}
+   })
+
+(reset-world!)
+
+(defn create-part-body [world part-name]
+  (let [part (get-in world [:parts part-name])
+        scale (get-in world [:info (:type part) :scale])
+        body (create-cube-body scale (:position part) (:rotation part))]
+    (assoc-in world [:parts part-name :body] body)))
+
+(defn remove-part-body [world part-name]
+  (let [body (get-in world [:parts part-name :body])]
+    (.removeRigidBody @planet body)
+    (dissoc-in world [:parts part-name :body])))
+
+(defn create-part [info type color position rotation]
+  (let [i (get info type)
+        scale (:scale i)]
+    {:type type
+     :color color
+     :body (create-cube-body scale position rotation)}))
+
+;;-------------------------------------------------------------------------------;;
 ;; move mode
+
+(defn move-mouse-pressed [world event]
+  (if-let [moving-part (get-part-at world (:x event) (:y event))]
+    (let [part (get-in world [:parts moving-part])
+          transform (get-body-transform (:body part))
+          rotation (get-transform-rotation transform)
+          position (get-transform-position transform)]
+      (-> world
+          (assoc-in [:moving-part] moving-part)
+          (assoc-in [:start-rotation] rotation)
+          (assoc-in [:parts moving-part :position] position)
+          (assoc-in [:parts moving-part :rotation] rotation)
+          (remove-part-body moving-part)
+          ((fn [w]
+             (assoc-in w [:snap-specs] (get-snap-specs w))))
+          (assoc-in [:plane] (get-camera-plane world position))))
+    (assoc-in world [:last-point] [(:x event) (:y event)])))
 
 (defn mouse-place [world event]
   (let [moving-part (:moving-part world)
@@ -1666,23 +1755,13 @@
         [final-point final-rotation] (or snap-spec default-spec)
         rotation-transform (make-transform [0 0 0] final-rotation)
         part (get-in world [:parts moving-part])
-        offset (->> (get-in world [:info (:type part) :offset])
-                    (apply-transform rotation-transform))
+        [_ sy _] (get-in world [:info (:type part) :scale])
+        offset [0 (* sy 0.5) 0]
+        offset (apply-transform rotation-transform offset)
         final-point (vector-add final-point offset)]
     (-> world
         (assoc-in [:parts moving-part :position] final-point)
         (assoc-in [:parts moving-part :rotation] final-rotation))))
-
-(defn move-mouse-pressed [world event]
-  (if-let [moving-part (get-part-at world (:x event) (:y event))]
-    (let [part (get-in world [:parts moving-part])]
-      (-> world
-          (assoc-in [:moving-part] moving-part)
-          (assoc-in [:start-rotation] (:rotation part))
-          ((fn [w]
-             (assoc-in w [:snap-specs] (get-snap-specs w))))
-          (assoc-in [:plane] (get-camera-plane world (:position part)))))
-    (assoc-in world [:last-point] [(:x event) (:y event)])))
 
 (defn move-mouse-moved [world event]
   (cond
@@ -1693,32 +1772,19 @@
       (= (:button event) :left) (mouse-rotate world event)
       (= (:button event) :right) (mouse-pan world event)
       :else world)
-    
+
     :else world))
 
 (defn move-mouse-released [world event]
-  (-> world
-      (dissoc-in [:last-point])
-      (dissoc-in [:moving-part])
-      (dissoc-in [:snap-specs])))
+  (if-let [moving-part (:moving-part world)]
+    (-> world
+        (create-part-body moving-part)
+        (dissoc-in [:moving-part])
+        (dissoc-in [:snap-specs]))
+    (dissoc-in world [:last-point])))
 
 ;;-------------------------------------------------------------------------------;;
 ;; cable mode
-
-(defn cable-mouse-pressed [world event]
-  (if-let [part-name (get-part-at world (:x event) (:y event))]
-    (let [part (get-in world [:parts part-name])]
-      (if (= (:type part) :anchor)
-        (let [cable-name (gen-keyword :cable)
-              points [part-name (:position part)]]
-          (-> world
-              (assoc-in [:saved-busy-pulleys] (:busy-pulleys world))
-              (assoc-in [:current-cable] cable-name)
-              (assoc-in [:cables cable-name] {:points points
-                                              :color :white})
-              (assoc-in [:plane] (get-camera-plane world (:position part)))))
-        world))
-    world))
 
 (defn get-parts-with-type [parts type]
   (filter (fn [part]
@@ -1729,7 +1795,7 @@
   (let [colinear-parts (remove-nil
                           (map (fn [part-name]
                                  (let [part (get-in world [:parts part-name])
-                                       position (:position part)
+                                       position (get-part-position part)
                                        d (point-line-distance position line)]
                                    (if (< d 0.2)
                                      part-name
@@ -1738,7 +1804,7 @@
         eye (get-in world [:camera :eye])]
     (sort-by (fn [part-name]
                (let [part (get-in world [:parts part-name])
-                     position (:position part)]
+                     position (get-part-position part)]
                  (distance position eye)))
              colinear-parts)))
 
@@ -1757,6 +1823,22 @@
         close-parts (get-close-parts world line)]
     (find-if #(in? % anchors) close-parts)))
 
+(defn cable-mouse-pressed [world event]
+  (if-let [part-name (get-part-at world (:x event) (:y event))]
+    (let [part (get-in world [:parts part-name])]
+      (if (= (:type part) :anchor)
+        (let [cable-name (gen-keyword :cable)
+              part-position (get-part-position part)
+              points [part-name part-position]]
+          (-> world
+              (assoc-in [:saved-busy-pulleys] (:busy-pulleys world))
+              (assoc-in [:current-cable] cable-name)
+              (assoc-in [:cables cable-name] {:points points
+                                              :color :white})
+              (assoc-in [:plane] (get-camera-plane world part-position))))
+        world))
+    world))
+
 (defn cable-mouse-moved [world event]
   (if-let [current-cable (:current-cable world)]
     (let [plane (:plane world)
@@ -1765,7 +1847,7 @@
           point (line-plane-intersection line plane)]
       (if-let [close-pulley-name (get-close-pulley world line)]
         (let [close-pulley (get-in world [:parts close-pulley-name])
-              pulley-position (:position close-pulley)]
+              pulley-position (get-part-position close-pulley)]
           (-> world
               (assoc-in [:cables current-cable :points (dec n)] close-pulley-name)
               (update-in [:cables current-cable :points] #(conj % point))
@@ -1823,41 +1905,7 @@
                                            (-> w
                                                (assoc-in [:mode] :interact)
                                                (redraw)))
-                                     }
-                          }))
-
-(defn create-infos! []
-  (set-thing! [:info :cube] {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                                      [1 1 1] :white)
-                             :points [[0.5 0 0] [-0.5 0 0]
-                                      [0 0.5 0] [0 -0.5 0]
-                                      [0 0 0.5] [0 0 -0.5]]
-                             :offset [0 0.5 0]
-                             })
-
-  (set-thing! [:info :axle] {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                                          [0.3 1 0.3] :white)
-                             :points [[0 0.5 0] [0 -0.5 0]]
-                             :offset [0 0.5 0]
-                             })
-
-  (set-thing! [:info :pulley] {:model (create-cone-mesh [0 0 0] [1 0 0 0]
-                                                        [0.3 0.3 0.3] :white)
-                               :points [[0 -0.5 0]]
-                               :offset [0 0 0]
-                               })
-
-  (set-thing! [:info :anchor] {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                                        [0.2 0.2 0.2] :white)
-                               :points [[0 -0.5 0]]
-                               :offset [0 0 0]
-                               })
-
-  (set-thing! [:info :cable] {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                                           [0.2 1 0.2] :white)
-                              :thickness 0.03}
-              ))
-
+                                     }}))
 (do
 1
 
@@ -1883,27 +1931,38 @@
   ;;-------------------------------------------------;;
   (create-planet!)
   (create-ground!)
-  (set-thing! [:mode] :interact)
+  (set-thing! [:mode] :move)
   (set-thing! [:busy-pulleys] [])
-  (create-infos!)
   (create-buttons!)
-                          
-  (set-thing! [:parts :c1] {:type :cube
-                            :color :red
-                            :body (create-cube-body
-                                   [1 1 1] 1
-                                   (make-transform [0 5 0] [1 0 0 0])
-                                   1 1)
-                            })
 
-  (set-thing! [:parts :c2] {:type :cube
-                            :color :yellow
-                            :body (create-cube-body
-                                   [1 1 1] 1
-                                   (make-transform [0.5 7 0] [1 0 0 0])
-                                   1 1)
-                            })
-  )
+  (let [info (create-info)]
+    (set-thing! [:info] info)
+  
+    (set-thing! [:parts :c1] (create-part info :block :red
+                                          [0 0.5 0] [1 0 0 0]))
+    
+    (set-thing! [:parts :c2] (create-part info :block :yellow
+                                          [2 2.5 0] [1 0 -1 20]))
+
+    (set-thing! [:parts :c3] (create-part info :block :purple
+                                          [0 0.5 3] [0 1 0 30]))
+
+    (set-thing! [:parts :p1] (create-part info :pulley :blue
+                                          [2 0 0] [1 0 0 0]))
+
+    (set-thing! [:parts :p2] (create-part info :pulley :blue
+                                          [2 0 2] [1 0 0 0]))
+
+    (set-thing! [:parts :e1] (create-part info :anchor :dark-gray
+                                          [3 0 0] [1 0 0 0]))
+
+    (set-thing! [:parts :e2] (create-part info :anchor :dark-gray
+                                          [4 0 3] [1 0 0 0]))
+
+    (set-thing! [:parts :a1] (create-part info :axle :green
+                                          [-2 0 0] [1 0 0 0]))
+
+  ))
 
 (reset-world!)
 )

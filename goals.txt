@@ -1,17 +1,11 @@
 
-X break up subsystems
-X create falling red cube
-X reboot physics
-X create ground
-X create separate physics file
-X pause physics if not in interact mode
+X join pulley and anchor
+X create correct part models
+X reboot cable creation
 
-reboot snapping
-reboot cable creation
-
-create part creation functions
 reboot mouse force
 create/delete point and hinge constraints
+make sure mouse force attaches at surface
 
 ---------------------------------------------------- later
 store cable length after finished
@@ -30,6 +24,10 @@ create motor part
 create button part
 create spring part
 create video feature
+"think mechanically"
+control motor with square wave
+challenges
+small cube edges inside larger cube
 
 don't allow double cable between anchors
 parameterize snap point distance (placement and cable)
@@ -85,3 +83,23 @@ X create redraw flag
 X create mode buttons (move, interact, wire)
 X create interaction mode
 X change wire to cable
+X break up subsystems
+X create falling red cube
+X reboot physics
+X create ground
+X create separate physics file
+X pause physics if not in interact mode
+X change cube to block
+X re-add body manually
+X use position/rotation or body
+X remove body and set position/rotation
+X set position/rotation on mouse-press
+X remove body on mouse-press
+X change position/rotation on mouse-place
+X add body on mouse-release
+X use create-part-body on constructor
+X only snap to grid
+X snap to rotated faces
+X reboot snapping
+X create other parts bodies
+X make sure parts don't jump (offsets)

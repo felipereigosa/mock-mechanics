@@ -31,7 +31,6 @@
     (.setGravity my-planet gravity)
     (set! (.-allowedCcdPenetration (.getDispatchInfo my-planet)) 0)
     (reset! planet my-planet)))
-
   
 (defn create-static-plane [[nx ny nz] d]
   (let [shape (new StaticPlaneShape (new Vector3f nx ny nz) d)
@@ -63,9 +62,14 @@
     (.addRigidBody @planet rigid-body group collides)
     rigid-body))
 
-(defn create-cube-body [[w h d] mass transform group collides]
-  (let [shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))]
-    (create-body shape mass transform group collides)))
+(declare make-transform)
+
+(defn create-cube-body
+  ([[w h d] mass transform group collides]
+   (let [shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))]
+     (create-body shape mass transform group collides)))
+  ([scale position rotation]
+   (create-cube-body scale 1 (make-transform position rotation) 1 1)))
 
 ;; (defn create-cube-object [mass position rotation scale skin group collides]
 ;;   {:mesh (create-cube-mesh [0 0 0] [0 1 0 0] scale skin)
@@ -273,3 +277,12 @@
 ;;   (if (get-in world [:force :active])
 ;;     (assoc-in world [:force :screen-end] [(:x event) (:y event)])
 ;;     world))
+
+;; (defn set-body-transform [body transform]
+;;   (.clearForces body)
+;;   (.setLinearVelocity body (new Vector3f 0 0 0))
+;;   (.setAngularVelocity body (new Vector3f 0 0 0))
+;;   (.setCenterOfMassTransform body transform)
+;;   (.stepSimulation @planet 1 7 (/ 1 60.0)) ;;######### update without stepping
+;;   body)
+
