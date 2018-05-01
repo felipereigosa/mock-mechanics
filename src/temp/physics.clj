@@ -105,13 +105,12 @@
 ;;     (.applyTorque body (make-vector3f torque))
 ;;     object))
 
-;; (defn apply-force [object force point]
-;;   (let [body (:body object)
-;;         transform (get-body-transform body)
-;;         body-position (get-transform-position transform)
-;;         point (vector-subtract point body-position)]
-;;     (.applyForce body (make-vector3f force) (make-vector3f point))
-;;     object))
+(defn apply-force [body force point]
+  (let [transform (get-body-transform body)
+        body-position (get-transform-position transform)
+        point (vector-subtract point body-position)]
+    (.applyForce body (make-vector3f force) (make-vector3f point))
+    body))
 
 ;; (defn get-angular-velocity [object]
 ;;   (let [body (:body object)
@@ -181,7 +180,7 @@
 ;;     (.addConstraint @planet constraint)
 ;;     constraint))
 
-;; ;;------------------------------------------------------------------------------------------;;
+;; ;;-----------------------------------------------------------------------------------;;
 ;; ;; mouse force
 
 ;; (defn local-to-world-coordinates [transform [x y z]]

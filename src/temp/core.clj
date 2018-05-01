@@ -1464,18 +1464,23 @@
        (in? name names) name
        :else nil))))
 
-(defn get-part-at [world px py]
+(defn get-part-collision [world px py]
   (let [line (unproject-point world [px py])
         distances (map (fn [[name part]]
                          (let [type (:type part)
                                mesh (get-in world [:info type :model])
                                transform (get-body-transform (:body part))
-                               [_ d _] (get-mesh-collision mesh transform line)]
+                               [_ d p] (get-mesh-collision mesh transform line)]
                            (if (nil? d)
-                             nil
-                             [name d])))
+                             nil                             
+                             {:part-name name
+                              :distance d
+                              :point p})))
                        (:parts world))]
-    (first (first (sort-by second (remove-nil distances))))))
+    (first (sort-by :distance (remove-nil distances)))))
+
+(defn get-part-at [world px py]
+  (:part-name (get-part-collision world px py)))
 
 ;;-------------------------------------------------------------------------------;;
 ;; input sorting
@@ -1699,8 +1704,6 @@
            :thickness 0.03}
    })
 
-(reset-world!)
-
 (defn create-part-body [world part-name]
   (let [part (get-in world [:parts part-name])
         scale (get-in world [:info (:type part) :scale])
@@ -1872,6 +1875,89 @@
     world))
 
 ;;-------------------------------------------------------------------------------;;
+;; interact mode
+
+(defn local-to-world-coordinates [transform [x y z]]
+  (let [vector (into-array Float/TYPE [x y z 1.0])
+        matrix (get-transform-matrix transform)
+        [x y z _] (into [] (multiply-matrix-vector matrix vector))]
+    [x y z]))
+
+(defn world-to-local-coordinates [transform [x y z]]
+  (let [vector (into-array Float/TYPE [x y z 1.0])
+        matrix (get-inverse-matrix (get-transform-matrix transform))
+        [x y z _] (into [] (multiply-matrix-vector matrix vector))]
+    [x y z]))
+
+(defn get-force-start-point [world]
+  (let [local-point (get-in world [:force :local-start])
+        part-name (get-in world [:force :part-name])
+        body (get-in world [:parts part-name :body])
+        transform (get-body-transform body)]
+    (local-to-world-coordinates transform local-point)))
+
+(defn get-force-end-point [world]
+  (let [force (:force world)
+        screen-point (:screen-end force)
+        line (unproject-point world screen-point)]
+    (line-plane-intersection line (:plane force))))
+
+(defn set-force-plane [world]
+  (let [start-point (get-force-start-point world)
+        plane (get-camera-plane world start-point)]  
+    (assoc-in world [:force :plane] plane)))
+
+(defn mouse-force-pressed [world event]
+  (if-let [{:keys [part-name point]} (get-part-collision
+                                      world (:x event) (:y event))]
+      (let [body (get-in world [:parts part-name :body])
+            transform (get-body-transform body)]
+        (-> world
+            (assoc-in [:force :local-start]
+                      (world-to-local-coordinates transform point))
+            (assoc-in [:force :part-name] part-name)
+            (assoc-in [:force :active] true)
+            (assoc-in [:force :screen-end] [(:x event) (:y event)])
+            (set-force-plane)))
+    world))
+
+(defn mouse-force-moved [world event]
+  (if (get-in world [:force :active])
+    (assoc-in world [:force :screen-end] [(:x event) (:y event)])
+    world))
+
+(defn mouse-force-released [world event]
+  (-> world
+      (assoc-in [:force :active] false)
+      (assoc-in [:force :screen-end] nil)))
+
+(defn make-vector3f [[x y z]]
+  (new Vector3f x y z))
+
+(defn mouse-force-update [world elapsed]
+  (let [force (:force world)]
+    (if (:active force)
+      (let [part-name (:part-name force)
+            body (get-in world [:parts part-name :body])
+            transform (get-body-transform body)
+            start (get-force-start-point world)
+            end (get-force-end-point world)
+            force (vector-multiply (vector-subtract end start) 0.7)
+            rel-pos (vector-subtract start (get-transform-position transform))]
+        (.applyForce body (make-vector3f force) (make-vector3f rel-pos))
+        world)
+      world)))
+
+(defn interact-mouse-pressed [world event]
+  (mouse-force-pressed world event))
+
+(defn interact-mouse-moved [world event]
+  (mouse-force-moved world event))
+
+(defn interact-mouse-released [world event]
+  (mouse-force-released world event))
+
+;;-------------------------------------------------------------------------------;;
 
 (defn create-buttons! []
   (set-thing! [:buttons] {:move {:x 100
@@ -1939,7 +2025,7 @@
     (set-thing! [:info] info)
   
     (set-thing! [:parts :c1] (create-part info :block :red
-                                          [0 0.5 0] [1 0 0 0]))
+                                          [0 0.5 0] [0 1 0 90]))
     
     (set-thing! [:parts :c2] (create-part info :block :yellow
                                           [2 2.5 0] [1 0 -1 20]))
@@ -1968,18 +2054,8 @@
 )
 
 (defn update-world [world elapsed]
-  (when (= (:mode world) :interact)
-    (step-simulation! elapsed))
-  world)
-
-(defn interact-mouse-pressed [world event]
-  (println! "interact pressed")
-  world)
-
-(defn interact-mouse-moved [world event]
-  (println! "interact moved")
-  world)
-
-(defn interact-mouse-released [world event]
-  (println! "interact released")
-  world)
+  (if (= (:mode world) :interact)
+    (do
+      (step-simulation! elapsed)
+      (mouse-force-update world elapsed))
+    world))
