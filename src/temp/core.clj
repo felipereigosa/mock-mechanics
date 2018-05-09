@@ -1648,9 +1648,9 @@
     [p final-rotation]))
 
 (defn get-snap-specs [world]
-  (let [grid-specs (vec (map (fn [[a b]]
-                                [[(- a 5.5) 0 (- b 5.5)] [1 0 0 0]])
-                              (create-combinations (range 12) (range 12))))
+  (let [;; grid-specs (vec (map (fn [[a b]]
+        ;;                         [[(- a 5.5) 0 (- b 5.5)] [1 0 0 0]])
+        ;;                       (create-combinations (range 12) (range 12))))
         moving-part (:moving-part world)
         face-specs
         (vec
@@ -1664,10 +1664,12 @@
                             rotation (get-transform-rotation transform)
                             points (get-in world [:info (:type part) :points])]
                         (map (fn [p]
-                               (make-spec position rotation p))
+                               (conj (make-spec position rotation p) name))
                              points))))
                         (:parts world))))]
-    (vec (concat grid-specs face-specs))))
+    ;; (vec (concat grid-specs face-specs))
+    face-specs
+    ))
 
 ;;-------------------------------------------------------------------------------;;
 ;; part creation
@@ -1731,6 +1733,12 @@
           transform (get-body-transform (:body part))
           rotation (get-transform-rotation transform)
           position (get-transform-position transform)]
+
+      ;; (if (get-in world [:parts moving-part :snapped])
+      ;;   (println! "remove constraint")
+      ;;   (println! "remove nothing")
+      ;;   )
+      
       (-> world
           (assoc-in [:moving-part] moving-part)
           (assoc-in [:start-rotation] rotation)
@@ -1745,26 +1753,32 @@
 (defn mouse-place [world event]
   (let [moving-part (:moving-part world)
         line (unproject-point world [(:x event) (:y event)])
-        plane (:plane world)
-        plane-point (line-plane-intersection line plane)
         snap-specs (:snap-specs world)
-        close-points (filter (fn [[p _]]
+        close-points (filter (fn [[p _ _]]
                                (< (point-line-distance p line) 0.2))
                              snap-specs)
         eye (get-in world [:camera :eye])
-        snap-spec (first (sort-by (fn [[p n]]
-                                    (distance p eye)) close-points))
-        default-spec [plane-point (:start-rotation world)]
-        [final-point final-rotation] (or snap-spec default-spec)
-        rotation-transform (make-transform [0 0 0] final-rotation)
-        part (get-in world [:parts moving-part])
-        [_ sy _] (get-in world [:info (:type part) :scale])
-        offset [0 (* sy 0.5) 0]
-        offset (apply-transform rotation-transform offset)
-        final-point (vector-add final-point offset)]
-    (-> world
-        (assoc-in [:parts moving-part :position] final-point)
-        (assoc-in [:parts moving-part :rotation] final-rotation))))
+        snap-spec (first (sort-by (fn [[p _ _]]
+                                    (distance p eye)) close-points))]
+    (if (nil? snap-spec)
+      (let [plane (:plane world)
+            plane-point (line-plane-intersection line plane)]
+        (-> world
+            (assoc-in [:parts moving-part :position] plane-point)
+            (assoc-in [:parts moving-part :rotation] (:start-rotation world))
+            (assoc-in [:parts moving-part :snapped] false)))
+      (let [[final-point final-rotation static-part] snap-spec
+            rotation-transform (make-transform [0 0 0] final-rotation)
+            part (get-in world [:parts moving-part])
+            [_ sy _] (get-in world [:info (:type part) :scale])
+            offset [0 (* sy 0.5) 0]
+            offset (apply-transform rotation-transform offset)
+            final-point (vector-add final-point offset)]
+        (-> world
+            (assoc-in [:parts moving-part :position] final-point)
+            (assoc-in [:parts moving-part :rotation] final-rotation)
+            (assoc-in [:parts moving-part :snapped] true)
+            (assoc-in [:static-part] static-part))))))
 
 (defn move-mouse-moved [world event]
   (cond
@@ -1778,12 +1792,35 @@
 
     :else world))
 
+(defn add-weld-constraint [world moving-part static-part]
+  (let [moving-body (get-in world [:parts moving-part :body])
+        static-body (get-in world [:parts static-part :body])
+        ;; moving-position (get-transform-position (get-body-transform moving-body))
+        ;; static-position (get-transform-position (get-body-transform static-body))
+        ;; axis (vector-subtract moving-position static-position)
+        ;; distance (vector-length axis)
+        ;; offset (vector-multiply [0 -1 0] distance)
+        ;; moving-frame (make-transform offset [1 0 0 0])
+        ;; static-frame (make-transform [0 0 0] [1 0 0 0])
+        ;; constraint (new Generic6DofConstraint
+        ;;                 moving-body static-body moving-frame static-frame true)
+        ;; constraint (create-weld-constraint moving-body static-body)
+        ]
+
+    (println! "create constraint" moving-part static-part)
+    world
+    ))
+
 (defn move-mouse-released [world event]
   (if-let [moving-part (:moving-part world)]
-    (-> world
-        (create-part-body moving-part)
-        (dissoc-in [:moving-part])
-        (dissoc-in [:snap-specs]))
+    (let [snapped (get-in world [:parts moving-part :snapped])
+          world (-> world
+                    (create-part-body moving-part)
+                    (dissoc-in [:moving-part])
+                    (dissoc-in [:snap-specs]))]
+      (if snapped
+        (add-weld-constraint world moving-part (:static-part world))
+        world))
     (dissoc-in world [:last-point])))
 
 ;;-------------------------------------------------------------------------------;;
@@ -2025,28 +2062,41 @@
     (set-thing! [:info] info)
   
     (set-thing! [:parts :c1] (create-part info :block :red
-                                          [0 0.5 0] [0 1 0 90]))
+                                          [0.5 0.5 0.5] [0 1 0 0]))
     
     (set-thing! [:parts :c2] (create-part info :block :yellow
-                                          [2 2.5 0] [1 0 -1 20]))
+                                          [2.5 2.5 0.5] [1 0 -1 20]))
 
     (set-thing! [:parts :c3] (create-part info :block :purple
                                           [0 0.5 3] [0 1 0 30]))
 
     (set-thing! [:parts :p1] (create-part info :pulley :blue
-                                          [2 0 0] [1 0 0 0]))
+                                          [2 1 0] [1 0 0 0]))
 
     (set-thing! [:parts :p2] (create-part info :pulley :blue
-                                          [2 0 2] [1 0 0 0]))
+                                          [2 1 2] [1 0 0 0]))
 
     (set-thing! [:parts :e1] (create-part info :anchor :dark-gray
-                                          [3 0 0] [1 0 0 0]))
+                                          [3 1 0] [1 0 0 0]))
 
     (set-thing! [:parts :e2] (create-part info :anchor :dark-gray
-                                          [4 0 3] [1 0 0 0]))
+                                          [4 1 3] [1 0 0 0]))
 
     (set-thing! [:parts :a1] (create-part info :axle :green
-                                          [-2 0 0] [1 0 0 0]))
+                                          [-1.5 2.5 0.5] [0 0 1 -90]))
+
+    ;; (let [red-block-body (get-in @world [:parts :c1 :body])
+    ;;       yellow-block-body (get-in @world [:parts :c2 :body])
+    ;;       axle-body (get-in @world [:parts :a1 :body])
+    ;;       p1 [1 2.5 0.5]
+    ;;       p2 [2 2.5 0.5]
+    ;;       axis [1 0 0]
+    ;;       ]
+    ;;   (create-weld-constraint red-block-body yellow-block-body)
+                              
+    ;;   ;; (create-hinge-constraint red-block-body axle-body p1 axis)
+    ;;   ;; (create-hinge-constraint axle-body yellow-block-body p2 axis)
+    ;; )
 
   ))
 

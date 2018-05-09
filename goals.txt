@@ -1,34 +1,52 @@
 
-X join pulley and anchor
-X create correct part models
-X reboot cable creation
-X reboot mouse force
-X make sure mouse force attaches at surface
-X reimplement get-part-at
+X create constraint if it does not exist
+X get snap object
+X print create constraint obj1, obj2
+X create weld constraint with bodies
+X create hinge constraint with global point and axis
 
-create/delete point and hinge constraints
+fix spinning
+create weld constraint
+falling block with anchor welded
+add constraint to ground
+
+
+create more stable weld constraint
+add constraint to objects constraint map
+create hinge constraint
+create two free blocks and cable
 store cable length after finished
+pull block with end of cable
 enforce cable constraints
-recompute cable lenght after moving its parts
-create sliding part (snap to cable, can be snapped to)
-
-create always-on motor
-pull sliding trolley with motor
+delete point constraint
+delete hinge constraint
 
 ---------------------------------------------------- later
+adding object to two snap points simultaneously
+use correct hinge radius (use cylinder body)
+link gears (treat as one object, set ratio)
+computer model as chip
+recompute cable lenght after moving its parts
+create sliding part (snap to cable, can be snapped to)
+create always-on motor
+pull sliding trolley with motor
+sensors as forks on square wave editor
+control motor with square wave
+create button part
+create spring part
+set color of any part
+join point constraints objects into single object?
+conducting cable (reuse cable logic)
+bike chains
+weekly tournaments (modelling inspiration)
+gallery of mechanisms (mine and submited)
 create part menu
 show that part is selected
 create part properties pane (color, dimensions)
 create winding part (snap to cable and change cable size when rotated)
 grid islands
-create pulley model
-create hinge model
-create anchor model
-create motor part
-create button part
-create spring part
-control motor with square wave
-
+create better part models
+create youtube tutorial (instead of info)
 create video feature
 "think mechanically"
 challenges
@@ -36,19 +54,18 @@ small cube edges inside larger cube
 don't allow double cable between anchors
 parameterize snap point distance (placement and cable)
 pan and rotate in wire mode
-snap to floating pulley
-use cable algorithm to create electrical wires
 don't snap if there is collision
 don't snap anchors to axles, etc
-set color of any part
 create bounding boxes for parts (faster picking)
-program motor and buttons manually for now
 draw guide snap points
 create prefab object
 place z limit on snap (no long jumps)
 activate and release motor
 add spring between door and support
 publish on steam
+limited supply of each kind (buy more)
+buy ability to save
+program motor with clojure/phyton
 
 ---------------------------------------------------- done
 X create red cube
@@ -107,3 +124,9 @@ X snap to rotated faces
 X reboot snapping
 X create other parts bodies
 X make sure parts don't jump (offsets)
+X join pulley and anchor
+X create correct part models
+X reboot cable creation
+X reboot mouse force
+X make sure mouse force attaches at surface
+X reimplement get-part-at
