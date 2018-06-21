@@ -1388,11 +1388,6 @@
 ;;-------------------------------------------------------------------------------;;
 ;; collision
 
-(defn get-transform-matrix [transform]
-  (let [matrix (into-array Float/TYPE (range 16))]
-    (.getOpenGLMatrix transform matrix)
-    matrix))
-
 (defn get-mesh-triangles [mesh transform]
   (let [vertices (partition 3 (into [] (:vertices mesh)))
         matrix (multiply-matrices
@@ -1648,9 +1643,9 @@
     [p final-rotation]))
 
 (defn get-snap-specs [world]
-  (let [;; grid-specs (vec (map (fn [[a b]]
-        ;;                         [[(- a 5.5) 0 (- b 5.5)] [1 0 0 0]])
-        ;;                       (create-combinations (range 12) (range 12))))
+  (let [grid-specs (vec (map (fn [[a b]]
+                                [[(- a 5.5) 0 (- b 5.5)] [1 0 0 0] :ground])
+                              (create-combinations (range 12) (range 12))))
         moving-part (:moving-part world)
         face-specs
         (vec
@@ -1667,8 +1662,7 @@
                                (conj (make-spec position rotation p) name))
                              points))))
                         (:parts world))))]
-    ;; (vec (concat grid-specs face-specs))
-    face-specs
+    (vec (concat grid-specs face-specs))
     ))
 
 ;;-------------------------------------------------------------------------------;;
@@ -1794,19 +1788,20 @@
 
 (defn add-weld-constraint [world moving-part static-part]
   (let [moving-body (get-in world [:parts moving-part :body])
-        static-body (get-in world [:parts static-part :body])
-        ;; moving-position (get-transform-position (get-body-transform moving-body))
-        ;; static-position (get-transform-position (get-body-transform static-body))
-        ;; axis (vector-subtract moving-position static-position)
-        ;; distance (vector-length axis)
-        ;; offset (vector-multiply [0 -1 0] distance)
-        ;; moving-frame (make-transform offset [1 0 0 0])
-        ;; static-frame (make-transform [0 0 0] [1 0 0 0])
-        ;; constraint (new Generic6DofConstraint
-        ;;                 moving-body static-body moving-frame static-frame true)
-        ;; constraint (create-weld-constraint moving-body static-body)
+        static-body (if (= static-part :ground)
+                      (:ground world)
+                      (get-in world [:parts static-part :body]))
+        moving-position (get-transform-position (get-body-transform moving-body))
+        static-position (get-transform-position (get-body-transform static-body))
+        axis (vector-subtract moving-position static-position)
+        distance (vector-length axis)
+        offset (vector-multiply [0 -1 0] distance)
+        moving-frame (make-transform offset [1 0 0 0])
+        static-frame (make-transform [0 0 0] [1 0 0 0])
+        constraint (new Generic6DofConstraint
+                        moving-body static-body moving-frame static-frame true)
+        constraint (create-weld-constraint moving-body static-body)
         ]
-
     (println! "create constraint" moving-part static-part)
     world
     ))
@@ -1879,6 +1874,16 @@
         world))
     world))
 
+(defn get-cable-length [world cable-name]
+  (let [cable (get-in world [:cables cable-name])
+        points (map (fn [part-name]
+                      (let [part (get-in world [:parts part-name])]
+                        (get-part-position part)))
+                    (:points cable))]
+    (reduce + (map (fn [a b]
+                     (vector-length (vector-subtract a b)))
+                   points (rest points)))))
+
 (defn cable-mouse-moved [world event]
   (if-let [current-cable (:current-cable world)]
     (let [plane (:plane world)
@@ -1894,10 +1899,13 @@
               (assoc-in [:plane] (get-camera-plane world pulley-position))
               (update-in [:busy-pulleys] #(conj % close-pulley-name))))
         (if-let [close-anchor-name (get-close-anchor world line)]
-          (-> world
-              (assoc-in [:cables current-cable :points (dec n)] close-anchor-name)
-              (dissoc-in [:current-cable])
-              (dissoc-in [:plane]))
+          (let [world (assoc-in world [:cables current-cable
+                                       :points (dec n)] close-anchor-name)
+                length (get-cable-length world current-cable)]
+            (-> world
+                (assoc-in [:cables current-cable :length] length)                
+                (dissoc-in [:current-cable])
+                (dissoc-in [:plane])))
           (assoc-in world [:cables current-cable :points (dec n)] point))))
     world))
 
@@ -2053,10 +2061,14 @@
 
   ;;-------------------------------------------------;;
   (create-planet!)
-  (create-ground!)
+  (set-thing! [:ground] (create-ground!))
   (set-thing! [:mode] :move)
-  (set-thing! [:busy-pulleys] [])
+  (set-thing! [:busy-pulleys] []) ;;################## store inside pulleys
   (create-buttons!)
+
+  (set-thing! [:meshes :ground] (create-cube-mesh
+                                 [0 -0.25 0] [1 0 0 0] [12 0.5 12]
+                                 (make-color 40 40 40)))
 
   (let [info (create-info)]
     (set-thing! [:info] info)
@@ -2076,10 +2088,10 @@
     (set-thing! [:parts :p2] (create-part info :pulley :blue
                                           [2 1 2] [1 0 0 0]))
 
-    (set-thing! [:parts :e1] (create-part info :anchor :dark-gray
+    (set-thing! [:parts :e1] (create-part info :anchor :white
                                           [3 1 0] [1 0 0 0]))
 
-    (set-thing! [:parts :e2] (create-part info :anchor :dark-gray
+    (set-thing! [:parts :e2] (create-part info :anchor :white
                                           [4 1 3] [1 0 0 0]))
 
     (set-thing! [:parts :a1] (create-part info :axle :green
@@ -2103,9 +2115,26 @@
 (reset-world!)
 )
 
+(defn enforce-cable-lengths [world]
+  (doseq [[cable-name cable] (:cables world)]
+    (let [current-length (get-cable-length world cable-name)]
+      (println! (:length cable))
+      (if (< current-length (:length cable))
+        (let [part (get-in world [:parts (first (:points cable))])
+              body (:body part)
+              ]
+          ;;############################################
+          (println! current-length)
+          (apply-local-force body [0.3 0 0] [0 0 0])
+        ))))
+  world
+  )
+
 (defn update-world [world elapsed]
   (if (= (:mode world) :interact)
     (do
       (step-simulation! elapsed)
-      (mouse-force-update world elapsed))
+      (-> world
+          (enforce-cable-lengths)
+          (mouse-force-update elapsed)))
     world))

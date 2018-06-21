@@ -41,14 +41,16 @@
         construction-info (new RigidBodyConstructionInfo 0 motion-state
                                       shape (new Vector3f 0 0 0))
         rigid-body (new RigidBody construction-info)]
-    (.addRigidBody @planet rigid-body 1 0xffffffff)))
+    (.addRigidBody @planet rigid-body 1 0xffffffff)
+    rigid-body))
 
 (defn create-ground! []
   (create-static-plane [0 1 0] 0)
-  (create-static-plane [0 0 1] -30)
-  (create-static-plane [0 0 -1] -30)
-  (create-static-plane [1 0 0] -30)
-  (create-static-plane [-1 0 0] -30))
+  ;; (create-static-plane [0 0 1] -30)
+  ;; (create-static-plane [0 0 -1] -30)
+  ;; (create-static-plane [1 0 0] -30)
+  ;; (create-static-plane [-1 0 0] -30)
+  )
 
 (defn create-body [shape mass transform group collides]
   (let [motion-state (new DefaultMotionState transform)
@@ -105,12 +107,16 @@
 ;;     (.applyTorque body (make-vector3f torque))
 ;;     object))
 
-;; (defn apply-force [body force point]
-;;   (let [transform (get-body-transform body)
-;;         body-position (get-transform-position transform)
-;;         point (vector-subtract point body-position)]
-;;     (.applyForce body (make-vector3f force) (make-vector3f point))
-;;     body))
+(defn apply-local-force [body force point]
+  (.applyForce body (make-vector3f force) (make-vector3f point))
+  body)
+
+(defn apply-force [body force point]
+  (let [transform (get-body-transform body)
+        body-position (get-transform-position transform)
+        point (vector-subtract point body-position)]
+    (.applyForce body (make-vector3f force) (make-vector3f point))
+    body))
 
 ;; (defn get-angular-velocity [object]
 ;;   (let [body (:body object)
@@ -138,6 +144,11 @@
 ;;   (let [linear-velocity (get-linear-velocity object)
 ;;         force (vector-multiply linear-velocity (* strenght -1))]
 ;;     (apply-force object force (get-object-position object))))
+
+(declare get-transform-matrix)
+(declare get-transform-position)
+(declare get-transform-rotation)
+(declare make-vector3f)
 
 (defn body-local-point [body point]
   (let [[x y z] point
