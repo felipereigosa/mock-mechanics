@@ -1,16 +1,10 @@
 
-X add ground cube (and axis?)
-X create weld constraint
-X falling block with anchor welded
-X add constraint to ground
-X create two free blocks and cable
-X print total cable length on finish
-X if cable is too small apply force on first node +x
+X apply force proportional to length difference
+X apply reverse force
+X apply force to all segments
+X enforce cable length
 
-apply force proportional to length difference
-apply reverse force
-apply force to all segments
-enforce cable length
+dampen cable ocillations
 fix spinning
 create more stable weld constraint
 add constraint to objects constraint map
@@ -133,3 +127,10 @@ X get snap object
 X print create constraint obj1, obj2
 X create weld constraint with bodies
 X create hinge constraint with global point and axis
+X add ground cube (and axis?)
+X create weld constraint
+X falling block with anchor welded
+X add constraint to ground
+X create two free blocks and cable
+X print total cable length on finish
+X if cable is too small apply force on first node +x

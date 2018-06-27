@@ -2117,18 +2117,23 @@
 
 (defn enforce-cable-lengths [world]
   (doseq [[cable-name cable] (:cables world)]
-    (let [current-length (get-cable-length world cable-name)]
-      (println! (:length cable))
-      (if (< current-length (:length cable))
-        (let [part (get-in world [:parts (first (:points cable))])
-              body (:body part)
+    (let [current-length (get-cable-length world cable-name)
+          k 5
+          force-strength (* (- current-length (:length cable)) k)          
+          pairs (map vector (:points cable) (rest (:points cable)))]
+      (doseq [[a b] pairs]
+        (let [part-a (get-in world [:parts a])
+              position-a (get-part-position part-a)
+              part-b (get-in world [:parts b])
+              position-b (get-part-position part-b)
+              force-vector (-> (vector-subtract position-b position-a)
+                               (vector-normalize)
+                               (vector-multiply force-strength))
+              inverse-force-vector (vector-multiply force-vector -1)
               ]
-          ;;############################################
-          (println! current-length)
-          (apply-local-force body [0.3 0 0] [0 0 0])
-        ))))
-  world
-  )
+          (apply-local-force (:body part-a) force-vector [0 0 0])
+          (apply-local-force (:body part-b) inverse-force-vector [0 0 0])))))
+  world)
 
 (defn update-world [world elapsed]
   (if (= (:mode world) :interact)
@@ -2138,3 +2143,5 @@
           (enforce-cable-lengths)
           (mouse-force-update elapsed)))
     world))
+
+(reset-world!)

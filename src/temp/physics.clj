@@ -95,6 +95,11 @@
 ;;                              mass (make-transform position rotation)
 ;;                              group collides)})
 
+(declare get-transform-matrix)
+(declare get-transform-position)
+(declare get-transform-rotation)
+(declare make-vector3f)
+
 (defn get-body-transform [body]
   (let [transform (new Transform)]
     (.getWorldTransform (.getMotionState body) transform)))
@@ -144,11 +149,6 @@
 ;;   (let [linear-velocity (get-linear-velocity object)
 ;;         force (vector-multiply linear-velocity (* strenght -1))]
 ;;     (apply-force object force (get-object-position object))))
-
-(declare get-transform-matrix)
-(declare get-transform-position)
-(declare get-transform-rotation)
-(declare make-vector3f)
 
 (defn body-local-point [body point]
   (let [[x y z] point
