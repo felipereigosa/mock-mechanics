@@ -2037,6 +2037,26 @@
                                                (assoc-in [:mode] :interact)
                                                (redraw)))
                                      }}))
+
+(defn create-hinge-constraint [body-a body-b]
+  (let [point (get-transform-position (get-body-transform body-a))
+        point-b (get-transform-position (get-body-transform body-b))
+        axis (vector-normalize (vector-subtract point-b point))
+        
+        pivot-a (make-vector3f (body-local-point body-a point))
+        axis-a (make-vector3f (body-local-axis body-a axis))
+        pivot-b (make-vector3f (body-local-point body-b point))
+        axis-b (make-vector3f (body-local-axis body-b axis))
+        constraint (new HingeConstraint body-a body-b
+                        pivot-a pivot-b axis-a axis-b)]
+    (.addConstraint @planet constraint)
+    constraint))
+
+(defn create-weld-constraint [body-a body-b]
+  (let [constraint (create-hinge-constraint body-a body-b)]
+    (.setLimit constraint 0 0.0001)
+    constraint))
+
 (do
 1
 
@@ -2079,6 +2099,7 @@
     (set-thing! [:parts :c2] (create-part info :block :yellow
                                           [2.5 2.5 0.5] [1 0 -1 20]))
 
+
     (set-thing! [:parts :c3] (create-part info :block :purple
                                           [0 0.5 3] [0 1 0 30]))
 
@@ -2094,22 +2115,9 @@
     (set-thing! [:parts :e2] (create-part info :anchor :white
                                           [4 1 3] [1 0 0 0]))
 
+    
     (set-thing! [:parts :a1] (create-part info :axle :green
                                           [-1.5 2.5 0.5] [0 0 1 -90]))
-
-    ;; (let [red-block-body (get-in @world [:parts :c1 :body])
-    ;;       yellow-block-body (get-in @world [:parts :c2 :body])
-    ;;       axle-body (get-in @world [:parts :a1 :body])
-    ;;       p1 [1 2.5 0.5]
-    ;;       p2 [2 2.5 0.5]
-    ;;       axis [1 0 0]
-    ;;       ]
-    ;;   (create-weld-constraint red-block-body yellow-block-body)
-                              
-    ;;   ;; (create-hinge-constraint red-block-body axle-body p1 axis)
-    ;;   ;; (create-hinge-constraint axle-body yellow-block-body p2 axis)
-    ;; )
-
   ))
 
 (reset-world!)
@@ -2143,5 +2151,3 @@
           (enforce-cable-lengths)
           (mouse-force-update elapsed)))
     world))
-
-(reset-world!)

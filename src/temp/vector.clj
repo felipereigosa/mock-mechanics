@@ -119,6 +119,12 @@
 (defn vector-scalar-projection [a b]
   (vector-dot-product a (vector-normalize b)))
 
+(defn vector-orthogonal [vector]
+  (let [temp (if (< (vector-angle vector [1 0 0]) 20)
+               [0.0 0.0 1.0]
+               [1.0 0.0 0.0])]
+    (vector-cross-product vector temp)))
+
 ;;#####--------------------------------------------------------------------------;;
 
 ;; (in-ns 'temp.core)

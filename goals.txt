@@ -1,19 +1,19 @@
 
-X apply force proportional to length difference
-X apply reverse force
-X apply force to all segments
-X enforce cable length
+X fix spinning
+X create hinge constraint
+X create more stable weld constraint
+
+create motor (turn on/off programmatically for now)
+create button activated claw
+
+---------------------------------------------------- later
 
 dampen cable ocillations
-fix spinning
-create more stable weld constraint
 add constraint to objects constraint map
-create hinge constraint
 delete point constraint
 delete hinge constraint
 update cable lengths on move mode
-
----------------------------------------------------- later
+motor limits (min and maximum lenghts)?
 adding object to two snap points simultaneously
 use correct hinge radius (use cylinder body)
 link gears (treat as one object, set ratio)
@@ -134,3 +134,7 @@ X add constraint to ground
 X create two free blocks and cable
 X print total cable length on finish
 X if cable is too small apply force on first node +x
+X apply force proportional to length difference
+X apply reverse force
+X apply force to all segments
+X enforce cable length
