@@ -2,7 +2,17 @@
 X fix spinning
 X create hinge constraint
 X create more stable weld constraint
+X create 0.5X1
+X create hinge for axle
+X create rotating dumbell
+X move/pan in interact mode
 
+only half-block moving bug
+use first point as snap point
+create 2X1 block
+rotate object after placed
+create multiple block sizes
+draw lines on blocks
 create motor (turn on/off programmatically for now)
 create button activated claw
 

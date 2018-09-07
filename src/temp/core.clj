@@ -1677,6 +1677,12 @@
            :scale [1 1 1]
            }
 
+   :half-block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                         [0.5 1 1] :white)
+                :points [[0.25 -0.5 0]]
+                :scale [0.5 1 1]
+                }
+
    :axle {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
                                        [0.2 1 0.2] :white)
           :points [[0 0.5 0] [0 -0.5 0]]
@@ -1786,7 +1792,7 @@
 
     :else world))
 
-(defn add-weld-constraint [world moving-part static-part]
+(defn create-constraint [world moving-part static-part]
   (let [moving-body (get-in world [:parts moving-part :body])
         static-body (if (= static-part :ground)
                       (:ground world)
@@ -1798,11 +1804,16 @@
         offset (vector-multiply [0 -1 0] distance)
         moving-frame (make-transform offset [1 0 0 0])
         static-frame (make-transform [0 0 0] [1 0 0 0])
-        constraint (new Generic6DofConstraint
-                        moving-body static-body moving-frame static-frame true)
-        constraint (create-weld-constraint moving-body static-body)
+        
+
+        moving-type (get-in world [:parts moving-part :type])
+        static-type (get-in world [:parts static-part :type])
         ]
-    (println! "create constraint" moving-part static-part)
+    (if (or (= moving-type :axle)
+            (= static-type :axle))
+      (create-hinge-constraint moving-body static-body)
+      (create-weld-constraint moving-body static-body))
+    ;;###################################################### store constraint
     world
     ))
 
@@ -1814,7 +1825,7 @@
                     (dissoc-in [:moving-part])
                     (dissoc-in [:snap-specs]))]
       (if snapped
-        (add-weld-constraint world moving-part (:static-part world))
+        (create-constraint world moving-part (:static-part world))
         world))
     (dissoc-in world [:last-point])))
 
@@ -1994,13 +2005,23 @@
       world)))
 
 (defn interact-mouse-pressed [world event]
-  (mouse-force-pressed world event))
+  (let [world (mouse-force-pressed world event)]
+    (if (get-in world [:force :active])
+      world
+      (assoc-in world [:last-point] [(:x event) (:y event)]))))
 
 (defn interact-mouse-moved [world event]
-  (mouse-force-moved world event))
+  (if (get-in world [:force :active])
+    (mouse-force-moved world event)
+    (cond
+      (= (:button event) :left) (mouse-rotate world event)
+      (= (:button event) :right) (mouse-pan world event)
+      :else world)))
 
 (defn interact-mouse-released [world event]
-  (mouse-force-released world event))
+  (if (get-in world [:force :active])
+    (mouse-force-released world event)
+    (dissoc-in world [:last-point])))
 
 ;;-------------------------------------------------------------------------------;;
 
@@ -2118,7 +2139,48 @@
     
     (set-thing! [:parts :a1] (create-part info :axle :green
                                           [-1.5 2.5 0.5] [0 0 1 -90]))
+
+    ;; (set-thing! [:parts :h1] (create-part info :half-block :orange
+    ;;                                       [2.5 5 0.5] [0 0 1 0]))
   ))
+
+(defn create-info []
+  {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                    [1 1 1] :white)
+           :points [[0.5 0 0] [-0.5 0 0]
+                    [0 0.5 0] [0 -0.5 0]
+                    [0 0 0.5] [0 0 -0.5]]
+           :scale [1 1 1]
+           }
+
+   :half-block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                         [0.5 1 1] :white)
+                :points [[0 0 0]]
+                :scale [0.5 1 1]
+                }
+
+   :axle {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                       [0.2 1 0.2] :white)
+          :points [[0 0.5 0] [0 -0.5 0]]
+          :scale [0.2 1 0.2]
+          }
+
+   :pulley {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                     [0.3 0.3 0.3] :white)
+            :points [[0 -0.15 0]]
+            :scale [0.3 0.3 0.3]
+            }
+
+   :anchor {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                     [0.2 0.2 0.2] :white)
+            :points [[0 -0.1 0]]
+            :scale [0.2 0.2 0.2]
+            }
+
+   :cable {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                        [0.2 1 0.2] :white)
+           :thickness 0.03}
+   })
 
 (reset-world!)
 )
