@@ -1381,7 +1381,6 @@
      (create-world!)
      (redraw!))))
 
-
 ;;-------------------------------------------------------------------------------;;
 ;; begin
 
@@ -1463,7 +1462,9 @@
   (let [line (unproject-point world [px py])
         distances (map (fn [[name part]]
                          (let [type (:type part)
-                               mesh (get-in world [:info type :model])
+                               info (get-in world [:info type])
+                               mesh (or (:collision-box info)
+                                        (:model info))
                                transform (get-body-transform (:body part))
                                [_ d p] (get-mesh-collision mesh transform line)]
                            (if (nil? d)
@@ -1476,6 +1477,165 @@
 
 (defn get-part-at [world px py]
   (:part-name (get-part-collision world px py)))
+
+;;-------------------------------------------------------------------------------;;
+;; physics
+
+(defn local-to-world-coordinates [transform [x y z]]
+  (let [vector (into-array Float/TYPE [x y z 1.0])
+        matrix (get-transform-matrix transform)
+        [x y z _] (into [] (multiply-matrix-vector matrix vector))]
+    [x y z]))
+
+(defn world-to-local-coordinates [transform [x y z]]
+  (let [vector (into-array Float/TYPE [x y z 1.0])
+        matrix (get-inverse-matrix (get-transform-matrix transform))
+        [x y z _] (into [] (multiply-matrix-vector matrix vector))]
+    [x y z]))
+
+(defn get-force-start-point [world]
+  (let [local-point (get-in world [:force :local-start])
+        part-name (get-in world [:force :part-name])
+        body (get-in world [:parts part-name :body])
+        transform (get-body-transform body)]
+    (local-to-world-coordinates transform local-point)))
+
+(defn get-force-end-point [world]
+  (let [force (:force world)
+        screen-point (:screen-end force)
+        line (unproject-point world screen-point)]
+    (line-plane-intersection line (:plane force))))
+
+(defn set-force-plane [world]
+  (let [start-point (get-force-start-point world)
+        plane (get-camera-plane world start-point)]  
+    (assoc-in world [:force :plane] plane)))
+
+(defn mouse-force-pressed [world event]
+  (if-let [{:keys [part-name point]} (get-part-collision
+                                      world (:x event) (:y event))]
+      (let [body (get-in world [:parts part-name :body])
+            transform (get-body-transform body)]
+        (-> world
+            (assoc-in [:force :local-start]
+                      (world-to-local-coordinates transform point))
+            (assoc-in [:force :part-name] part-name)
+            (assoc-in [:force :active] true)
+            (assoc-in [:force :screen-end] [(:x event) (:y event)])
+            (set-force-plane)))
+    world))
+
+(defn mouse-force-moved [world event]
+  (if (get-in world [:force :active])
+    (assoc-in world [:force :screen-end] [(:x event) (:y event)])
+    world))
+
+(defn mouse-force-released [world event]
+  (-> world
+      (assoc-in [:force :active] false)
+      (assoc-in [:force :screen-end] nil)))
+
+(defn make-vector3f [[x y z]]
+  (new Vector3f x y z))
+
+(defn mouse-force-update [world elapsed]
+  (let [force (:force world)]
+    (if (:active force)
+      (let [part-name (:part-name force)
+            body (get-in world [:parts part-name :body])
+            transform (get-body-transform body)
+            start (get-force-start-point world)
+            end (get-force-end-point world)
+            force (vector-multiply (vector-subtract end start) 0.7)
+            rel-pos (vector-subtract start (get-transform-position transform))]
+        (.applyForce body (make-vector3f force) (make-vector3f rel-pos))
+        world)
+      world)))
+
+(defn create-hinge-constraint [body-a body-b]
+  (let [point (get-transform-position (get-body-transform body-a))
+        point-b (get-transform-position (get-body-transform body-b))
+        axis (vector-normalize (vector-subtract point-b point))
+        
+        pivot-a (make-vector3f (body-local-point body-a point))
+        axis-a (make-vector3f (body-local-axis body-a axis))
+        pivot-b (make-vector3f (body-local-point body-b point))
+        axis-b (make-vector3f (body-local-axis body-b axis))
+        constraint (new HingeConstraint body-a body-b
+                        pivot-a pivot-b axis-a axis-b)]
+    (.addConstraint @planet constraint)
+    constraint))
+
+(defn create-weld-constraint [body-a body-b]
+  (let [constraint (create-hinge-constraint body-a body-b)]
+    (.setLimit constraint 0 0.0001)
+    constraint))
+
+;; (do
+;; 1
+
+;; (defn create-part! [type color x] ;;##############################
+;;   (set-thing! [:parts (gen-keyword :part)]
+;;               (create-part (:info @world) type color
+;;                            [x 0.5 0.5]  [0 1 0 0])))
+
+;; (defn create-hinge-constraint [body-a body-b]
+;;   (let [point (get-transform-position (get-body-transform body-a))
+;;         point-b (get-transform-position (get-body-transform body-b))
+;;         axis (vector-normalize (vector-subtract point-b point))
+        
+;;         pivot-a (make-vector3f (body-local-point body-a point))
+;;         axis-a (make-vector3f (body-local-axis body-a axis))
+;;         pivot-b (make-vector3f (body-local-point body-b point))
+;;         axis-b (make-vector3f (body-local-axis body-b axis))
+;;         constraint (new HingeConstraint body-a body-b
+;;                         pivot-a pivot-b axis-a axis-b)
+;;         ]
+;;     (.addConstraint @planet constraint)
+;;     constraint
+;;     ))
+
+;; (reset-world!)
+;; (sleep 100)
+;; (create-part! :block :white 0.5)
+;; (create-part! :axle :green 2.5)
+;; )
+
+(defn get-angular-velocity [body]
+  (let [v (new Vector3f)]
+    (.getAngularVelocity body v)
+    [(.-x v) (.-y v) (.-z v)]))
+
+;; (defn get-linear-velocity [object]
+;;   (let [body (:body object)
+;;         v (new Vector3f)]
+;;     (.getLinearVelocity body v)
+;;     [(.-x v) (.-y v) (.-z v)]))
+
+;; (defn get-object-position [object]
+;;   (let [body (:body object)
+;;         transform (get-body-transform body)]
+;;     (get-transform-position transform)))
+
+(defn apply-torque [body torque]
+  (.applyTorque body (make-vector3f torque))
+  body)
+
+(defn apply-angular-friction [object strenght]
+  (let [angular-velocity (get-angular-velocity object)
+        torque (vector-multiply angular-velocity (* strenght -1))]
+    (apply-torque object torque)))
+
+;; (defn apply-linear-friction [body strenght]
+;;   (let [linear-velocity (get-linear-velocity object)
+;;         force (vector-multiply linear-velocity (* strenght -1))]
+;;     (apply-force object force (get-object-position object))))
+
+(defn apply-friction [world]
+  (doseq [[_ part] (:parts world)]
+    (apply-angular-friction (:body part) 10)
+    )
+  world)
 
 ;;-------------------------------------------------------------------------------;;
 ;; input sorting
@@ -1529,6 +1689,9 @@
       :interact (interact-mouse-released world event)
       world)))
 
+;;-------------------------------------------------------------------------------;;
+;; camera manipulation
+
 (defn mouse-rotate [world event]
   (let [[x y] (:last-point world)
         dx (- (:x event) x)
@@ -1557,9 +1720,15 @@
         transform (if (nil? body)
                     (make-transform (:position part) (:rotation part))
                     (get-body-transform body))
-        mesh (-> (get-in world [:info (:type part) :model])
+        info (get-in world [:info (:type part)])
+        mesh (-> (:model info)
                  (assoc-in [:transform] transform)
                  (set-mesh-color (:color part)))]
+    (when (:draw-collision-boxes world)
+      (if-let [collision-box (:collision-box info)]
+        (draw-mesh! world (-> collision-box
+                              (assoc-in [:transform] transform)
+                              (set-mesh-color (:color part))))))
     (draw-mesh! world mesh)))
 
 (defn draw-segment! [world start end color]
@@ -1623,7 +1792,68 @@
     (draw-button! (:mode world) button)))
 
 ;;-------------------------------------------------------------------------------;;
-;; snap specs
+;; part creation
+
+(defn create-info []
+  {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                    [1 1 1] :white)
+           :points [[0.5 0 0] [-0.5 0 0]
+                    [0 0.5 0] [0 -0.5 0]
+                    [0 0 0.5] [0 0 -0.5]]
+           :scale [1 1 1]
+           }
+
+   :axle {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                       [0.2 1 0.2] :white)
+          :points [[0 0.5 0] [0 -0.5 0]]
+          :scale [0.2 1 0.2]
+          }
+
+   :pulley {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                     [0.3 0.3 0.3] :white)
+            :points [[0 -0.15 0]]
+            :scale [0.3 0.3 0.3]
+            }
+
+   :anchor {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                     [0.2 0.2 0.2] :white)
+            :points [[0 -0.1 0]]
+            :scale [0.2 0.2 0.2]
+            }
+
+   :cable {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                        [0.2 1 0.2] :white)
+           :thickness 0.03}
+
+   :spring {:model (create-model-mesh "res/spring.obj" [0 0 0]
+                                      [1 0 0 0] [1 1 1] :white)
+            :points [[0 0.5 0] [0 -0.5 0]]
+            :scale [0.2 1 0.2]
+            :collision-box (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                                 [0.35 1 0.35] :white)
+          }
+   })
+
+(defn create-part-body [world part-name]
+  (let [part (get-in world [:parts part-name])
+        scale (get-in world [:info (:type part) :scale])
+        body (create-cube-body scale (:position part) (:rotation part))]
+    (assoc-in world [:parts part-name :body] body)))
+
+(defn remove-part-body [world part-name]
+  (let [body (get-in world [:parts part-name :body])]
+    (.removeRigidBody @planet body)
+    (dissoc-in world [:parts part-name :body])))
+
+(defn create-part [info type color position rotation]
+  (let [i (get info type)
+        scale (:scale i)]
+    {:type type
+     :color color
+     :body (create-cube-body scale position rotation)}))
+
+;;-------------------------------------------------------------------------------;;
+;; move mode
 
 (defn make-spec [position rotation point]
   (let [rotation-transform (make-transform [0 0 0] rotation)
@@ -1662,70 +1892,7 @@
                                (conj (make-spec position rotation p) name))
                              points))))
                         (:parts world))))]
-    (vec (concat grid-specs face-specs))
-    ))
-
-;;-------------------------------------------------------------------------------;;
-;; part creation
-
-(defn create-info []
-  {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                    [1 1 1] :white)
-           :points [[0.5 0 0] [-0.5 0 0]
-                    [0 0.5 0] [0 -0.5 0]
-                    [0 0 0.5] [0 0 -0.5]]
-           :scale [1 1 1]
-           }
-
-   :half-block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                         [0.5 1 1] :white)
-                :points [[0.25 -0.5 0]]
-                :scale [0.5 1 1]
-                }
-
-   :axle {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                       [0.2 1 0.2] :white)
-          :points [[0 0.5 0] [0 -0.5 0]]
-          :scale [0.2 1 0.2]
-          }
-
-   :pulley {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                     [0.3 0.3 0.3] :white)
-            :points [[0 -0.15 0]]
-            :scale [0.3 0.3 0.3]
-            }
-
-   :anchor {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                     [0.2 0.2 0.2] :white)
-            :points [[0 -0.1 0]]
-            :scale [0.2 0.2 0.2]
-            }
-
-   :cable {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                        [0.2 1 0.2] :white)
-           :thickness 0.03}
-   })
-
-(defn create-part-body [world part-name]
-  (let [part (get-in world [:parts part-name])
-        scale (get-in world [:info (:type part) :scale])
-        body (create-cube-body scale (:position part) (:rotation part))]
-    (assoc-in world [:parts part-name :body] body)))
-
-(defn remove-part-body [world part-name]
-  (let [body (get-in world [:parts part-name :body])]
-    (.removeRigidBody @planet body)
-    (dissoc-in world [:parts part-name :body])))
-
-(defn create-part [info type color position rotation]
-  (let [i (get info type)
-        scale (:scale i)]
-    {:type type
-     :color color
-     :body (create-cube-body scale position rotation)}))
-
-;;-------------------------------------------------------------------------------;;
-;; move mode
+    (vec (concat grid-specs face-specs))))
 
 (defn move-mouse-pressed [world event]
   (if-let [moving-part (get-part-at world (:x event) (:y event))]
@@ -1807,8 +1974,7 @@
         
 
         moving-type (get-in world [:parts moving-part :type])
-        static-type (get-in world [:parts static-part :type])
-        ]
+        static-type (get-in world [:parts static-part :type])]
     (if (or (= moving-type :axle)
             (= static-type :axle))
       (create-hinge-constraint moving-body static-body)
@@ -1930,79 +2096,28 @@
         (dissoc-in [:saved-busy-pulleys]))
     world))
 
+(defn enforce-cable-lengths [world]
+  (doseq [[cable-name cable] (:cables world)]
+    (let [current-length (get-cable-length world cable-name)
+          k 5
+          force-strength (* (- current-length (:length cable)) k)          
+          pairs (map vector (:points cable) (rest (:points cable)))]
+      (doseq [[a b] pairs]
+        (let [part-a (get-in world [:parts a])
+              position-a (get-part-position part-a)
+              part-b (get-in world [:parts b])
+              position-b (get-part-position part-b)
+              force-vector (-> (vector-subtract position-b position-a)
+                               (vector-normalize)
+                               (vector-multiply force-strength))
+              inverse-force-vector (vector-multiply force-vector -1)
+              ]
+          (apply-local-force (:body part-a) force-vector [0 0 0])
+          (apply-local-force (:body part-b) inverse-force-vector [0 0 0])))))
+  world)
+
 ;;-------------------------------------------------------------------------------;;
 ;; interact mode
-
-(defn local-to-world-coordinates [transform [x y z]]
-  (let [vector (into-array Float/TYPE [x y z 1.0])
-        matrix (get-transform-matrix transform)
-        [x y z _] (into [] (multiply-matrix-vector matrix vector))]
-    [x y z]))
-
-(defn world-to-local-coordinates [transform [x y z]]
-  (let [vector (into-array Float/TYPE [x y z 1.0])
-        matrix (get-inverse-matrix (get-transform-matrix transform))
-        [x y z _] (into [] (multiply-matrix-vector matrix vector))]
-    [x y z]))
-
-(defn get-force-start-point [world]
-  (let [local-point (get-in world [:force :local-start])
-        part-name (get-in world [:force :part-name])
-        body (get-in world [:parts part-name :body])
-        transform (get-body-transform body)]
-    (local-to-world-coordinates transform local-point)))
-
-(defn get-force-end-point [world]
-  (let [force (:force world)
-        screen-point (:screen-end force)
-        line (unproject-point world screen-point)]
-    (line-plane-intersection line (:plane force))))
-
-(defn set-force-plane [world]
-  (let [start-point (get-force-start-point world)
-        plane (get-camera-plane world start-point)]  
-    (assoc-in world [:force :plane] plane)))
-
-(defn mouse-force-pressed [world event]
-  (if-let [{:keys [part-name point]} (get-part-collision
-                                      world (:x event) (:y event))]
-      (let [body (get-in world [:parts part-name :body])
-            transform (get-body-transform body)]
-        (-> world
-            (assoc-in [:force :local-start]
-                      (world-to-local-coordinates transform point))
-            (assoc-in [:force :part-name] part-name)
-            (assoc-in [:force :active] true)
-            (assoc-in [:force :screen-end] [(:x event) (:y event)])
-            (set-force-plane)))
-    world))
-
-(defn mouse-force-moved [world event]
-  (if (get-in world [:force :active])
-    (assoc-in world [:force :screen-end] [(:x event) (:y event)])
-    world))
-
-(defn mouse-force-released [world event]
-  (-> world
-      (assoc-in [:force :active] false)
-      (assoc-in [:force :screen-end] nil)))
-
-(defn make-vector3f [[x y z]]
-  (new Vector3f x y z))
-
-(defn mouse-force-update [world elapsed]
-  (let [force (:force world)]
-    (if (:active force)
-      (let [part-name (:part-name force)
-            body (get-in world [:parts part-name :body])
-            transform (get-body-transform body)
-            start (get-force-start-point world)
-            end (get-force-end-point world)
-            force (vector-multiply (vector-subtract end start) 0.7)
-            rel-pos (vector-subtract start (get-transform-position transform))]
-        (.applyForce body (make-vector3f force) (make-vector3f rel-pos))
-        world)
-      world)))
 
 (defn interact-mouse-pressed [world event]
   (let [world (mouse-force-pressed world event)]
@@ -2059,25 +2174,6 @@
                                                (redraw)))
                                      }}))
 
-(defn create-hinge-constraint [body-a body-b]
-  (let [point (get-transform-position (get-body-transform body-a))
-        point-b (get-transform-position (get-body-transform body-b))
-        axis (vector-normalize (vector-subtract point-b point))
-        
-        pivot-a (make-vector3f (body-local-point body-a point))
-        axis-a (make-vector3f (body-local-axis body-a axis))
-        pivot-b (make-vector3f (body-local-point body-b point))
-        axis-b (make-vector3f (body-local-axis body-b axis))
-        constraint (new HingeConstraint body-a body-b
-                        pivot-a pivot-b axis-a axis-b)]
-    (.addConstraint @planet constraint)
-    constraint))
-
-(defn create-weld-constraint [body-a body-b]
-  (let [constraint (create-hinge-constraint body-a body-b)]
-    (.setLimit constraint 0 0.0001)
-    constraint))
-
 (do
 1
 
@@ -2111,105 +2207,64 @@
                                  [0 -0.25 0] [1 0 0 0] [12 0.5 12]
                                  (make-color 40 40 40)))
 
-  (let [info (create-info)]
-    (set-thing! [:info] info)
+  ;; (let [info (create-info)]
+  ;;   (set-thing! [:info] info)
   
-    (set-thing! [:parts :c1] (create-part info :block :red
-                                          [0.5 0.5 0.5] [0 1 0 0]))
+  ;;   ;; (set-thing! [:parts :c1] (create-part info :block :red
+  ;;   ;;                                       [0.5 0.5 0.5] [0 1 0 0]))
     
-    (set-thing! [:parts :c2] (create-part info :block :yellow
-                                          [2.5 2.5 0.5] [1 0 -1 20]))
+  ;;   ;; (set-thing! [:parts :c2] (create-part info :block :yellow
+  ;;   ;;                                       [2.5 2.5 0.5] [1 0 -1 20]))
 
+  ;;   ;; (set-thing! [:parts :c3] (create-part info :block :purple
+  ;;   ;;                                       [0 0.5 3] [0 1 0 30]))
 
-    (set-thing! [:parts :c3] (create-part info :block :purple
-                                          [0 0.5 3] [0 1 0 30]))
+  ;;   ;; (set-thing! [:parts :p1] (create-part info :pulley :blue
+  ;;   ;;                                       [2 1 0] [1 0 0 0]))
 
-    (set-thing! [:parts :p1] (create-part info :pulley :blue
-                                          [2 1 0] [1 0 0 0]))
+  ;;   ;; (set-thing! [:parts :p2] (create-part info :pulley :blue
+  ;;   ;;                                       [2 1 2] [1 0 0 0]))
 
-    (set-thing! [:parts :p2] (create-part info :pulley :blue
-                                          [2 1 2] [1 0 0 0]))
+  ;;   ;; (set-thing! [:parts :e1] (create-part info :anchor :white
+  ;;   ;;                                       [3 1 0] [1 0 0 0]))
 
-    (set-thing! [:parts :e1] (create-part info :anchor :white
-                                          [3 1 0] [1 0 0 0]))
-
-    (set-thing! [:parts :e2] (create-part info :anchor :white
-                                          [4 1 3] [1 0 0 0]))
-
+  ;;   ;; (set-thing! [:parts :e2] (create-part info :anchor :white
+  ;;   ;;                                       [4 1 3] [1 0 0 0]))
     
-    (set-thing! [:parts :a1] (create-part info :axle :green
-                                          [-1.5 2.5 0.5] [0 0 1 -90]))
+  ;;   ;; (set-thing! [:parts :a1] (create-part info :axle :green
+  ;;   ;;                                       [-1.5 2.5 0.5] [0 0 1 -90]))
 
-    ;; (set-thing! [:parts :h1] (create-part info :half-block :orange
-    ;;                                       [2.5 5 0.5] [0 0 1 0]))
-  ))
+  ;;   ;;############
 
-(defn create-info []
-  {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                    [1 1 1] :white)
-           :points [[0.5 0 0] [-0.5 0 0]
-                    [0 0.5 0] [0 -0.5 0]
-                    [0 0 0.5] [0 0 -0.5]]
-           :scale [1 1 1]
-           }
+  ;;   (set-thing! [:parts :c1] (create-part info :block :red
+  ;;                                         [0.5 0.5 0.5] [0 1 0 0]))
 
-   :half-block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                         [0.5 1 1] :white)
-                :points [[0 0 0]]
-                :scale [0.5 1 1]
-                }
+  ;;   (set-thing! [:parts :c2] (create-part info :block :yellow
+  ;;                                         [3.5 0.5 0.5] [0 1 0 0]))
 
-   :axle {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                       [0.2 1 0.2] :white)
-          :points [[0 0.5 0] [0 -0.5 0]]
-          :scale [0.2 1 0.2]
-          }
+  ;;   (set-thing! [:parts :s1] (create-part info :spring :white
+  ;;                                         [0.5 0.5 2.5] [0 1 0 0]))
+    
+  ;;   )
 
-   :pulley {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                     [0.3 0.3 0.3] :white)
-            :points [[0 -0.15 0]]
-            :scale [0.3 0.3 0.3]
-            }
+  (set-thing! [:draw-collision-boxes] false)
 
-   :anchor {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                     [0.2 0.2 0.2] :white)
-            :points [[0 -0.1 0]]
-            :scale [0.2 0.2 0.2]
-            }
+  (set-thing! [:meshes :model] (create-model-mesh "res/spring.obj" [0 1 0]
+                                      [1 0 0 0] [1 1 1] :white))
 
-   :cable {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                        [0.2 1 0.2] :white)
-           :thickness 0.03}
-   })
+  )
 
 (reset-world!)
 )
 
-(defn enforce-cable-lengths [world]
-  (doseq [[cable-name cable] (:cables world)]
-    (let [current-length (get-cable-length world cable-name)
-          k 5
-          force-strength (* (- current-length (:length cable)) k)          
-          pairs (map vector (:points cable) (rest (:points cable)))]
-      (doseq [[a b] pairs]
-        (let [part-a (get-in world [:parts a])
-              position-a (get-part-position part-a)
-              part-b (get-in world [:parts b])
-              position-b (get-part-position part-b)
-              force-vector (-> (vector-subtract position-b position-a)
-                               (vector-normalize)
-                               (vector-multiply force-strength))
-              inverse-force-vector (vector-multiply force-vector -1)
-              ]
-          (apply-local-force (:body part-a) force-vector [0 0 0])
-          (apply-local-force (:body part-b) inverse-force-vector [0 0 0])))))
-  world)
-
 (defn update-world [world elapsed]
+  ;; (println! (get-angular-velocity (get-in world [:parts :part4971 :body])))
   (if (= (:mode world) :interact)
     (do
       (step-simulation! elapsed)
       (-> world
+          ;; (apply-friction)
           (enforce-cable-lengths)
           (mouse-force-update elapsed)))
     world))
+

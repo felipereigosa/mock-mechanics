@@ -107,11 +107,6 @@
 (defn step-simulation! [elapsed]
   (.stepSimulation @planet elapsed 7 (/ 1 60.0)))
 
-;; (defn apply-torque [object torque]
-;;   (let [body (:body object)]
-;;     (.applyTorque body (make-vector3f torque))
-;;     object))
-
 (defn apply-local-force [body force point]
   (.applyForce body (make-vector3f force) (make-vector3f point))
   body)
@@ -123,32 +118,6 @@
     (.applyForce body (make-vector3f force) (make-vector3f point))
     body))
 
-;; (defn get-angular-velocity [object]
-;;   (let [body (:body object)
-;;         v (new Vector3f)]
-;;     (.getAngularVelocity body v)
-;;     [(.-x v) (.-y v) (.-z v)]))
-
-;; (defn apply-angular-friction [object strenght]
-;;   (let [angular-velocity (get-angular-velocity object)
-;;         torque (vector-multiply angular-velocity (* strenght -1))]
-;;     (apply-torque object torque)))
-
-;; (defn get-linear-velocity [object]
-;;   (let [body (:body object)
-;;         v (new Vector3f)]
-;;     (.getLinearVelocity body v)
-;;     [(.-x v) (.-y v) (.-z v)]))
-
-;; (defn get-object-position [object]
-;;   (let [body (:body object)
-;;         transform (get-body-transform body)]
-;;     (get-transform-position transform)))
-
-;; (defn apply-linear-friction [object strenght]
-;;   (let [linear-velocity (get-linear-velocity object)
-;;         force (vector-multiply linear-velocity (* strenght -1))]
-;;     (apply-force object force (get-object-position object))))
 
 (defn body-local-point [body point]
   (let [[x y z] point
