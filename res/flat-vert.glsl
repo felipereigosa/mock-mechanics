@@ -7,7 +7,7 @@ uniform mat4 mvp_matrix;
 uniform mat4 itmv_matrix;
 
 void main() {
-  vec3 light_direction = vec3(-3, -1, -1); //################# pass in
+  vec3 light_direction = vec3(-3, -1, -2); //################# pass in
   vec4 vertex_color = vec4(0.0, 0.0, 0.0, 1.0);
   float ambient_intensity = 0.3;
 
