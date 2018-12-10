@@ -1146,6 +1146,13 @@
         m (multiply-matrices ma mb)]
     (matrix->transform m)))
 
+(defn remove-transform [a b]
+  (let [ma (transform->matrix a)
+        mb (transform->matrix b)
+        imb (get-inverse-matrix (into-array Float/TYPE mb))
+        m (multiply-matrices ma imb)]
+    (matrix->transform m)))
+
 (defn translate-transform [transform displacement]
   (combine-transforms transform (make-transform displacement [1 0 0 0])))
 
@@ -1317,15 +1324,13 @@
 (defn reset-camera! []
   (update-thing! [] (slots create-camera _ [0 0 1] 50 25 -45)))
 
-(declare get-body-transform)
-
-(defn place-pivot! [object-name]
-  (let [world @world]
-    (if-let [object (get-in world [:objects object-name])]
-      (let [body (:body object)
-            transform (get-body-transform body)]
-        (set-thing! [:camera :pivot] (get-transform-position transform))
-        (update-thing! [] (slots compute-camera _))))))
+;; (defn place-pivot! [object-name]
+;;   (let [world @world]
+;;     (if-let [object (get-in world [:objects object-name])]
+;;       (let [body (:body object)
+;;             transform (get-body-transform body)]
+;;         (set-thing! [:camera :pivot] (get-transform-position transform))
+;;         (update-thing! [] (slots compute-camera _))))))
 
 (defn get-camera-plane [world point]
   (let [camera (:camera world)
@@ -1384,258 +1389,77 @@
 ;;-------------------------------------------------------------------------------;;
 ;; begin
 
-;; ;;-------------------------------------------------------------------------------;;
-;; ;; collision
+;;-------------------------------------------------------------------------------;;
+;; collision
 
-;; (defn get-mesh-triangles [mesh transform]
-;;   (let [vertices (partition 3 (into [] (:vertices mesh)))
-;;         matrix (multiply-matrices
-;;                 (apply get-scale-matrix (:scale mesh))
-;;                 (get-transform-matrix transform))
-;;         vertices (map (fn [[x y z]]
-;;                         (let [vertex (into-array Float/TYPE [x y z 1])]
-;;                           (butlast (into [] (multiply-matrix-vector
-;;                                              matrix vertex)))))
-;;                       vertices)]
-;;     (partition 3 vertices)))
+(defn get-mesh-triangles [mesh transform]
+  (let [vertices (partition 3 (into [] (:vertices mesh)))
+        matrix (multiply-matrices
+                (apply get-scale-matrix (:scale mesh))
+                (get-transform-matrix transform))
+        vertices (map (fn [[x y z]]
+                        (let [vertex (into-array Float/TYPE [x y z 1])]
+                          (butlast (into [] (multiply-matrix-vector
+                                             matrix vertex)))))
+                      vertices)]
+    (partition 3 vertices)))
 
-;; (defn unproject-point [world [x y]]
-;;   (let [dx (dec (/ x (/ window-width 2)))
-;;         dy (- (dec (/ y (/ window-height 2))))
-;;         p-matrix (:projection-matrix world)
-;;         v-matrix (:view-matrix world)
-;;         matrix (multiply-matrices v-matrix p-matrix)
-;;         inverse-matrix (get-inverse-matrix matrix)
-;;         p-2d-a (into-array Float/TYPE [dx dy -1.0 1.0])
-;;         p-3d-a (into [] (multiply-matrix-vector inverse-matrix p-2d-a))
-;;         p-3d-a (map (slots / _ (nth p-3d-a 3)) p-3d-a)
-;;         p-3d-a (into [] (butlast p-3d-a))
+(defn unproject-point [world [x y]]
+  (let [dx (dec (/ x (/ window-width 2)))
+        dy (- (dec (/ y (/ window-height 2))))
+        p-matrix (:projection-matrix world)
+        v-matrix (:view-matrix world)
+        matrix (multiply-matrices v-matrix p-matrix)
+        inverse-matrix (get-inverse-matrix matrix)
+        p-2d-a (into-array Float/TYPE [dx dy -1.0 1.0])
+        p-3d-a (into [] (multiply-matrix-vector inverse-matrix p-2d-a))
+        p-3d-a (map (slots / _ (nth p-3d-a 3)) p-3d-a)
+        p-3d-a (into [] (butlast p-3d-a))
 
-;;         p-2d-b (into-array Float/TYPE [dx dy 0.0 1.0])
-;;         p-3d-b (into [] (multiply-matrix-vector inverse-matrix p-2d-b))
-;;         p-3d-b (map (slots / _ (nth p-3d-b 3)) p-3d-b)
-;;         p-3d-b (into [] (butlast p-3d-b))]
-;;     [p-3d-a (vector-normalize (vector-subtract p-3d-b p-3d-a))]))
+        p-2d-b (into-array Float/TYPE [dx dy 0.0 1.0])
+        p-3d-b (into [] (multiply-matrix-vector inverse-matrix p-2d-b))
+        p-3d-b (map (slots / _ (nth p-3d-b 3)) p-3d-b)
+        p-3d-b (into [] (butlast p-3d-b))]
+    [p-3d-a (vector-normalize (vector-subtract p-3d-b p-3d-a))]))
 
-;; (defn distance-comparator [a b]
-;;   (cond
-;;     (nil? a) false
-;;     (nil? b) true
-;;     (and (nil? a) (nil? b)) a
-;;     :else (< a b)))
+(defn distance-comparator [a b]
+  (cond
+    (nil? a) false
+    (nil? b) true
+    (and (nil? a) (nil? b)) a
+    :else (< a b)))
 
-;; (defn get-mesh-collision [mesh transform line]
-;;   (let [triangles (get-mesh-triangles mesh transform)
-;;         measured-triangles (map (fn [i]
-;;                                   {:d (line-triangle-distance
-;;                                        line (nth triangles i))
-;;                                    :i i})
-;;                                 (range (count triangles)))
-;;         collision (first (sort-by :d distance-comparator measured-triangles))]
-;;     (if (nil? (:d collision))
-;;       nil
-;;       [(:i collision) (:d collision) (line-get-point line (:d collision))])))
+(defn get-mesh-collision [mesh transform line]
+  (let [triangles (get-mesh-triangles mesh transform)
+        measured-triangles (map (fn [i]
+                                  {:d (line-triangle-distance
+                                       line (nth triangles i))
+                                   :i i})
+                                (range (count triangles)))
+        collision (first (sort-by :d distance-comparator measured-triangles))]
+    (if (nil? (:d collision))
+      nil
+      [(:i collision) (:d collision) (line-get-point line (:d collision))])))
 
-;; (defn get-mesh-at
-;;   ([world x y]
-;;    (let [line (unproject-point world [x y])
-;;          distances (map (fn [name]
-;;                           (let [mesh (get-in world [:meshes name])
-;;                                 collision (get-mesh-collision
-;;                                            mesh (:transform mesh) line)]
-;;                             [name (second collision)]))
-;;                         (keys (:meshes world)))
+(defn get-part-collision [world px py]
+  (let [line (unproject-point world [px py])
+        distances (map (fn [[name part]]
+                         (let [type (:type part)
+                               info (get-in world [:info type])
+                               mesh (or (:collision-box info)
+                                        (:model info))
+                               transform (:transform part)
+                               [_ d p] (get-mesh-collision mesh transform line)]
+                           (if (nil? d)
+                             nil                             
+                             {:part-name name
+                              :distance d
+                              :point p})))
+                       (:parts world))]
+    (first (sort-by :distance (remove-nil distances)))))
 
-;;          distances (filter (comp not nil? second) distances)
-;;          [name distance] (first (sort-by second distances))]
-;;      (if (nil? distance)
-;;        nil
-;;        name)))
-;;   ([world names x y]
-;;    (let [name (get-mesh-at world x y)]
-;;      (cond
-;;        (nil? name) nil
-;;        (in? name names) name
-;;        :else nil))))
-
-;; (defn get-part-collision [world px py]
-;;   (let [line (unproject-point world [px py])
-;;         distances (map (fn [[name part]]
-;;                          (let [type (:type part)
-;;                                info (get-in world [:info type])
-;;                                mesh (or (:collision-box info)
-;;                                         (:model info))
-;;                                transform (get-body-transform (:body part))
-;;                                [_ d p] (get-mesh-collision mesh transform line)]
-;;                            (if (nil? d)
-;;                              nil                             
-;;                              {:part-name name
-;;                               :distance d
-;;                               :point p})))
-;;                        (:parts world))]
-;;     (first (sort-by :distance (remove-nil distances)))))
-
-;; (defn get-part-at [world px py]
-;;   (:part-name (get-part-collision world px py)))
-
-;; ;;-------------------------------------------------------------------------------;;
-;; ;; physics
-
-;; (defn local-to-world-coordinates [transform [x y z]]
-;;   (let [vector (into-array Float/TYPE [x y z 1.0])
-;;         matrix (get-transform-matrix transform)
-;;         [x y z _] (into [] (multiply-matrix-vector matrix vector))]
-;;     [x y z]))
-
-;; (defn world-to-local-coordinates [transform [x y z]]
-;;   (let [vector (into-array Float/TYPE [x y z 1.0])
-;;         matrix (get-inverse-matrix (get-transform-matrix transform))
-;;         [x y z _] (into [] (multiply-matrix-vector matrix vector))]
-;;     [x y z]))
-
-;; (defn get-force-start-point [world]
-;;   (let [local-point (get-in world [:force :local-start])
-;;         part-name (get-in world [:force :part-name])
-;;         body (get-in world [:parts part-name :body])
-;;         transform (get-body-transform body)]
-;;     (local-to-world-coordinates transform local-point)))
-
-;; (defn get-force-end-point [world]
-;;   (let [force (:force world)
-;;         screen-point (:screen-end force)
-;;         line (unproject-point world screen-point)]
-;;     (line-plane-intersection line (:plane force))))
-
-;; (defn set-force-plane [world]
-;;   (let [start-point (get-force-start-point world)
-;;         plane (get-camera-plane world start-point)]  
-;;     (assoc-in world [:force :plane] plane)))
-
-;; (defn mouse-force-pressed [world event]
-;;   (if-let [{:keys [part-name point]} (get-part-collision
-;;                                       world (:x event) (:y event))]
-;;       (let [body (get-in world [:parts part-name :body])
-;;             transform (get-body-transform body)]
-;;         (-> world
-;;             (assoc-in [:force :local-start]
-;;                       (world-to-local-coordinates transform point))
-;;             (assoc-in [:force :part-name] part-name)
-;;             (assoc-in [:force :active] true)
-;;             (assoc-in [:force :screen-end] [(:x event) (:y event)])
-;;             (set-force-plane)))
-;;     world))
-
-;; (defn mouse-force-moved [world event]
-;;   (if (get-in world [:force :active])
-;;     (assoc-in world [:force :screen-end] [(:x event) (:y event)])
-;;     world))
-
-;; (defn mouse-force-released [world event]
-;;   (-> world
-;;       (assoc-in [:force :active] false)
-;;       (assoc-in [:force :screen-end] nil)))
-
-;; (defn make-vector3f [[x y z]]
-;;   (new Vector3f x y z))
-
-;; (defn mouse-force-update [world elapsed]
-;;   (let [force (:force world)]
-;;     (if (:active force)
-;;       (let [part-name (:part-name force)
-;;             body (get-in world [:parts part-name :body])
-;;             transform (get-body-transform body)
-;;             start (get-force-start-point world)
-;;             end (get-force-end-point world)
-;;             force (vector-multiply (vector-subtract end start) 0.7)
-;;             rel-pos (vector-subtract start (get-transform-position transform))]
-;;         (.applyForce body (make-vector3f force) (make-vector3f rel-pos))
-;;         world)
-;;       world)))
-
-;; (defn create-hinge-constraint [body-a body-b]
-;;   (let [point (get-transform-position (get-body-transform body-a))
-;;         point-b (get-transform-position (get-body-transform body-b))
-;;         axis (vector-normalize (vector-subtract point-b point))
-        
-;;         pivot-a (make-vector3f (body-local-point body-a point))
-;;         axis-a (make-vector3f (body-local-axis body-a axis))
-;;         pivot-b (make-vector3f (body-local-point body-b point))
-;;         axis-b (make-vector3f (body-local-axis body-b axis))
-;;         constraint (new HingeConstraint body-a body-b
-;;                         pivot-a pivot-b axis-a axis-b)]
-;;     (.addConstraint @planet constraint)
-;;     constraint))
-
-;; (defn create-weld-constraint [body-a body-b]
-;;   (let [constraint (create-hinge-constraint body-a body-b)]
-;;     (.setLimit constraint 0 0.0001)
-;;     constraint))
-
-;; ;; (do
-;; ;; 1
-
-;; ;; (defn create-part! [type color x] ;;##############################
-;; ;;   (set-thing! [:parts (gen-keyword :part)]
-;; ;;               (create-part (:info @world) type color
-;; ;;                            [x 0.5 0.5]  [0 1 0 0])))
-
-;; ;; (defn create-hinge-constraint [body-a body-b]
-;; ;;   (let [point (get-transform-position (get-body-transform body-a))
-;; ;;         point-b (get-transform-position (get-body-transform body-b))
-;; ;;         axis (vector-normalize (vector-subtract point-b point))
-        
-;; ;;         pivot-a (make-vector3f (body-local-point body-a point))
-;; ;;         axis-a (make-vector3f (body-local-axis body-a axis))
-;; ;;         pivot-b (make-vector3f (body-local-point body-b point))
-;; ;;         axis-b (make-vector3f (body-local-axis body-b axis))
-;; ;;         constraint (new HingeConstraint body-a body-b
-;; ;;                         pivot-a pivot-b axis-a axis-b)
-;; ;;         ]
-;; ;;     (.addConstraint @planet constraint)
-;; ;;     constraint
-;; ;;     ))
-
-;; ;; (reset-world!)
-;; ;; (sleep 100)
-;; ;; (create-part! :block :white 0.5)
-;; ;; (create-part! :axle :green 2.5)
-;; ;; )
-
-;; (defn get-angular-velocity [body]
-;;   (let [v (new Vector3f)]
-;;     (.getAngularVelocity body v)
-;;     [(.-x v) (.-y v) (.-z v)]))
-
-;; ;; (defn get-linear-velocity [object]
-;; ;;   (let [body (:body object)
-;; ;;         v (new Vector3f)]
-;; ;;     (.getLinearVelocity body v)
-;; ;;     [(.-x v) (.-y v) (.-z v)]))
-
-;; ;; (defn get-object-position [object]
-;; ;;   (let [body (:body object)
-;; ;;         transform (get-body-transform body)]
-;; ;;     (get-transform-position transform)))
-
-;; (defn apply-torque [body torque]
-;;   (.applyTorque body (make-vector3f torque))
-;;   body)
-
-;; (defn apply-angular-friction [object strenght]
-;;   (let [angular-velocity (get-angular-velocity object)
-;;         torque (vector-multiply angular-velocity (* strenght -1))]
-;;     (apply-torque object torque)))
-
-;; ;; (defn apply-linear-friction [body strenght]
-;; ;;   (let [linear-velocity (get-linear-velocity object)
-;; ;;         force (vector-multiply linear-velocity (* strenght -1))]
-;; ;;     (apply-force object force (get-object-position object))))
-
-;; (defn apply-friction [world]
-;;   (doseq [[_ part] (:parts world)]
-;;     (apply-angular-friction (:body part) 10)
-;;     )
-;;   world)
+(defn get-part-at [world px py]
+  (:part-name (get-part-collision world px py)))
 
 ;; ;;-------------------------------------------------------------------------------;;
 ;; ;; input sorting
@@ -1689,28 +1513,28 @@
 ;;       :interact (interact-mouse-released world event)
 ;;       world)))
 
-;; ;;-------------------------------------------------------------------------------;;
-;; ;; camera manipulation
+;;-------------------------------------------------------------------------------;;
+;; camera manipulation
 
-;; (defn mouse-rotate [world event]
-;;   (let [[x y] (:last-point world)
-;;         dx (- (:x event) x)
-;;         dy (- (:y event) y)]
-;;     (-> world
-;;         (rotate-camera dx dy)
-;;         (assoc-in [:last-point] [(:x event) (:y event)]))))
+(defn mouse-rotate [world event]
+  (let [[x y] (:last-point world)
+        dx (- (:x event) x)
+        dy (- (:y event) y)]
+    (-> world
+        (rotate-camera dx dy)
+        (assoc-in [:last-point] [(:x event) (:y event)]))))
 
-;; (defn mouse-pan [world event]
-;;   (let [[x1 y1] (:last-point world)
-;;         x2 (:x event)
-;;         y2 (:y event)]
-;;     (-> world
-;;         (pan-camera x1 y1 x2 y2)
-;;         (assoc-in [:last-point] [x2 y2]))))
+(defn mouse-pan [world event]
+  (let [[x1 y1] (:last-point world)
+        x2 (:x event)
+        y2 (:y event)]
+    (-> world
+        (pan-camera x1 y1 x2 y2)
+        (assoc-in [:last-point] [x2 y2]))))
 
-;; (defn mouse-scrolled [world event]
-;;   (let [amount (+ 1 (* (:y event) -0.05))]
-;;     (zoom-camera world amount)))
+(defn mouse-scrolled [world event]
+  (let [amount (+ 1 (* (:y event) -0.05))]
+    (zoom-camera world amount)))
 
 ;; ;;-------------------------------------------------------------------------------;;
 ; ;; drawing
@@ -1805,148 +1629,10 @@
 ;;     (.removeRigidBody @planet body)
 ;;     (dissoc-in world [:parts part-name :body])))
 
-;; ;;-------------------------------------------------------------------------------;;
-;; ;; move mode
+;;-------------------------------------------------------------------------------;;
+;; move mode
 
-;; (defn make-spec [position rotation point]
-;;   (let [rotation-transform (make-transform [0 0 0] rotation)
-;;         transform (make-transform position rotation)
-;;         p (apply-transform transform point)
-;;         normal-table {[ 1  0  0] [0 0 1 -90]
-;;                       [-1  0  0] [0 0 1 90]
-;;                       [ 0  1  0] [1 0 0 0]
-;;                       [ 0 -1  0] [1 0 0 180]
-;;                       [ 0  0  1] [1 0 0 90]
-;;                       [ 0  0 -1] [1 0 0 -90]}
-;;         extra-rotation (get normal-table (map round (vector-normalize point)))
-;;         final-rotation (get-transform-rotation
-;;                         (combine-transforms
-;;                          (make-transform [0 0 0] extra-rotation)
-;;                          (make-transform [0 0 0] rotation)))]
-;;     [p final-rotation]))
 
-;; (defn get-snap-specs [world]
-;;   (let [grid-specs (vec (map (fn [[a b]]
-;;                                 [[(- a 5.5) 0 (- b 5.5)] [1 0 0 0] :ground])
-;;                               (create-combinations (range 12) (range 12))))
-;;         moving-part (:moving-part world)
-;;         face-specs
-;;         (vec
-;;          (remove-nil
-;;           (mapcat (fn [[name part]]
-;;                     (if (= name moving-part)
-;;                       nil
-;;                       (let [part (get-in world [:parts name])
-;;                             transform (get-body-transform (:body part))
-;;                             position (get-transform-position transform)
-;;                             rotation (get-transform-rotation transform)
-;;                             points (get-in world [:info (:type part) :points])]
-;;                         (map (fn [p]
-;;                                (conj (make-spec position rotation p) name))
-;;                              points))))
-;;                         (:parts world))))]
-;;     (vec (concat grid-specs face-specs))))
-
-;; (defn move-mouse-pressed [world event]
-;;   (if-let [moving-part (get-part-at world (:x event) (:y event))]
-;;     (let [part (get-in world [:parts moving-part])
-;;           transform (get-body-transform (:body part))
-;;           rotation (get-transform-rotation transform)
-;;           position (get-transform-position transform)]
-
-;;       ;; (if (get-in world [:parts moving-part :snapped])
-;;       ;;   (println! "remove constraint")
-;;       ;;   (println! "remove nothing")
-;;       ;;   )
-      
-;;       (-> world
-;;           (assoc-in [:moving-part] moving-part)
-;;           (assoc-in [:start-rotation] rotation)
-;;           (assoc-in [:parts moving-part :position] position)
-;;           (assoc-in [:parts moving-part :rotation] rotation)
-;;           (remove-part-body moving-part)
-;;           ((fn [w]
-;;              (assoc-in w [:snap-specs] (get-snap-specs w))))
-;;           (assoc-in [:plane] (get-camera-plane world position))))
-;;     (assoc-in world [:last-point] [(:x event) (:y event)])))
-
-;; (defn mouse-place [world event]
-;;   (let [moving-part (:moving-part world)
-;;         line (unproject-point world [(:x event) (:y event)])
-;;         snap-specs (:snap-specs world)
-;;         close-points (filter (fn [[p _ _]]
-;;                                (< (point-line-distance p line) 0.2))
-;;                              snap-specs)
-;;         eye (get-in world [:camera :eye])
-;;         snap-spec (first (sort-by (fn [[p _ _]]
-;;                                     (distance p eye)) close-points))]
-;;     (if (nil? snap-spec)
-;;       (let [plane (:plane world)
-;;             plane-point (line-plane-intersection line plane)]
-;;         (-> world
-;;             (assoc-in [:parts moving-part :position] plane-point)
-;;             (assoc-in [:parts moving-part :rotation] (:start-rotation world))
-;;             (assoc-in [:parts moving-part :snapped] false)))
-;;       (let [[final-point final-rotation static-part] snap-spec
-;;             rotation-transform (make-transform [0 0 0] final-rotation)
-;;             part (get-in world [:parts moving-part])
-;;             [_ sy _] (get-in world [:info (:type part) :scale])
-;;             offset [0 (* sy 0.5) 0]
-;;             offset (apply-transform rotation-transform offset)
-;;             final-point (vector-add final-point offset)]
-;;         (-> world
-;;             (assoc-in [:parts moving-part :position] final-point)
-;;             (assoc-in [:parts moving-part :rotation] final-rotation)
-;;             (assoc-in [:parts moving-part :snapped] true)
-;;             (assoc-in [:static-part] static-part))))))
-
-;; (defn move-mouse-moved [world event]
-;;   (cond
-;;     (not-nil? (:moving-part world)) (mouse-place world event)
-
-;;     (not-nil? (:last-point world))
-;;     (cond
-;;       (= (:button event) :left) (mouse-rotate world event)
-;;       (= (:button event) :right) (mouse-pan world event)
-;;       :else world)
-
-;;     :else world))
-
-;; (defn create-constraint [world moving-part static-part]
-;;   (let [moving-body (get-in world [:parts moving-part :body])
-;;         static-body (if (= static-part :ground)
-;;                       (:ground world)
-;;                       (get-in world [:parts static-part :body]))
-;;         moving-position (get-transform-position (get-body-transform moving-body))
-;;         static-position (get-transform-position (get-body-transform static-body))
-;;         axis (vector-subtract moving-position static-position)
-;;         distance (vector-length axis)
-;;         offset (vector-multiply [0 -1 0] distance)
-;;         moving-frame (make-transform offset [1 0 0 0])
-;;         static-frame (make-transform [0 0 0] [1 0 0 0])
-        
-
-;;         moving-type (get-in world [:parts moving-part :type])
-;;         static-type (get-in world [:parts static-part :type])]
-;;     (if (or (= moving-type :axle)
-;;             (= static-type :axle))
-;;       (create-hinge-constraint moving-body static-body)
-;;       (create-weld-constraint moving-body static-body))
-;;     ;;###################################################### store constraint
-;;     world
-;;     ))
-
-;; (defn move-mouse-released [world event]
-;;   (if-let [moving-part (:moving-part world)]
-;;     (let [snapped (get-in world [:parts moving-part :snapped])
-;;           world (-> world
-;;                     (create-part-body moving-part)
-;;                     (dissoc-in [:moving-part])
-;;                     (dissoc-in [:snap-specs]))]
-;;       (if snapped
-;;         (create-constraint world moving-part (:static-part world))
-;;         world))
-;;     (dissoc-in world [:last-point])))
 
 ;; ;;-------------------------------------------------------------------------------;;
 ;; ;; cable mode
@@ -2128,7 +1814,130 @@
 ;;                                      }}))
 
 ;;-------------------------------------------------------------------------------;;
-;;################## new
+;; snapping
+
+(defn make-spec [position rotation point]
+  (let [rotation-transform (make-transform [0 0 0] rotation)
+        transform (make-transform position rotation)
+        p (apply-transform transform point)
+        normal-table {[ 1  0  0] [0 0 1 -90]
+                      [-1  0  0] [0 0 1 90]
+                      [ 0  1  0] [1 0 0 0]
+                      [ 0 -1  0] [1 0 0 180]
+                      [ 0  0  1] [1 0 0 90]
+                      [ 0  0 -1] [1 0 0 -90]}
+        extra-rotation (get normal-table (map round (vector-normalize point)))
+        final-rotation (get-transform-rotation
+                        (combine-transforms
+                         (make-transform [0 0 0] extra-rotation)
+                         (make-transform [0 0 0] rotation)))]
+    [p final-rotation]))
+
+(defn get-snap-specs [world]
+  (let [grid-specs (vec (map (fn [[a b]]
+                                [[(- a 5.5) 0 (- b 5.5)] [1 0 0 0] :ground])
+                              (create-combinations (range 12) (range 12))))
+        moving-part (:moving-part world)
+        face-specs
+        (vec
+         (remove-nil
+          (mapcat (fn [[name part]]
+                    (if (= name moving-part)
+                      nil
+                      (let [part (get-in world [:parts name])
+                            transform (:transform part)
+                            position (get-transform-position transform)
+                            rotation (get-transform-rotation transform)
+                            points (get-in world [:info (:type part) :points])]
+                        (map (fn [p]
+                               (conj (make-spec position rotation p) name))
+                             points))))
+                        (:parts world))))]
+    (vec (concat grid-specs face-specs))))
+
+(defn mouse-pressed [world event]
+  (if-let [moving-part (get-part-at world (:x event) (:y event))]
+    (let [part (get-in world [:parts moving-part])
+          transform (:transform part)
+          rotation (get-transform-rotation transform)
+          position (get-transform-position transform)]
+      (-> world
+          (assoc-in [:moving-part] moving-part)
+          (assoc-in [:start-rotation] rotation)
+          (assoc-in [:parts moving-part :position] position)
+          (assoc-in [:parts moving-part :rotation] rotation)
+          ((fn [w]
+             (assoc-in w [:snap-specs] (get-snap-specs w))))
+          (assoc-in [:plane] (get-camera-plane world position))))
+    (assoc-in world [:last-point] [(:x event) (:y event)])))
+
+(defn mouse-place [world event]
+  (let [moving-part (:moving-part world)
+        line (unproject-point world [(:x event) (:y event)])
+        snap-specs (:snap-specs world)
+        close-points (filter (fn [[p _ _]]
+                               (< (point-line-distance p line) 0.2))
+                             snap-specs)
+        eye (get-in world [:camera :eye])
+        snap-spec (first (sort-by (fn [[p _ _]]
+                                    (distance p eye)) close-points))]
+    (if (nil? snap-spec)
+      (let [plane (:plane world)
+            plane-point (line-plane-intersection line plane)
+            transform (make-transform plane-point (:start-rotation world))]
+        (-> world
+            (assoc-in [:parts moving-part :transform] transform)
+            (assoc-in [:parts moving-part :snapped] false)))
+      (let [[final-point final-rotation static-part] snap-spec
+            rotation-transform (make-transform [0 0 0] final-rotation)
+            part (get-in world [:parts moving-part])
+            [_ sy _] (get-in world [:info (:type part) :scale])
+            offset [0 (* sy 0.5) 0]
+            offset (apply-transform rotation-transform offset)
+            final-point (vector-add final-point offset)
+            final-transform (make-transform final-point final-rotation)]
+        (-> world
+            (assoc-in [:parts moving-part :transform] final-transform)
+            (assoc-in [:parts moving-part :snapped] true)
+            (assoc-in [:static-part] static-part))))))
+
+(defn mouse-moved [world event]
+  (cond
+    (not-nil? (:moving-part world)) (mouse-place world event)
+
+    (not-nil? (:last-point world))
+    (cond
+      (= (:button event) :left) (mouse-rotate world event)
+      (= (:button event) :right) (mouse-pan world event)
+      :else world)
+
+    :else world))
+
+(defn update-parent [world child-name parent-name]
+  (let [child (get-in world [:parts child-name])]
+    (if (= parent-name :ground)
+      (assoc-in world [:ground-children child-name] (:transform child))
+      (let [parent (get-in world [:parts parent-name])
+            child-transform (:transform child)
+            parent-transform (:transform parent)
+            relative-transform (remove-transform child-transform
+                                                 parent-transform)]
+        (assoc-in world [:parts parent-name :children child-name]
+                  relative-transform)))))
+
+(defn mouse-released [world event]
+  (if-let [moving-part (:moving-part world)]
+    (let [snapped (get-in world [:parts moving-part :snapped])
+          world (-> world
+                    (dissoc-in [:moving-part])
+                    (dissoc-in [:snap-specs]))]
+      (if snapped
+        ;;#############################
+        (compute-transforms (update-parent world moving-part (:static-part world)))
+        world))
+    (dissoc-in world [:last-point])))
+
+;;-------------------------------------------------------------------------------;;
 
 (defn create-info []
   {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
@@ -2145,7 +1954,7 @@
           :scale [0.2 1 0.2]
           }
 
-   :pulley {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+   :pulley {:model (create-cone-mesh [0 0 0] [1 0 0 0]
                                      [0.3 0.3 0.3] :white)
             :points [[0 -0.15 0]]
             :scale [0.3 0.3 0.3]
@@ -2183,9 +1992,6 @@
                  (assoc-in [:transform] transform)
                  (set-mesh-color (:color part)))]
     (draw-mesh! world mesh)))
-
-(do
-1
 
 (declare compute-children-transforms)
 
@@ -2230,6 +2036,9 @@
                     (:parts world)
                     (:ground-children world))))
 
+(do
+1
+
 (defn create-world! []
   (set-thing! [] {})
   (set-thing! [:programs :basic] (create-program "basic"))
@@ -2254,76 +2063,42 @@
                                  [0 -0.25 0] [1 0 0 0] [12 0.5 12]
                                  (make-color 40 40 40)))
 
-  (set-thing! [:ground-children] {:red (make-transform [0.5 0.5 0.5] [0 1 0 0])
-                                  })
+  (set-thing! [:ground-children] {})
 
   (let [info (create-info)]
     (set-thing! [:info] info)
-  
-    (set-thing! [:parts :red]
+
+    (set-thing! [:parts :b1]
                 {:type :block
                  :color :red
-                 :transform (make-transform [0 0 0] [0 1 0 0])
-                 :children {:yellow (make-transform [0 1 0] [0 1 0 0])
-                            }
+                 :transform (make-transform [1 2 0] [0 1 0 45])
                  })
 
-    (set-thing! [:parts :yellow]
+    (set-thing! [:parts :b2]
                 {:type :block
                  :color :yellow
-                 :transform (make-transform [0 0 0] [0 1 0 0])
-                 :children {:purple (make-transform [0 1 0] [0 1 0 0])
-                            }
+                 :transform (make-transform [-1 2 0] [0 1 0 0])
                  })
 
-    (set-thing! [:parts :purple]
+    (set-thing! [:parts :b4]
                 {:type :block
-                 :color :purple
-                 :transform (make-transform [0 0 0] [0 1 0 0])
-                 :children {:axle (make-transform [-1 0 0] [0 0 1 90])
-                            }
+                 :color :blue
+                 :transform (make-transform [2 2 -2] [1 0 1 72])
                  })
 
-    (set-thing! [:parts :axle]
+    (set-thing! [:parts :a1]
                 {:type :axle
                  :color :green
                  :angle 0
-                 :transform (make-transform [0 0 0] [0 1 0 0])
-                 :children {:orange (make-transform [0 1 0] [0 1 0 0])
-                            }
+                 :transform (make-transform [0 2 0] [0 1 0 0])
                  })
 
-    (set-thing! [:parts :orange]
-                {:type :block
-                 :color :orange
-                 :transform (make-transform [0 0 0] [0 1 0 0])
-                 :children {:blue (make-transform [0 0 1] [1 0 0 0])
-                            }
-                 })
-
-    (set-thing! [:parts :blue]
-                {:type :block
-                 :color :blue
-                 :transform (make-transform [0 0 0] [0 1 0 0])
-                 :children {:axle2 (make-transform [0 0 1] [1 0 0 90])
-                            }
-                 })
-
-    (set-thing! [:parts :axle2]
+    (set-thing! [:parts :a2]
                 {:type :axle
                  :color :green
-                 :angle 30
-                 :transform (make-transform [0 0 0] [0 1 0 0])
-                 :children {:white (make-transform [0 1 0] [0 1 0 0])
-                            }
+                 :angle 0
+                 :transform (make-transform [2 2 0] [0 1 0 0])
                  })
-
-    (set-thing! [:parts :white]
-                {:type :block
-                 :color :white
-                 :transform (make-transform [0 0 0] [0 1 0 0])
-                 })
-
     )
   (update-thing! [] compute-transforms)
   )
@@ -2332,10 +2107,13 @@
 )
 
 (defn update-world [world elapsed]
-  (-> world
-      (update-in [:parts :axle :angle] #(+ % 2))
-      (update-in [:parts :axle2 :angle] #(+ % 5))
-      (compute-transforms))
+
+  (if (:moving-part world)
+    world
+    (-> world
+        (update-in [:parts :a1 :angle] (fn [v] (mod (+ v 2) 360)))
+        (update-in [:parts :a2 :angle] (fn [v] (mod (+ v 2) 360)))
+        (compute-transforms)))
   )
 
 (defn draw-3d! [world]
@@ -2349,22 +2127,6 @@
     (draw-part! world part))
   )
 
-(defn mouse-pressed [world event]
-  (assoc-in world [:last-point] [(:x event) (:y event)]))
-
-(defn mouse-moved [world event]
-  (if-let [last-point (:last-point world)]
-    (let [[x y] last-point
-          dx (- (:x event) x)
-          dy (- (:y event) y)]
-      (-> world
-          (rotate-camera dx dy)
-          (assoc-in [:last-point] [(:x event) (:y event)])))
-    world))
-
-(defn mouse-released [world event]
-  (dissoc-in world [:last-point]))
 
 
-(do
-)
+
