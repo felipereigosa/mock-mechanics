@@ -1491,18 +1491,22 @@
 
 (do
 1
-  
-(defn block-compute-subtree-transforms [parts name transform]
-  (let [block (get-in parts [name])
-        parts (assoc-in parts [name :transform] transform)]
+
+(defn compute-children-transforms [parts info part-name transform]
+  (let [part (get-in parts [part-name])] 
     (reduce (fn [ps [child-name relative-transform]]
               (let [new-transform (combine-transforms
                                    relative-transform transform)]
-                (compute-subtree-transforms ps child-name new-transform)))
+                (compute-subtree-transforms ps info child-name new-transform)))
             parts
-            (:children block))))
+            (:children part))))
 
-(defn axle-compute-subtree-transforms [parts name transform]
+(defn block-compute-subtree-transforms [parts info name transform]
+  (compute-children-transforms
+   (assoc-in parts [name :transform] transform)
+   info name transform))
+
+(defn axle-compute-subtree-transforms [parts info name transform]
   (let [axle (get-in parts [name])
         angle (:angle axle)
         angle-transform (make-transform [0 0 0] [0 1 0 angle])
@@ -1514,16 +1518,64 @@
         (compute-subtree-transforms parts child-name new-transform))
       parts)))
 
-(defn get-position-in-track [parts track-name t]
-  ;;#################################################### corners
-  ;;#################################################### inverted tracks
+(defn get-shared-point [parts info p1-name p2-name]
+  (let [p1 (get-in parts [p1-name])
+        p1-transform (:transform p1)
+        p1-points (map #(apply-transform p1-transform %)
+                       (get-in info [(:type p1) :points]))
+        p2 (get-in parts [p2-name])
+        p2-transform (:transform p2)
+        p2-points (map #(apply-transform p2-transform %)
+                       (get-in info [(:type p2) :points]))
+        epsilon 0.001]
+    (find-if (comp not nil?)
+             (mapcat (fn [a]
+                       (map (fn [b]
+                              (if (< (distance a b) epsilon)
+                                a
+                                nil))
+                            p2-points))
+                     p1-points))))
+
+(defn interpolate-points [p1 p2 t]
+  (vector-add
+   (vector-multiply p2 t)
+   (vector-multiply p1 (- 1.0 t))))
+
+(defn get-position-in-track [parts info track-name loop t]
   (let [track (get-in parts [track-name])
         transform (:transform track)
-        y (map-between-ranges t 0.0 1.0 -0.5 0.5)
-        point [0 y 0]]
-    (apply-transform transform point)))
+        pairs (map vector loop (rest loop))
+        before-track (first (find-if (fn [[a b]]
+                                       (= b track-name))
+                                     pairs))
+        after-track (second (find-if (fn [[a b]]
+                                       (= a track-name))
+                                     pairs))
+        epsilon 0.001]
+  (cond
+    (= track-name (first loop))
+    (let [after-point (get-shared-point parts info track-name after-track)
+          p1 (apply-transform transform [0 -0.5 0])
+          p2 (apply-transform transform [0 0.5 0])
+          before-point (if (< (distance p1 after-point) epsilon)
+                         p2 p1)]
+      (interpolate-points before-point after-point t))
 
-(defn get-position-in-loop [parts loop t]
+    (= track-name (last loop))
+    (let [before-point (get-shared-point parts info before-track track-name)
+          p1 (apply-transform transform [0 -0.5 0])
+          p2 (apply-transform transform [0 0.5 0])
+          after-point (if (< (distance p1 before-point) epsilon)
+                         p2 p1)]
+      (interpolate-points before-point after-point t))
+    
+    :else
+    (let [before-point (get-shared-point parts info before-track track-name)
+          after-point (get-shared-point parts info track-name after-track)]
+      (interpolate-points before-point after-point t)))))
+
+(defn get-position-in-loop [parts info loop t]
   (let [num-tracks (count loop)
         track-number (within (int (map-between-ranges
                                    t 0.0 1.0 0 num-tracks))
@@ -1533,32 +1585,36 @@
                   1.0
                   (/ (mod t track-size) track-size))
         track-name (nth loop track-number)]
-    (get-position-in-track parts track-name local-t)))
+    (get-position-in-track parts info track-name loop local-t)))
 
-(defn wagon-compute-subtree-transforms [parts name transform]
+(defn wagon-compute-subtree-transforms [parts info name transform]
   (let [wagon (get-in parts [name])
         transform (get-in parts [(:base wagon) :transform])
         rotation (get-transform-rotation transform)
-        position (get-position-in-loop parts (:loop wagon) 1)]
-    (assoc-in parts [name :transform] (make-transform position rotation))))
+        position (get-position-in-loop parts info (:loop wagon) (:t wagon))
+        transform (make-transform position rotation)
+        parts (assoc-in parts [name :transform] transform)]
+    (compute-children-transforms parts info name transform)))
 
-(defn compute-subtree-transforms [parts name transform]
+(defn compute-subtree-transforms [parts info name transform]
   (let [part (get-in parts [name])]
     (case (:type part)
-      :block (block-compute-subtree-transforms parts name transform)
-      :track (block-compute-subtree-transforms parts name transform)
-      :axle (axle-compute-subtree-transforms parts name transform)
-      :wagon (wagon-compute-subtree-transforms parts name transform)
+      :block (block-compute-subtree-transforms parts info name transform)
+      :track (block-compute-subtree-transforms parts info name transform)
+      :axle (axle-compute-subtree-transforms parts info name transform)
+      :wagon (wagon-compute-subtree-transforms parts info name transform)
       parts)))
 
 (defn compute-transforms [world]
   (assoc-in world [:parts]
             (reduce (fn [ps [name relative-transform]]
-                      (compute-subtree-transforms ps name relative-transform))
+                      (compute-subtree-transforms ps (:info world)
+                                                  name relative-transform))
                     (:parts world)
                     (:ground-children world))))
 
 (clear-output!)
+(set-thing! [:parts :wagon :t] 0)
 (set-thing! [] (compute-transforms @world))
 
 ;; (println! (get-position-in-loop (:parts @world)
@@ -1718,10 +1774,10 @@
            }
 
    :wagon {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                    [1 1 1] :white)
-           :points [[0.5 0 0] [-0.5 0 0]
-                    [0 0.5 0] [0 -0.5 0]
-                    [0 0 0.5] [0 0 -0.5]]
+                                    [0.5 0.5 0.5] :white)
+           :points [[0.25 0 0] [-0.25 0 0]
+                    [0 0.25 0] [0 -0.25 0]
+                    [0 0 0.25] [0 0 -0.25]]
            :scale [1 1 1]
            }
 
@@ -1784,7 +1840,7 @@
   (set-thing! [:projection-matrix] (get-perspective-matrix
                                     10 (/ window-width window-height) 3 1000))
 
-  (update-thing! [] (slots create-camera _ [0 0 1] 50 25 -35))
+  (update-thing! [] (slots create-camera _ [0 0 1] 60 25 -35))
   (update-thing! [] #(create-grid-mesh % 12 1))
   (set-thing! [:output] (create-ortho-mesh))
   (clear-output!)
@@ -1795,33 +1851,111 @@
                                  [0 -0.25 0] [1 0 0 0] [12 0.5 12]
                                  (make-color 40 40 40)))
 
-  (set-thing! [:ground-children] {})
   
   (let [info (create-info)]
     (set-thing! [:info] info)
 
-    ;; (set-thing! [:parts :red] {:type :block
-    ;;                            :color :red
-    ;;                            :transform (make-transform [0 0 0] [1 0 0 0])
-
-    ;;                            :children {:axle (make-transform [0 1 0] [1 0 0 0])}
-    ;;                            })
-
+    ;; (set-thing! [:ground-children] {:axle (make-transform [0 0.5 0] [1 0 0 0])})
 
     ;; (set-thing! [:parts :axle] {:type :axle
-    ;;                             :color :blue
-    ;;                             :angle 45
-    ;;                             :transform (make-transform [-2 1 0] [1 0 0 0])
-    ;;                             :children {:yellow (make-transform [0 1 0] [1 0 0 0])}
+    ;;                             :color :green
+    ;;                             :angle 54
+    ;;                             :transform (make-transform [0 0 0] [0 1 0 0])
+    ;;                             :children {:block (make-transform [0 1 0] [0 1 0 0])}
     ;;                             })
 
+    ;; (set-thing! [:parts :block] {:type :block
+    ;;                              :color :white
+    ;;                              :transform (make-transform [0 0 0] [0 1 0 0])
+    ;;                              :children {:track0 (make-transform [1 0 0]
+    ;;                                                                 [0 0 1 90])}
+    ;;                              })
 
-    ;; (set-thing! [:parts :yellow] {:type :block
-    ;;                               :color :yellow
-    ;;                               :transform (make-transform [2 2 0] [0 1 0 45])
+    ;; (set-thing! [:parts :track0] {:type :track
+    ;;                               :color :white
+    ;;                               :transform (make-transform [0 0 0] [0 1 0 0])
+    ;;                               :children {:track1 (make-transform [0 0 1]
+    ;;                                                                  [1 0 0 90])} 
     ;;                               })
-    )
-  (update-thing! [] compute-transforms)
+
+    ;; (set-thing! [:parts :track1] {:type :track
+    ;;                               :color :red
+    ;;                               :transform (make-transform [0 0 0] [0 1 0 0])
+    ;;                               :children {:track2 (make-transform [0 1 0]
+    ;;                                                                  [1 0 0 0])
+    ;;                                          :wagon (make-transform [0 0 1]
+    ;;                                                                 [1 0 0 0])}
+    ;;                               })
+
+    ;; (set-thing! [:parts :track2] {:type :track
+    ;;                               :color :red
+    ;;                               :transform (make-transform [0 0 0] [0 0 0 0])
+    ;;                               })
+
+    ;; (set-thing! [:parts :wagon] {:type :wagon
+    ;;                              :color :yellow
+    ;;                              :base :track1
+    ;;                              :loop [:track1 :track2]
+    ;;                              :t 0.7
+    ;;                              :transform (make-transform [0 0 0] [0 1 0 0])
+    ;;                              :children {:axle2 (make-transform [0 0 -0.5]
+    ;;                                                                [1 0 0 90])}
+    ;;                              })
+
+    ;; (set-thing! [:parts :axle2] {:type :axle
+    ;;                              :color :purple
+    ;;                              :angle 0.0
+    ;;                              :transform (make-transform [0 0 0] [0 1 0 0])
+    ;;                              })
+
+;;-------------------------------------------------------------------------------;;
+
+    (set-thing! [:ground-children] {:track0 (make-transform [0 0.5 0] [1 0 0 0])})
+    
+    (set-thing! [:parts :track0] {:type :track
+                                  :color :white
+                                  :transform (make-transform [0 0 0] [1 0 0 0])
+                                  :children {:track1 (make-transform [0 1 0]
+                                                                     [1 0 0 0])}
+                                  })
+
+    (set-thing! [:parts :track1] {:type :track
+                                  :color :red
+                                  :transform (make-transform [0 0 0] [1 0 0 0])
+                                  :children {:track2 (make-transform [0 1 0]
+                                                                     [1 0 0 0])}
+                                  })
+
+    (set-thing! [:parts :track2] {:type :track
+                                  :color :green
+                                  :transform (make-transform [0 0 0] [1 0 0 0])
+                                  :children {:track3 (make-transform [0 1 0]
+                                                                    [0 0 1 180])
+                                             :wagon (make-transform [0 0 0]
+                                                                    [1 0 0 0])}
+                                  })
+
+    (set-thing! [:parts :track3] {:type :track
+                                  :color :red
+                                  :transform (make-transform [0 0 0] [1 0 0 0])
+                                  :children {:track4 (make-transform [0 -1 0]
+                                                                     [0 0 1 180])}
+                                  })
+
+    (set-thing! [:parts :track4] {:type :track
+                                  :color :green
+                                  :transform (make-transform [0 0 0] [1 0 0 0])
+                                  })
+
+    (set-thing! [:parts :wagon] {:type :wagon
+                                 :color :yellow
+                                 :base :track1
+                                 :loop [:track1 :track2 :track3 :track4]
+                                 :t 1
+                                 :transform (make-transform [0 0 0] [0 1 0 0])
+                                 })
+
+    (update-thing! [] compute-transforms))
   )
 
 (reset-world!)
@@ -1829,7 +1963,7 @@
 
 (defn update-world [world elapsed]
   (-> world
-      ;; (update-in [:parts :axle5395 :angle] (fn [v] (mod (+ v 2) 360)))
+      ;; (update-in [:parts :axle :angle] (fn [v] (mod (+ v 2) 360)))
       ;; (compute-transforms)
       )
   )
@@ -1937,7 +2071,7 @@
 ;; (println! (get-in @world [:parts :track4549]))
 ;; (println! (:parts @world))
 ;; (reset-world!)
-;; (make-part! :wagon :purple)
+
 ;; (println! (keys (get-thing! [:parts])))
 ;; (set-thing! [:info] (create-info))
 ;; (clear-output!)
@@ -1945,3 +2079,20 @@
 ;; (set-thing! [:parts :wagon9339 :loop] [:track5504 :track5657 :track5673])
 ;; (set-thing! [:parts :track5488 :color] :white)
 ;; (println! (get-thing! [:parts :wagon9339]))
+
+;; (make-part! :axle :purple)
+
+;; (println! (keys (:parts @world)))
+
+
+;; (set-thing! [:parts :track4471 :color] :white)
+;; (set-thing! [:parts :wagon4646 :loop] [:track4487 :track4503 :track4519])
+
+
+;; (println! (:parts @world))
+
+;; (do
+;; 1  
+;; (set-thing! [:parts :wagon :t] 0.87)
+;; (update-thing! [] compute-transforms)
+;; )
