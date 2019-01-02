@@ -1487,43 +1487,57 @@
 ;;-------------------------------------------------------------------------------;;
 ;; track loop
 
-(defn get-shared-point [parts info p1-name p2-name]
-  (let [p1 (get-in parts [p1-name])
-        p1-transform (:transform p1)
-        p1-points (map #(apply-transform p1-transform %)
-                       (get-in info [(:type p1) :points]))
-        p2 (get-in parts [p2-name])
-        p2-transform (:transform p2)
-        p2-points (map #(apply-transform p2-transform %)
-                       (get-in info [(:type p2) :points]))
-        epsilon 0.001]
-    (find-if (comp not nil?)
-             (mapcat (fn [a]
-                       (map (fn [b]
-                              (if (< (distance a b) epsilon)
-                                a
-                                nil))
-                            p2-points))
-                     p1-points))))
-
 (defn get-parts-with-type [parts type]
   (filter (fn [part]
             (= (get-in parts [part :type]) type))
           (keys parts)))
 
-(defn parts-connected? [parts p0-name p1-name]
-  (let [p0 (get-in parts [p0-name])
-        p1 (get-in parts [p1-name])]
+(defn get-local-shared-point [world part-name neighbour-name]
+  (let [parts (:parts world)
+        info (:info world)
+        part (get-in parts [part-name])
+        part-transform (:transform part)
+        part-points (map (fn [point]
+                           [point (apply-transform part-transform point)])
+                         (get-in info [(:type part) :points]))
+        neighbour (get-in parts [neighbour-name])
+        neighbour-transform (:transform neighbour)
+        neighbour-points (map #(apply-transform neighbour-transform %)
+                              (get-in info [(:type neighbour) :points]))
+        epsilon 0.001]
+    (find-if (comp not nil?)
+             (mapcat (fn [[offset a]]
+                       (map (fn [b]
+                              (if (< (distance a b) epsilon)
+                                offset
+                                nil))
+                            neighbour-points))
+                     part-points))))
+
+(defn get-global-shared-point [world p1-name p2-name]
+  (if-let [point (get-local-shared-point world p1-name p2-name)]
+    (let [transform (get-in world [:parts p1-name :transform])]
+      (apply-transform transform point))
+    nil))
+
+(defn tracks-connected? [world p0-name p1-name]
+  (let [parts (:parts world)
+        p0 (get-in parts [p0-name])
+        p1 (get-in parts [p1-name])
+        s1 (get-local-shared-point world p0-name p1-name)
+        s2 (get-local-shared-point world p1-name p0-name)]
     (or
      (in? p1-name (keys (:children p0)))
-     (in? p0-name (keys (:children p1))))))
+     (in? p0-name (keys (:children p1)))
+     (vector= s1 [0 0.5 0])
+     (vector= s2 [0 0.5 0]))))
 
-(defn get-neighbours [parts part-name]
+(defn get-neighbours [world part-name]
   (filter (fn [other-part-name]
             (and
              (not (= other-part-name part-name))
-             (parts-connected? parts other-part-name part-name)))
-          (keys parts)))
+             (tracks-connected? world other-part-name part-name)))
+          (keys (:parts world))))
 
 (defn grow-loop [parts track-names loop color]
   (let [start (first loop)
@@ -1536,7 +1550,7 @@
                                  (= (:type part) :track)
                                  (= (:color part) color)
                                  (not (in? part-name loop)))))
-                            (get-neighbours parts tip))))
+                            (get-neighbours world tip))))
         before (get-next start)
         after (get-next end)]
     (if (and (nil? before)
@@ -1587,7 +1601,7 @@
         epsilon 0.001]
   (cond
     (= track-name (first loop))
-    (let [after-point (get-shared-point parts info track-name after-track)
+    (let [after-point (get-global-shared-point world track-name after-track)
           p1 (apply-transform transform [0 -0.5 0])
           p2 (apply-transform transform [0 0.5 0])
           before-point (if (< (distance p1 after-point) epsilon)
@@ -1595,7 +1609,7 @@
       (interpolate-points before-point after-point t))
 
     (= track-name (last loop))
-    (let [before-point (get-shared-point parts info before-track track-name)
+    (let [before-point (get-global-shared-point world before-track track-name)
           p1 (apply-transform transform [0 -0.5 0])
           p2 (apply-transform transform [0 0.5 0])
           after-point (if (< (distance p1 before-point) epsilon)
@@ -1604,8 +1618,8 @@
     
     :else
     (let [center-point (get-transform-position (:transform track))
-          before-point (get-shared-point parts info before-track track-name)
-          after-point (get-shared-point parts info track-name after-track)]
+          before-point (get-global-shared-point world before-track track-name)
+          after-point (get-global-shared-point world track-name after-track)]
       (if (< t 0.5)
         (interpolate-points before-point center-point (* t 2))
         (interpolate-points center-point after-point (* (- t 0.5) 2)))))))
@@ -1623,38 +1637,21 @@
         track-name (nth loop track-number)]
     (get-position-in-track parts info track-name loop local-t)))
 
-(defn get-neighbour-direction [world part-name neighbour-name]
-  (let [parts (:parts world)
-        info (:info world)
-        part (get-in parts [part-name])
-        part-transform (:transform part)
-        part-points (map (fn [point]
-                           [point (apply-transform part-transform point)])
-                         (get-in info [(:type part) :points]))
-        neighbour (get-in parts [neighbour-name])
-        neighbour-transform (:transform neighbour)
-        neighbour-points (map #(apply-transform neighbour-transform %)
-                              (get-in info [(:type neighbour) :points]))
-        epsilon 0.001
-        direction (find-if (comp not nil?)
-                           (mapcat (fn [[offset a]]
-                                     (map (fn [b]
-                                            (if (< (distance a b) epsilon)
-                                              offset
-                                              nil))
-                                          neighbour-points))
-                                   part-points))]
-    (if (not-nil? direction)
-      (vector-normalize direction)
-      nil)))
-
 (defn compute-track-directions [world track-name]
-  (let [neighbours (get-neighbours (:parts world) track-name)
-        directions (map #(get-neighbour-direction world track-name %) neighbours)
-        directions (if (< (count directions) 2)
-                     [[0 -1 0] [0 1 0]]
-                     directions)]
-    (assoc-in world [:parts track-name :directions] directions)))
+  (if (= (get-in world [:parts track-name :type]) :track)
+    (let [neighbours (get-neighbours world track-name)
+          neighbours (filter (fn [name]
+                               (not (= (get-in world [:parts name :type]) :wagon)))
+                             neighbours)
+          directions (map (fn [name]
+                            (vector-normalize
+                             (get-local-shared-point world track-name name)))
+                          neighbours)
+          directions (if (< (count directions) 2)
+                       [[0 -1 0] [0 1 0]]
+                       directions)]
+      (assoc-in world [:parts track-name :directions] directions))
+    world))
 
 ;;-------------------------------------------------------------------------------;;
 ;; mechanical tree
@@ -1831,81 +1828,23 @@
 
 (defn mouse-released [world event]
   (if-let [moving-part (:moving-part world)]
-    (let [snapped (get-in world [:parts moving-part :snapped])
+    (let [static-part (:static-part world)
+          snapped (get-in world [:parts moving-part :snapped])
           world (-> world
                     (dissoc-in [:moving-part])
                     (dissoc-in [:snap-specs]))]
       (if snapped
         (-> world
-            (set-wagon-loop moving-part (:static-part world))
-            (update-parent moving-part (:static-part world))
+            (set-wagon-loop moving-part static-part)
+            (update-parent moving-part static-part)
+            (compute-track-directions moving-part)
+            (compute-track-directions static-part)            
             (compute-transforms))
         world))
     (dissoc-in world [:last-point])))
 
 ;;-------------------------------------------------------------------------------;;
 
-(defn create-info []
-  {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                    [1 1 1] :white)
-           :points [[0.5 0 0] [-0.5 0 0]
-                    [0 0.5 0] [0 -0.5 0]
-                    [0 0 0.5] [0 0 -0.5]]
-           :scale [1 1 1]
-           }
-
-   :axle {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                       [0.2 1 0.2] :white)
-          :points [[0 0.5 0] [0 -0.5 0]]
-          :scale [0.2 1 0.2]
-          }
-
-   :track {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                        [0.1 1 0.1] :white)
-           :arm (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                         [0.1 0.5 0.1] :white)
-
-           :middle (create-sphere-mesh [0 0 0] [1 0 0 0]
-                                       [0.15 0.15 0.15] :white)
-           :points [[0 0.5 0] [0 -0.5 0]
-                    [-0.5 0 0] [0.5 0 0]
-                    [0 0 -0.5] [0 0 0.5]
-                    ]
-           :scale [0.1 1 0.1]
-           }
-
-   :wagon {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                    [0.5 0.5 0.5] :white)
-           :points [[0.25 0 0] [-0.25 0 0]
-                    [0 0.25 0] [0 -0.25 0]
-                    [0 0 0.25] [0 0 -0.25]]
-           :scale [1 1 1]
-           }
-
-   ;; :pulley {:model (create-cone-mesh [0 0 0] [1 0 0 0]
-   ;;                                   [0.3 0.3 0.3] :white)
-   ;;          :points [[0 -0.15 0]]
-   ;;          :scale [0.3 0.3 0.3]
-   ;;          }
-
-   ;; :anchor {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-   ;;                                   [0.2 0.2 0.2] :white)
-   ;;          :points [[0 -0.1 0]]
-   ;;          :scale [0.2 0.2 0.2]
-   ;;          }
-
-   ;; :cable {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-   ;;                                      [0.2 1 0.2] :white)
-   ;;         :thickness 0.03}
-
-   ;; :spring {:model (create-model-mesh "res/spring.obj" [0 0 0]
-   ;;                                    [1 0 0 0] [1 1 1] :white)
-   ;;          :points [[0 0.5 0] [0 -0.5 0]]
-   ;;          :scale [0.2 1 0.2]
-   ;;          :collision-box (create-cylinder-mesh [0 0 0] [1 0 0 0]
-   ;;                                               [0.35 1 0.35] :white)
-   ;;        }
-   })
 
 (defn make-part! [type color]
   (let [x (- (rand-int 10) 5)
@@ -1916,6 +1855,8 @@
         part (cond
                (= type :axle) (assoc-in part [:angle] 0)
                (= type :wagon) (assoc-in part [:t] 0.0)
+               (= type :track) (assoc-in part [:directions] [[0 1 0]
+                                                             [0 -1 0]])
                :else part)]
     (set-thing! [:parts (gen-keyword type)] part)))
 
@@ -1958,6 +1899,47 @@
             track-names)))
 (do
 1
+
+(defn create-info []
+  (let [track-width 0.08]
+    {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                      [1 1 1] :white)
+             :points [[0.5 0 0] [-0.5 0 0]
+                      [0 0.5 0] [0 -0.5 0]
+                      [0 0 0.5] [0 0 -0.5]]
+             :scale [1 1 1]
+             }
+
+     :axle {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                     [0.2 1 0.2] :white)
+            :points [[0 0.5 0] [0 -0.5 0]]
+            :scale [0.2 1 0.2]
+            }
+
+     :track {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                          [0.1 1 0.1] :white)
+             :arm (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                        [track-width 0.5 track-width] :white)
+
+             :middle (create-sphere-mesh [0 0 0] [1 0 0 0]
+                                         [track-width
+                                          track-width
+                                          track-width] :white)
+             :points [[0 0.5 0] [0 -0.5 0]
+                      [-0.5 0 0] [0.5 0 0]
+                      [0 0 -0.5] [0 0 0.5]
+                      ]
+             :scale [0.1 1 0.1]
+             }
+
+     :wagon {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                      [0.5 0.5 0.5] :white)
+             :points [[0.25 0 0] [-0.25 0 0]
+                      [0 0.25 0] [0 -0.25 0]
+                      [0 0 0.25] [0 0 -0.25]]
+             :scale [1 1 1]
+             }
+     }))
 
 (defn create-world! []
   (set-thing! [] {})
@@ -2047,9 +2029,10 @@
 
 (defn update-world [world elapsed]
   (-> world
-      (update-in [:parts :axle :angle] (fn [v] (mod (+ v 0.5) 360)))
-      (update-in [:parts :wagon :t] (fn [v] (mod (+ v 0.005) 1)))
-      (compute-transforms)
+      ;; (update-in [:parts :axle :angle] (fn [v] (mod (- v 1) 360)))
+      ;; (update-in [:parts :wagon :t] (fn [v] (mod (+ v 0.005) 1)))
+      ;; (update-in [:parts :wagon5742 :t] (fn [v] (mod (+ v 0.005) 1)))
+      ;; (compute-transforms)
       )
   )
 
@@ -2064,13 +2047,11 @@
     (draw-part! world part))
   )
 
+;; (def saved-parts (atom (:parts @world)))
+;; (set-thing! [:parts] @saved-parts)
+
 ;; (reset-world!)
 ;; (make-part! :track :red)
-
-;; (do
-;;   (set-thing! [:parts :wagon :t] 0)
-;;   (update-thing! [] compute-transforms))
-
-(make-part! :track :red)
-
-(update-thing! [] compute-all-tracks-directions)
+;; (println! (keys (:parts @world)))
+;; (set-thing! [:parts :track5971 :color] :red)
+;; (update-thing! [] compute-all-tracks-directions)

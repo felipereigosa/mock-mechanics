@@ -111,7 +111,11 @@
 ;;     (vector-cross-product vector temp)))
 
 (defn vector= [a b]
-  (every? identity (map float-equals? a b)))
+  (if (or
+       (nil? a)
+       (nil? b))
+    false
+    (every? identity (map float-equals? a b))))
   
 (defn distance [a b]
   (vector-length (vector-subtract a b)))
