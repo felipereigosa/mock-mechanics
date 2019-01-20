@@ -1895,22 +1895,69 @@
                                (map (fn [point index]
                                       [name index point])
                                     points (range (count points))))
-                             (:functions wave-editor))]
-    (vec (take 2 (find-if (fn [[name index point]]
-                            (< (distance point [t v]) 0.05))
-                          named-points)))))
+                             (:functions wave-editor))
+        named-point (find-if (fn [[name index point]]
+                               (< (distance point [t v]) 0.05))
+                             named-points)]
+    (if (nil? named-point)
+      nil
+      (vec (take 2 named-point)))))
+
+(defn point-between-points? [p p1 p2]
+  (let [v (vector-subtract p2 p1)
+        line [p1 v]
+        l (vector-length v)]
+    (and
+     (< (point-line-distance p line) 0.04)
+     (< (distance p p1) l)
+     (< (distance p p2) l))))
+
+(defn add-function-point [wave-editor t v]
+  (let [functions (:functions wave-editor)
+        named-points (mapcat (fn [[name points]]
+                               (map (fn [point index]
+                                      [name index point])
+                                    (butlast points) (range (count points))))
+                             functions)
+        [name index _] (find-if (fn [[name index point-before]]
+                                  (let [function (get-in functions [name])
+                                        point-after (nth function (inc index))]
+                                    (point-between-points? [t v]
+                                                           point-before
+                                                           point-after)))
+                                named-points)]
+
+    (if (not-nil? name)
+      (update-in wave-editor [:functions name]
+                 (fn [function]
+                   (vector-insert function [t v] (inc index))))
+      wave-editor)))
+
+(defn remove-function-point [wave-editor point]
+  (if-let [[name index] point]
+    (let [function (get-in wave-editor [:functions name])]
+      (if (< 0 index (dec (count function)))
+        (update-in wave-editor [:functions name] #(vector-remove % index))
+        wave-editor))
+    wave-editor))
 
 (defn editor-mouse-pressed [world event]
   (let [x (:x event)
         y (:y event)
         [t v] (editor-coordinates->global (:wave-editor world) [x y])
         moving-point (get-function-point-at (:wave-editor world) t v)]
-    (-> world
-        (assoc-in [:moving-function-point] moving-point)
-        (assoc-in [:editor-last-point] [x y]))))
+    (if (= (:button event) :right)
+      (update-in world [:wave-editor] #(remove-function-point % moving-point))
+      (let [elapsed (- (get-current-time) (:last-time world))
+            world (assoc-in world [:last-time] (get-current-time))]
+        (if (< elapsed 200)
+          (update-in world [:wave-editor] #(add-function-point % t v))
+          (-> world
+              (assoc-in [:moving-function-point] moving-point)
+              (assoc-in [:editor-last-point] [x y])))))))
 
 (defn editor-mouse-moved [world event]
-  (reset! redraw-flag true) ;;#####################################
+  (reset! redraw-flag true)
 
   (if-let [[function-name index] (:moving-function-point world)]
     (let [x (:x event)
@@ -1948,7 +1995,7 @@
         (if (= i 1)
           (fill-circle! color x1 y1 7))))))
 
-(defn draw-2d! [world]
+(defn draw-wave-editor! [world]
   (let [wave-editor (:wave-editor world)
         {:keys [x y w h]} wave-editor]
     (fill-rect! :black x y w h)
@@ -1956,7 +2003,52 @@
 
     (doseq [function-name (keys (get-in wave-editor [:functions]))]
       (let [color (get-in world [:parts function-name :color])]
-        (draw-function! (:wave-editor world) function-name color)))))
+        (draw-function! (:wave-editor world) function-name color)))
+
+    ;; (let [hw (/ w 2)
+    ;;       hh (/ h 2)
+    ;;       x1 (- x hw -7)
+    ;;       x2 (+ x hw -7)
+    ;;       y1 (- y hh -7)
+    ;;       y2 (+ y hh -7)
+          
+    ;;       lx (map-between-ranges (:time world) 0 1 x1 x2)]
+    ;;   (draw-line! :purple lx y1 lx y2)
+    ;;   )
+    ))
+
+(defn get-function-value [function t]
+  (let [pairs (map vector function (rest function))
+        pair (find-if (fn [[[t0 & _] [t1 & _]]]
+                        (<= t0 t t1))
+                      pairs)
+        t0 (first (first pair))
+        t1 (first (second pair))
+        s (map-between-ranges t t0 t1 0 1)
+        v0 (second (first pair))
+        v1 (second (second pair))]
+    (+ (* v0 (- 1.0 s)) (* v1 s))))
+
+(defn run-wave [world name]
+  (let [function (get-in world [:wave-editor :functions name])
+        part (get-in world [:parts name])
+        type (:type part)
+        new-value (float (get-function-value function (:time world)))]
+    (cond
+      (= type :wagon)
+      (assoc-in world [:parts name :t] new-value)
+
+      (= type :axle)
+      (assoc-in world [:parts name :angle]
+                (map-between-ranges new-value 0.0 1.0 0.0 360.0))
+
+      :else world)))
+
+(defn run-waves [world]
+  (reduce (fn [w name]
+            (run-wave w name))
+          world
+          (keys (get-in world [:wave-editor :functions]))))
 
 ;;-------------------------------------------------------------------------------;;
 
@@ -1971,8 +2063,14 @@
                (= type :wagon) (assoc-in part [:t] 0.0)
                (= type :track) (assoc-in part [:directions] [[0 1 0]
                                                              [0 -1 0]])
-               :else part)]
-    (set-thing! [:parts (gen-keyword type)] part)))
+               :else part)
+        name (gen-keyword type)]
+    (set-thing! [:parts name] part)
+
+    (when (in? type [:wagon :axle])
+      (set-thing! [:wave-editor :functions name] [[0 0] [1 1]])
+      (reset! redraw-flag true)
+    )))
 
 (defn draw-track! [world track]
   (let [track-transform (:transform track)
@@ -2133,17 +2231,17 @@
 
     (set-thing! [:parts :track4] {:type :track
                                   :color :red
-                                  :transform (make-transform [-1 0.5 2] [1 0 0 0])
+                                  :transform (make-transform [-1 0.5 3] [1 0 0 0])
                                   })
 
     (set-thing! [:parts :track5] {:type :track
                                   :color :red
-                                  :transform (make-transform [0 0.5 2] [1 0 0 0])
+                                  :transform (make-transform [0 0.5 3] [1 0 0 0])
                                   })
 
     (set-thing! [:parts :track6] {:type :track
                                   :color :red
-                                  :transform (make-transform [1 0.5 2] [1 0 0 0])
+                                  :transform (make-transform [1 0.5 3] [1 0 0 0])
                                   })
 
     (set-thing! [:parts :wagon] {:type :wagon
@@ -2169,47 +2267,19 @@
                                 })
 
     (set-thing! [:time] 0.0)
+    (set-thing! [:last-time] 0.0)
     ))
 
 (reset-world!)
 )
 
-(defn get-function-value [function t]
-  (let [pairs (map vector function (rest function))
-        pair (find-if (fn [[[t0 & _] [t1 & _]]]
-                        (<= t0 t t1))
-                      pairs)
-        t0 (first (first pair))
-        t1 (first (second pair))
-        s (map-between-ranges t t0 t1 0 1)
-        v0 (second (first pair))
-        v1 (second (second pair))]
-    (+ (* v0 (- 1.0 s)) (* v1 s))))
-
-(defn run-wave [world name]
-  (let [function (get-in world [:wave-editor :functions name])
-        part (get-in world [:parts name])
-        new-value (get-function-value function (:time world))
-        ]
-    ;;########################################################
-    (assoc-in world [:parts name :t] new-value)))
-
-(defn run-waves [world]
-  ;;##################################
-  (run-wave world :wagon))
-
 (defn update-world [world elapsed]
-  ;; (-> world
-  ;;     ;; (update-in [:parts :axle :angle] (fn [v]
-  ;;     ;;                                    (mod (- v 1) 360)))
-  ;;     (update-in [:parts :wagon :t] (fn [v] (mod (+ v 0.005) 1)))
-  ;;     (compute-transforms)
-  ;;     )
-  ;; 
-  (-> world
-      (update-in [:time] (fn [v] (mod (+ v 0.005) 1)))
-      (run-waves)
-      (compute-transforms)))
+  (if (:mouse-pressed world)
+    world
+    (-> world
+        (update-in [:time] (fn [v] (mod (+ v 0.01) 1)))
+        (run-waves)
+        (compute-transforms))))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -2220,11 +2290,17 @@
 
   (doseq [part (vals (:parts world))]
     (draw-part! world part))
+
+  ;; (draw-2d! world)
   )
+
+(defn draw-2d! [world]
+  (draw-wave-editor! world))
 
 (defn mouse-pressed [world event]
   (let [x (:x event)
-        y (:y event)]
+        y (:y event)
+        world (assoc-in world [:mouse-pressed] true)]
     (if (inside-box? (:wave-editor world) x y)
       (editor-mouse-pressed world event)
       (if-let [moving-part (get-part-at world x y)]
@@ -2249,21 +2325,20 @@
     :else world))
 
 (defn mouse-released [world event]
-  (cond
-    (not-nil? (:moving-part world))
-    (placement-mouse-released world event)
+  (let [world (assoc-in world [:mouse-pressed] false)
+        world (cond
+                (not-nil? (:moving-part world))
+                (placement-mouse-released world event)
 
-    (not-nil? (:editor-last-point world))
-    (editor-mouse-released world event)
+                (not-nil? (:editor-last-point world))
+                (editor-mouse-released world event)
 
-    (not-nil? (:last-point world))
-    (dissoc-in world [:last-point])
+                (not-nil? (:last-point world))
+                (dissoc-in world [:last-point])
 
-    :else world))
+                :else world)]
+    (draw-2d! world)
+    world))
 
-;; (def saved-parts (atom (:parts @world)))
-;; (set-thing! [:parts] @saved-parts)
-;; (make-part! :track :green)
-;; (println! (keys (:parts @world)))
-
-;; (reset-world!)
+(reset-world!)
+(make-part! :wagon :purple)

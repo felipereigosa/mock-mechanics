@@ -182,3 +182,16 @@
         y2 (+ by hh)]
     (and (< x1 x x2)
          (< y1 y y2))))
+
+(defn get-current-time []
+  (System/currentTimeMillis))
+
+(defn vector-insert [seq element index]
+  (let [before (take index seq)
+        after (nthrest seq index)]
+    (vec (concat before [element] after))))
+
+(defn vector-remove [seq index]
+  (let [before (take index seq)
+        after (nthrest seq (inc index))]
+    (vec (concat before after))))
