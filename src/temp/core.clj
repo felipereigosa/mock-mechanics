@@ -1583,11 +1583,16 @@
                        (vec (concat [before] (conj loop after))))]
         (recur world track-names new-loop color)))))
 
+(defn rotate-loop [loop start]
+  (if (= (first loop) start)
+    (vec loop)
+    (recur (concat (rest loop) [(first loop)]) start)))
+
 (defn get-track-loop [world t0-name]
   (let [track-names (get-parts-with-type (:parts world) :track)
         t0 (get-in world [:parts t0-name])
         loop-color (:color t0)]
-    (grow-loop world track-names [t0-name] loop-color)))
+    (rotate-loop (grow-loop world track-names [t0-name] loop-color) t0-name)))
 
 (defn set-wagon-loop [world wagon-name track-name]
   (let [type (get-in world [:parts wagon-name :type])]
@@ -1941,82 +1946,6 @@
         wave-editor))
     wave-editor))
 
-(defn editor-mouse-pressed [world event]
-  (let [x (:x event)
-        y (:y event)
-        [t v] (editor-coordinates->global (:wave-editor world) [x y])
-        moving-point (get-function-point-at (:wave-editor world) t v)]
-    (if (= (:button event) :right)
-      (update-in world [:wave-editor] #(remove-function-point % moving-point))
-      (let [elapsed (- (get-current-time) (:last-time world))
-            world (assoc-in world [:last-time] (get-current-time))]
-        (if (< elapsed 200)
-          (update-in world [:wave-editor] #(add-function-point % t v))
-          (-> world
-              (assoc-in [:moving-function-point] moving-point)
-              (assoc-in [:editor-last-point] [x y])))))))
-
-(defn editor-mouse-moved [world event]
-  (reset! redraw-flag true)
-
-  (if-let [[function-name index] (:moving-function-point world)]
-    (let [x (:x event)
-          y (:y event)
-          coords (editor-coordinates->global (:wave-editor world) [x y])
-          function (get-in world [:wave-editor :functions function-name])
-          coords (cond
-                   (= index 0)
-                   (assoc-in coords [0] 0.0)
-
-                   (= index (dec (count function)))
-                   (assoc-in coords [0] 1.0)
-
-                   :else
-                   coords)]
-      (assoc-in world [:wave-editor :functions function-name index] coords))
-    world))
-
-(defn editor-mouse-released [world event]
-  (-> world
-      (dissoc-in [:editor-last-point])
-      (dissoc-in [:moving-function-point])))
-
-(defn draw-function! [wave-editor function-name color]
-  (let [{:keys [x y w h]} wave-editor
-        function (get-in wave-editor [:functions function-name])]
-    (doseq [i (range 1 (count function))]
-      (let [[x1 y1] (global->editor-coordinates
-                     wave-editor (nth function (dec i)))
-            [x2 y2] (global->editor-coordinates
-                     wave-editor (nth function i))]
-        (draw-line! color x1 y1 x2 y2)
-        (fill-circle! color x2 y2 7)
-
-        (if (= i 1)
-          (fill-circle! color x1 y1 7))))))
-
-(defn draw-wave-editor! [world]
-  (let [wave-editor (:wave-editor world)
-        {:keys [x y w h]} wave-editor]
-    (fill-rect! :black x y w h)
-    (draw-rect! :dark-gray x y (- w 14) (- h 14))
-
-    (doseq [function-name (keys (get-in wave-editor [:functions]))]
-      (let [color (get-in world [:parts function-name :color])]
-        (draw-function! (:wave-editor world) function-name color)))
-
-    ;; (let [hw (/ w 2)
-    ;;       hh (/ h 2)
-    ;;       x1 (- x hw -7)
-    ;;       x2 (+ x hw -7)
-    ;;       y1 (- y hh -7)
-    ;;       y2 (+ y hh -7)
-          
-    ;;       lx (map-between-ranges (:time world) 0 1 x1 x2)]
-    ;;   (draw-line! :purple lx y1 lx y2)
-    ;;   )
-    ))
-
 (defn get-function-value [function t]
   (let [pairs (map vector function (rest function))
         pair (find-if (fn [[[t0 & _] [t1 & _]]]
@@ -2049,6 +1978,95 @@
             (run-wave w name))
           world
           (keys (get-in world [:wave-editor :functions]))))
+
+(defn editor-mouse-pressed [world event]
+  (let [x (:x event)
+        y (:y event)
+        [t v] (editor-coordinates->global (:wave-editor world) [x y])
+        moving-point (get-function-point-at (:wave-editor world) t v)]
+    (if (= (:button event) :right)
+      (update-in world [:wave-editor] #(remove-function-point % moving-point))
+      (let [elapsed (- (get-current-time) (:last-time world))
+            world (assoc-in world [:last-time] (get-current-time))]
+        (if (< elapsed 200)
+          (update-in world [:wave-editor] #(add-function-point % t v))
+          (-> world
+              (assoc-in [:moving-function-point] moving-point)
+              (assoc-in [:editor-last-point] [x y])))))))
+
+(defn editor-mouse-moved [world event]
+  (reset! redraw-flag true)
+  (let [x (:x event)
+        y (:y event)
+        coords (editor-coordinates->global (:wave-editor world) [x y])]
+    (if-let [[function-name index] (:moving-function-point world)]
+      (let [function (get-in world [:wave-editor :functions function-name])
+            coords (cond
+                     (= index 0)
+                     (assoc-in coords [0] 0.0)
+
+                     (= index (dec (count function)))
+                     (assoc-in coords [0] 1.0)
+
+                     :else
+                     coords)]
+        (assoc-in world [:wave-editor :functions function-name index] coords))
+      (-> world
+          (assoc-in [:time] (first coords))
+          (run-waves)
+          (compute-transforms)))))
+
+(defn editor-mouse-released [world event]
+  (-> world
+      (dissoc-in [:editor-last-point])
+      (dissoc-in [:moving-function-point])))
+
+(defn draw-function! [wave-editor function-name color]
+  (let [{:keys [x y w h]} wave-editor
+        function (get-in wave-editor [:functions function-name])]
+    (doseq [i (range 1 (count function))]
+      (let [[x1 y1] (global->editor-coordinates
+                     wave-editor (nth function (dec i)))
+            [x2 y2] (global->editor-coordinates
+                     wave-editor (nth function i))]
+        (draw-line! color x1 y1 x2 y2)
+        (fill-circle! color x2 y2 7)
+
+        (if (= i 1)
+          (fill-circle! color x1 y1 7))))))
+
+(defn draw-wave-editor! [world]
+  (let [wave-editor (:wave-editor world)
+        {:keys [x y w h]} wave-editor]
+    (fill-rect! :black x y w h)
+    (draw-rect! :dark-gray x y (- w 14) (- h 14))
+
+    (doseq [function-name (keys (get-in wave-editor [:functions]))]
+      (let [color (get-in world [:parts function-name :color])]
+        (draw-function! (:wave-editor world) function-name color)))
+
+    (let [hw (/ w 2)
+          hh (/ h 2)
+          x1 (- x hw -7)
+          x2 (+ x hw -7)
+          y1 (- y hh -7)
+          y2 (+ y hh -7)
+          
+          lx (map-between-ranges (:time world) 0 1 x1 x2)]
+      (draw-line! :purple lx y1 lx y2)
+      )))
+
+;;-------------------------------------------------------------------------------;;
+;; buttons
+
+(defn draw-button! [button]
+  (let [{:keys [x y w h]} button]
+    (fill-rect! :black x y w h)))
+
+(defn get-button-at [buttons x y]
+  (first (find-if (fn [[name box]]
+                    (inside-box? box x y))
+                  buttons)))
 
 ;;-------------------------------------------------------------------------------;;
 
@@ -2103,7 +2121,7 @@
                    (set-mesh-color (:color part)))]
       (draw-mesh! world mesh))))
 
-(defn compute-all-tracks-directions [world]
+(defn compute-all-tracks-directions [world] ;;#############################
   (let [track-names (get-parts-with-type (:parts world) :track)]
     (reduce (fn [w name]
               (compute-track-directions w name))
@@ -2152,6 +2170,13 @@
              :offset 0
              }
      }))
+
+(defn create-sphere [world position]
+  (let [body (create-sphere-body
+              (:sphere-radius world) 1.0
+              (make-transform position [1 0 0 0]))]
+    (add-body-to-planet (:planet world) body)
+    (update-in world [:spheres] (partial cons body))))
 
 (defn create-world! []
   (set-thing! [] {})
@@ -2218,30 +2243,6 @@
     (set-thing! [:parts :track2] {:type :track
                                   :color :red
                                   :transform (make-transform [0 0 0] [1 0 0 0])
-                                  :children {:track3 (make-transform [0 0 1]
-                                                                     [1 0 0 90])
-                                             }
-                                  })
-
-    (set-thing! [:parts :track3] {:type :track
-                                  :color :red
-                                  :transform (make-transform [0 0 0] [1 0 0 0])
-                                  })
-
-
-    (set-thing! [:parts :track4] {:type :track
-                                  :color :red
-                                  :transform (make-transform [-1 0.5 3] [1 0 0 0])
-                                  })
-
-    (set-thing! [:parts :track5] {:type :track
-                                  :color :red
-                                  :transform (make-transform [0 0.5 3] [1 0 0 0])
-                                  })
-
-    (set-thing! [:parts :track6] {:type :track
-                                  :color :red
-                                  :transform (make-transform [1 0.5 3] [1 0 0 0])
                                   })
 
     (set-thing! [:parts :wagon] {:type :wagon
@@ -2261,25 +2262,68 @@
                                 :w 650
                                 :h 200
 
-                                :functions {:wagon [[0 0] [0.6 0.8] [1 1]]
-                                            :axle [[0 1] [0.2 0.6] [1 0]]
+                                :functions {:wagon [[0 0] [0.5 1] [1 0.0]]
+                                            :axle [[0 0] [1 0]]
                                             }
+
                                 })
 
     (set-thing! [:time] 0.0)
     (set-thing! [:last-time] 0.0)
+    (set-thing! [:paused] true)
+
+    (set-thing! [:buttons] {:play {:x 50
+                                   :y 390
+                                   :w 60
+                                   :h 40
+                                   :fn (fn [w]
+                                         (update-in w [:paused] not))
+                                   }
+                            
+                            :t0 {:x 120
+                                 :y 390
+                                 :w 60
+                                 :h 40
+                                 :fn (fn [w]
+                                       (assoc-in w [:time] 0.0))
+                                 }})
+
+    (set-thing! [:planet] (create-planet!))
+    (create-ground! (:planet @world))
+    (set-thing! [:sphere-radius] 0.4)
+
+    (let [r (:sphere-radius @world)]
+      (set-thing! [:sphere-mesh] (create-sphere-mesh [0 0 0] [1 0 0 0]
+                                                     [r r r] :blue)))
+
+    (set-thing! [:spheres] [])
+    (update-thing! [] #(create-sphere % [0 3 0]))
+    (update-thing! [] #(create-sphere % [0.5 4 0]))
     ))
 
 (reset-world!)
 )
 
 (defn update-world [world elapsed]
+  (if (not (:paused world))
+    (step-simulation! (:planet world) elapsed))
+  
   (if (:mouse-pressed world)
     world
     (-> world
-        (update-in [:time] (fn [v] (mod (+ v 0.01) 1)))
+        (update-in [:time] (fn [v]
+                             (if (:paused world)
+                               v
+                               (mod (+ v 0.003) 1))))
         (run-waves)
         (compute-transforms))))
+
+(defn draw-spheres! [world]
+  (let [mesh (:sphere-mesh world)]
+    (doseq [body (:spheres world)]
+      (let [transform (get-body-transform body)
+            mesh (assoc-in mesh [:transform] transform)]
+        (draw-mesh! world mesh)))))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -2291,23 +2335,31 @@
   (doseq [part (vals (:parts world))]
     (draw-part! world part))
 
-  ;; (draw-2d! world)
+  (draw-2d! world)
+
+  (draw-spheres! world)
   )
 
 (defn draw-2d! [world]
+  (doseq [button (vals (:buttons world))]
+    (draw-button! button)
+    )
   (draw-wave-editor! world))
 
 (defn mouse-pressed [world event]
   (let [x (:x event)
         y (:y event)
         world (assoc-in world [:mouse-pressed] true)]
-    (if (inside-box? (:wave-editor world) x y)
-      (editor-mouse-pressed world event)
-      (if-let [moving-part (get-part-at world x y)]
-        (-> world
-            (assoc-in [:moving-part] moving-part)
-            (placement-mouse-pressed event))
-        (assoc-in world [:last-point] [(:x event) (:y event)])))))
+    (if-let [button-name (get-button-at (:buttons world) x y)]
+      (let [func (get-in world [:buttons button-name :fn])]
+        (func world))
+      (if (inside-box? (:wave-editor world) x y)
+        (editor-mouse-pressed world event)
+        (if-let [moving-part (get-part-at world x y)]
+          (-> world
+              (assoc-in [:moving-part] moving-part)
+              (placement-mouse-pressed event))
+          (assoc-in world [:last-point] [(:x event) (:y event)]))))))
     
 (defn mouse-moved [world event]
   (cond
@@ -2339,6 +2391,3 @@
                 :else world)]
     (draw-2d! world)
     world))
-
-(reset-world!)
-(make-part! :wagon :purple)
