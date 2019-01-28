@@ -6,7 +6,7 @@
 (import [com.bulletphysics.collision.shapes CollisionShape
          StaticPlaneShape BoxShape
          SphereShape CylinderShape])
-(import [com.bulletphysics.linearmath Transform DefaultMotionState])
+(import [com.bulletphysics.linearmath Transform(clear-output!) DefaultMotionState])
 
 (import [com.bulletphysics.dynamics
          constraintsolver.SequentialImpulseConstraintSolver
@@ -15,6 +15,7 @@
 (import com.bulletphysics.dynamics.constraintsolver.HingeConstraint)
 (import com.bulletphysics.dynamics.constraintsolver.SliderConstraint)
 (import com.bulletphysics.dynamics.constraintsolver.Generic6DofConstraint)
+(import com.bulletphysics.collision.dispatch.CollisionFlags)
 
 (defn create-planet! []
   (let [collision-configuration (new DefaultCollisionConfiguration)
@@ -59,6 +60,23 @@
     (.forceActivationState rigid-body RigidBody/DISABLE_DEACTIVATION)
     rigid-body))
 
+(defn create-kinematic-body [position rotation scale]
+  (let [[w h d] scale
+        shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))
+        transform (make-transform position rotation)
+        motion-state (new DefaultMotionState transform)
+        mass 1.0
+        local-inertia (let [vec (new Vector3f)]
+                        (.calculateLocalInertia shape mass vec)
+                        vec)
+        construction-info (new RigidBodyConstructionInfo mass motion-state
+                               shape local-inertia)
+        body (new RigidBody construction-info)]
+    (.setCollisionFlags body (bit-or (.getCollisionFlags body)
+                                     CollisionFlags/KINEMATIC_OBJECT))
+    (.forceActivationState body RigidBody/DISABLE_DEACTIVATION)
+    body))
+
 ;; (declare make-transform)
 
 ;; (defn create-cube-body
@@ -94,6 +112,9 @@
 ;; (declare get-transform-position)
 ;; (declare get-transform-rotation)
 ;; (declare make-vector3f)
+
+(defn set-body-transform [body transform]
+  (.setWorldTransform (.getMotionState body) transform))
 
 (defn get-body-transform [body]
   (let [transform (new Transform)]
