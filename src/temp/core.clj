@@ -1721,12 +1721,18 @@
             (assoc-in [:parts name :transform] transform)
             (compute-children-transforms name transform))))))
 
+(defn sheath-compute-subtree-transforms [world name transform]
+  (let [world (block-compute-subtree-transforms world name transform)
+        sheath (get-in world [:parts name])]
+    (set-body-transform (:body sheath) (:transform sheath))
+    world))
+
 (defn compute-subtree-transforms [world name transform]
   (let [part (get-in world [:parts name])]
     (case (:type part)
       :block (block-compute-subtree-transforms world name transform)
       :track (block-compute-subtree-transforms world name transform)
-      :sheath (block-compute-subtree-transforms world name transform)
+      :sheath (sheath-compute-subtree-transforms world name transform)
       :axle (axle-compute-subtree-transforms world name transform)
       :wagon (wagon-compute-subtree-transforms world name transform)
       world)))
@@ -2110,7 +2116,7 @@
             mesh (-> (get-in world [:info :track :arm])
                      (assoc-in [:transform] final-transform)
                      (set-mesh-color (:color track)))]
-        (draw-mesh! world mesh)))))
+            (draw-mesh! world mesh)))))
 
 (defn draw-part! [world part]
   (if (= (:type part) :track)
@@ -2143,10 +2149,11 @@
 
      :sheath {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                        [1 0.05 1] :white)
-              :points [[0 0.5 0] [0 -0.5 0]
+              :points [[0 0.025 0] [0 -0.025 0]
                        ]
               :offset 0.025
               }
+
 
      :axle {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                      [0.2 1 0.2] :white)
@@ -2208,136 +2215,128 @@
 
   ;;-------------------------------------------------;;
 
+  (set-thing! [:planet] (create-planet!))
+  (create-ground! (:planet @world))
+  (set-thing! [:sphere-radius] 0.4)
+
+  (let [r (:sphere-radius @world)]
+    (set-thing! [:sphere-mesh] (create-sphere-mesh [0 0 0] [1 0 0 0]
+                                                   [r r r] :blue)))
+    
   (set-thing! [:meshes :ground] (create-cube-mesh
                                  [0 -0.25 0] [1 0 0 0] [12 0.5 12]
                                  (make-color 40 40 40)))
 
   
-  (let [info (create-info)]
-    (set-thing! [:info] info)
+  (set-thing! [:info] (create-info))
 
-    ;; (set-thing! [:ground-children] {:axle (make-transform [0 0.5 0] [1 0 0 0])})
+  (set-thing! [:ground-children] {:axle (make-transform [0 0.5 0] [1 0 0 0])})
 
-    ;; (set-thing! [:parts :axle] {:type :axle
-    ;;                             :color :green
-    ;;                             :angle 54
-    ;;                             :transform (make-transform [0 0 0] [0 1 0 0])
-    ;;                             :children {:block (make-transform [0 1 0]
-    ;;                                                               [0 1 0 0])}
-    ;;                             })
+  (set-thing! [:parts :axle] {:type :axle
+                              :color :green
+                              :angle 54
+                              :transform (make-transform [0 0 0] [0 1 0 0])
+                              :children {:block (make-transform [0 1 0]
+                                                                [0 1 0 0])}
+                              })
 
-    ;; (set-thing! [:parts :block] {:type :block
-    ;;                              :color :white
-    ;;                              :transform (make-transform [0 0 0] [0 1 0 0])
-    ;;                              :children {:track0 (make-transform [1 0 0]
-    ;;                                                                 [0 0 1 -90])}
-    ;;                              })
+  (set-thing! [:parts :block] {:type :block
+                               :color :white
+                               :transform (make-transform [0 0 0] [0 1 0 0])
+                               :children {:track0 (make-transform [1 0 0]
+                                                                  [0 0 1 -90])}
+                               })
 
-    ;; (set-thing! [:parts :track0] {:type :track
-    ;;                               :color :white
-    ;;                               :transform (make-transform [0 0 0] [0 1 0 0])
-    ;;                               :children {:track1 (make-transform [0 0 1]
-    ;;                                                                  [1 0 0 90])}
-    ;;                               })
-
-    ;; (set-thing! [:parts :track1] {:type :track
-    ;;                               :color :red
-    ;;                               :transform (make-transform [0 0 0] [0 1 0 0])
-    ;;                               :children {:track2 (make-transform [0 1 0]
-    ;;                                                                  [1 0 0 0])
-    ;;                                          }
-    ;;                               })
-
-    ;; (set-thing! [:parts :track2] {:type :track
-    ;;                               :color :red
-    ;;                               :transform (make-transform [0 0 0] [1 0 0 0])
-    ;;                               })
-
-    ;; (set-thing! [:parts :wagon] {:type :wagon
-    ;;                              :color :yellow
-    ;;                              :t 0
-    ;;                              :transform (make-transform [2 0 0] [0 1 0 0])
-    ;;                              })
-
-    ;; (set-thing! [:parts :sheath] {:type :sheath
-    ;;                               :color :purple
-    ;;                               :transform (make-transform [-2 0.5 0] [0 1 0 0])
-    ;;                               })
-
-    (update-thing! [] compute-transforms)
-    (update-thing! [] compute-all-tracks-directions)
-
-    (set-thing! [:snap-point-mesh] (create-sphere-mesh [2 2 2] [1 0 0 0]
-                                                       [0.05 0.05 0.05] :white))
-
-    (set-thing! [:wave-editor] {:x 340
-                                :y 515
-                                :w 650
-                                :h 200
-
-                                :functions {;; :wagon [[0 0] [0.5 1] [1 0.0]]
-                                            ;; :axle [[0 0] [1 0]]
-                                            }
-
+  (set-thing! [:parts :track0] {:type :track
+                                :color :white
+                                :transform (make-transform [0 0 0] [0 1 0 0])
+                                :children {:track1 (make-transform [0 0 1]
+                                                                   [1 0 0 90])}
                                 })
 
-    (set-thing! [:time] 0.0)
-    (set-thing! [:last-time] 0.0)
-    (set-thing! [:paused] true)
+  (set-thing! [:parts :track1] {:type :track
+                                :color :red
+                                :transform (make-transform [0 0 0] [0 1 0 0])
+                                :children {:track2 (make-transform [0 1 0]
+                                                                   [1 0 0 0])
+                                           }
+                                })
 
-    (set-thing! [:buttons] {:play {:x 50
-                                   :y 390
-                                   :w 60
-                                   :h 40
-                                   :fn (fn [w]
-                                         (update-in w [:paused] not))
-                                   }
-                            
-                            :t0 {:x 120
+  (set-thing! [:parts :track2] {:type :track
+                                :color :red
+                                :transform (make-transform [0 0 0] [1 0 0 0])
+                                })
+
+  (set-thing! [:parts :wagon] {:type :wagon
+                               :color :yellow
+                               :t 0
+                               :transform (make-transform [2 0 0] [0 1 0 0])
+                               })
+
+  (set-thing! [:parts :sheath] {:type :sheath
+                                :color :purple
+                                :transform (make-transform [-2 0.5 0] [0 1 0 0])
+                                :body (create-kinematic-body [-2 0.5 0] [1 0 0 0]
+                                                             [1 0.05 1])
+                                })
+  (add-body-to-planet (:planet @world) (get-thing! [:parts :sheath :body]))
+
+  (update-thing! [] compute-transforms)
+  (update-thing! [] compute-all-tracks-directions)
+
+  (set-thing! [:snap-point-mesh] (create-sphere-mesh [2 2 2] [1 0 0 0]
+                                                     [0.05 0.05 0.05] :white))
+
+  (set-thing! [:wave-editor] {:x 340
+                              :y 515
+                              :w 650
+                              :h 200
+
+                              :functions {:wagon [[0 0] [0.5 1] [1 0.0]]
+                                          :axle [[0 0] [1 0]]
+                                          }
+
+                              })
+
+  (set-thing! [:time] 0.0)
+  (set-thing! [:last-time] 0.0)
+  (set-thing! [:paused] true)
+
+  (set-thing! [:buttons] {:play {:x 50
                                  :y 390
                                  :w 60
                                  :h 40
                                  :fn (fn [w]
-                                       (assoc-in w [:time] 0.0))
-                                 }})
+                                       (update-in w [:paused] not))
+                                 }
+                          
+                          :t0 {:x 120
+                               :y 390
+                               :w 60
+                               :h 40
+                               :fn (fn [w]
+                                     (assoc-in w [:time] 0.0))
+                               }})
 
-    (set-thing! [:planet] (create-planet!))
-    (create-ground! (:planet @world))
-    (set-thing! [:sphere-radius] 0.4)
-
-    (let [r (:sphere-radius @world)]
-      (set-thing! [:sphere-mesh] (create-sphere-mesh [0 0 0] [1 0 0 0]
-                                                     [r r r] :blue)))
-
-    (set-thing! [:spheres] [])
-    (update-thing! [] #(create-sphere % [0 3 0]))
-    (update-thing! [] #(create-sphere % [0.5 4 0]))
-
-
-    ;; (set-thing! [:body] (create-kinematic-body [0 1 0] [1 0 0 0] [1 1 1]))
-
-    ;; (add-body-to-planet (:planet @world) (:body @world))
-
-    ;; (set-thing! [:meshes :cube] (create-cube-mesh [0 0 0] [1 0 0 0]
-    ;;                                               [1 1 1] :red))
-    ))
+  (set-thing! [:spheres] [])
+  (update-thing! [] #(create-sphere % [-1 0.5 2]))
+  )
 
 (reset-world!)
 )
 
 (defn update-world [world elapsed]
-  (if (not (:paused world))
-    (step-simulation! (:planet world) elapsed))
-  
-  (if (:mouse-pressed world)
+  (if (or (:mouse-pressed world) (:paused world))
     world
-    (-> world
-        (update-in [:time] (fn [v]
-                             (if (:paused world)
-                               v
-                               (mod (+ v 0.003) 1))))
-        (run-waves)
-        (compute-transforms))))
+    (do
+      (step-simulation! (:planet world) elapsed)
+      (-> world
+          (update-in [:time] (fn [v]
+                               (if (:paused world)
+                                 v
+                                 (mod (+ v 0.003) 1))))
+          (run-waves)
+          (compute-transforms)))))
 
 (defn draw-spheres! [world]
   (let [mesh (:sphere-mesh world)]
@@ -2353,7 +2352,6 @@
   ;;   (set-thing! [:meshes :cube :transform] transform))
   ;; ;;######################################
 
-  
   (doseq [mesh (vals (:background-meshes world))]
     (draw-mesh! world mesh))
 
