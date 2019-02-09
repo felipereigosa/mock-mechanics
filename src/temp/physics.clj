@@ -6,7 +6,7 @@
 (import [com.bulletphysics.collision.shapes CollisionShape
          StaticPlaneShape BoxShape
          SphereShape CylinderShape])
-(import [com.bulletphysics.linearmath Transform(clear-output!) DefaultMotionState])
+(import [com.bulletphysics.linearmath Transform DefaultMotionState])
 
 (import [com.bulletphysics.dynamics
          constraintsolver.SequentialImpulseConstraintSolver
@@ -46,8 +46,12 @@
   (.addRigidBody planet body 1 1))
 
 (defn create-ground! [planet]
-  (let [body (create-static-plane [0 1 0] 0)]
-    (add-body-to-planet planet body)))
+  (add-body-to-planet planet (create-static-plane [0 1 0] 0))
+  (add-body-to-planet planet (create-static-plane [1 0 0] -6))
+  (add-body-to-planet planet (create-static-plane [-1 0 0] -6))
+  (add-body-to-planet planet (create-static-plane [0 0 1] -6))
+  (add-body-to-planet planet (create-static-plane [0 0 -1] -6))
+  )
 
 (defn create-body [shape mass transform]
   (let [motion-state (new DefaultMotionState transform)
@@ -60,9 +64,12 @@
     (.forceActivationState rigid-body RigidBody/DISABLE_DEACTIVATION)
     rigid-body))
 
+(declare make-transform)
+
 (defn create-kinematic-body [position rotation scale]
   (let [[w h d] scale
         shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))
+        ;; shape (new PlaneShape (new Vector3f nx ny nz) d)
         transform (make-transform position rotation)
         motion-state (new DefaultMotionState transform)
         mass 1.0
