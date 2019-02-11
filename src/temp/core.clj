@@ -2267,6 +2267,7 @@
     (-> world
         (assoc-in [:parts name] part)
         (assoc-in [:parts name :transform] final-transform)
+        (assoc-in [:wave-editor :functions name] [[0 0] [1 1]])
         (set-wagon-loop name static-part)
         (update-parent name static-part)
         (compute-affected-track-directions name)
@@ -2549,18 +2550,35 @@
   (println! "adjust mode released")
   world)
 
-;;;
+(do
+1  
+
 (defn delete-mode-pressed [world event]
-  (println! "delete mode pressed")
-  world)
+  (if-let [part-name (get-part-at world (:x event) (:y event))]
+    (let [parent-name (find-if (fn [name]
+                                 (let [parent (get-in world [:parts name])]
+                                   (in? part-name (keys (:children parent)))))
+                               (keys (:parts world)))
+          world (dissoc-in world [:wave-editor :functions part-name])
+          world (if (nil? parent-name)
+                  world
+                  (dissoc-in world [:parts parent-name :children part-name]))
+          world (dissoc-in world [:parts part-name])
+          ]
+      world)
+    world))
 
 (defn delete-mode-moved [world event]
-  (println! "delete mode moved")
   world)
 
 (defn delete-mode-released [world event]
-  (println! "delete mode released")
   world)
+
+(clear-output!)
+;; (delete-mode-released @world {:x 358 :y 123})
+)
+
+(reset-world!)
 
 (defn mouse-pressed [world event]
   (let [x (:x event)
