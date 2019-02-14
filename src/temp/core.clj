@@ -1354,18 +1354,18 @@
 (declare draw-2d!)
 (declare draw-3d!)
 
-(defn draw-close-snap-points! [world]
-  (if-let [moving-part (:moving-part world)]
-    (let [transform (get-in world [:parts moving-part :transform])
-          position (get-transform-position transform)
-          points (filter (fn [point]
-                         (< (distance point position) 1))
-                       (map first (:snap-specs world)))]
-    (doseq [point points]
-      (let [transform (make-transform point [1 0 0 0])
-            mesh (-> (:snap-point-mesh world)
-                     (assoc-in [:transform] transform))]
-        (draw-mesh! world mesh))))))
+;; (defn draw-close-snap-points! [world]
+;;   (if-let [moving-part (:moving-part world)]
+;;     (let [transform (get-in world [:parts moving-part :transform])
+;;           position (get-transform-position transform)
+;;           points (filter (fn [point]
+;;                          (< (distance point position) 1))
+;;                        (map first (:snap-specs world)))]
+;;     (doseq [point points]
+;;       (let [transform (make-transform point [1 0 0 0])
+;;             mesh (-> (:snap-point-mesh world)
+;;                      (assoc-in [:transform] transform))]
+;;         (draw-mesh! world mesh))))))
 
 (defn draw-world! [world]
   (try
@@ -1501,85 +1501,6 @@
     (zoom-camera world amount)))
 
 ;;-------------------------------------------------------------------------------;;
-;; parts
-
-(defn create-info []
-  (let [track-width 0.08]
-    {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                      [1 1 1] :white)
-             :points [[0.5 0 0] [-0.5 0 0]
-                      [0 0.5 0] [0 -0.5 0]
-                      [0 0 0.5] [0 0 -0.5]]
-             :offset 0.5
-             }
-
-     :sheath {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                       [1.05 0.05 1.05] :white)
-              :points [[0 -0.025 0]
-                       ]
-              :offset 0.025
-              }
-
-
-     :axle {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                     [0.2 1 0.2] :white)
-            :points [[0 0.5 0] [0 -0.5 0]]
-            :offset 0.5
-            }
-
-     :track {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                          [0.1 1 0.1] :white)
-             :arm (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                        [track-width 0.5 track-width] :white)
-
-             :middle (create-sphere-mesh [0 0 0] [1 0 0 0]
-                                         [track-width
-                                          track-width
-                                          track-width] :white)
-             :points [[0 0.5 0] [0 -0.5 0]
-                      [-0.5 0 0] [0.5 0 0]
-                      [0 0 -0.5] [0 0 0.5]
-                      ]
-             :offset 0.5
-             }
-
-     :wagon {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                      [0.5 0.5 0.5] :white)
-             :points [[0.25 0 0] [-0.25 0 0]
-                      [0 0.25 0] [0 -0.25 0]
-                      [0 0 0.25] [0 0 -0.25]]
-             :offset 0
-             }
-     }))
-
-(defn create-part [type color]
-  (let [x (- (rand-int 10) 5)
-        z (- (rand-int 10) 5)
-        part {:type type
-              :color color
-              :transform (make-transform [x 0.5 z] [0 1 0 0])}]
-    (cond
-      (= type :axle) (assoc-in part [:angle] 0)
-      (= type :wagon) (assoc-in part [:t] 0.0)
-      (= type :track) (assoc-in part [:directions] [[0 1 0]
-                                                    [0 -1 0]])
-
-      (= type :sheath) (assoc-in part [:body]
-                                 (create-kinematic-body
-                                  [0 0 0] [1 0 0 0] [1 0.05 1]))
-      :else part)))
-
-(defn draw-part! [world part]
-  (if (= (:type part) :track)
-    (draw-track! world part)
-    (let [info (get-in world [:info (:type part)])
-          transform (:transform part)
-          mesh (-> (:model info)
-                   (assoc-in [:transform] transform)
-                   (set-mesh-color (:color part)))]
-      (draw-mesh! world mesh))))
-
-;;-------------------------------------------------------------------------------;;
 ;; track loop
 
 (defn get-parts-with-type [parts type]
@@ -1677,14 +1598,14 @@
       (rotate-loop loop t0-name)
       loop)))
 
-(defn set-wagon-loop [world wagon-name track-name]
-  (let [type (get-in world [:parts wagon-name :type])]
-    (if (= type :wagon)
-      (let [loop (get-track-loop world track-name)]
-        (-> world
-            (assoc-in [:parts wagon-name :base] track-name)
-            (assoc-in [:parts wagon-name :loop] loop)))
-      world)))
+;; (defn set-wagon-loop [world wagon-name track-name]
+;;   (let [type (get-in world [:parts wagon-name :type])]
+;;     (if (= type :wagon)
+;;       (let [loop (get-track-loop world track-name)]
+;;         (-> world
+;;             (assoc-in [:parts wagon-name :base] track-name)
+;;             (assoc-in [:parts wagon-name :loop] loop)))
+;;       world)))
 
 (defn interpolate-points [p1 p2 t]
   (vector-add
@@ -1732,7 +1653,7 @@
       (if (< t 0.5)
         (interpolate-points before-point center-point (* t 2))
         (interpolate-points center-point after-point (* (- t 0.5) 2)))))))
-
+ 
 (defn get-position-in-loop [world loop t]
   (let [num-tracks (count loop)
         track-number (within (int (map-between-ranges
@@ -1746,20 +1667,22 @@
     (get-position-in-track world track-name loop local-t)))
 
 (defn compute-track-directions [world track-name]
-  (if (= (get-in world [:parts track-name :type]) :track)
-    (let [neighbours (get-neighbours world track-name)
-          neighbours (filter (fn [name]
-                               (not (= (get-in world [:parts name :type]) :wagon)))
-                             neighbours)
-          directions (map (fn [name]
-                            (vector-normalize
-                             (get-local-shared-point world track-name name)))
-                          neighbours)
-          directions (if (< (count directions) 2)
-                       [[0 -1 0] [0 1 0]]
-                       directions)]
-      (assoc-in world [:parts track-name :directions] directions))
-    world))
+  ;; (if (= (get-in world [:parts track-name :type]) :track)
+  ;;   (let [neighbours (get-neighbours world track-name)
+  ;;         neighbours (filter (fn [name]
+  ;;                              (not (= (get-in world [:parts name :type]) :wagon)))
+  ;;                            neighbours)
+  ;;         directions (map (fn [name]
+  ;;                           (vector-normalize
+  ;;                            (get-local-shared-point world track-name name)))
+  ;;                         neighbours)
+  ;;         directions (if (< (count directions) 2)
+  ;;                      [[0 -1 0] [0 1 0]]
+  ;;                      directions)]
+  ;;     (assoc-in world [:parts track-name :directions] directions))
+  ;;   world)
+  world
+  )
 
 (defn compute-all-tracks-directions [world]
   (let [track-names (get-parts-with-type (:parts world) :track)]
@@ -1808,44 +1731,43 @@
       (assoc-in [:parts name :transform] transform)
       (compute-children-transforms name transform)))
 
-(defn axle-compute-subtree-transforms [world name transform]
-  (let [axle (get-in world [:parts name])
-        angle (:angle axle)
+;; (defn wagon-compute-subtree-transforms [world name transform]
+;;   (let [wagon (get-in world [:parts name])]
+;;     (if (nil? (:base wagon))
+;;       world
+;;       (let [transform (get-in world [:parts (:base wagon) :transform])
+;;             rotation (get-transform-rotation transform)
+;;             position (get-position-in-loop world (:loop wagon) (:t wagon))
+;;             transform (make-transform position rotation)]
+;;         (-> world
+;;             (assoc-in [:parts name :transform] transform)
+;;             (compute-children-transforms name transform))))))
+
+;; (defn sheath-compute-subtree-transforms [world name transform]
+;;   (let [world (block-compute-subtree-transforms world name transform)
+;;         sheath (get-in world [:parts name])]
+;;     (set-body-transform (:body sheath) (:transform sheath))
+;;     world))
+
+(defn track-compute-subtree-transforms [world name transform]
+  (let [track (get-in world [:parts name])
+        angle (map-between-ranges (:value track) 0.0 1.0 0.0 360.0)
         angle-transform (make-transform [0 0 0] [0 1 0 angle])
         transform (combine-transforms angle-transform transform)
         world (assoc-in world [:parts name :transform] transform)]
-    (if-let [[child-name relative-transform] (first (:children axle))]
+    (if-let [[child-name relative-transform] (first (:children track))]
       (let [new-transform (combine-transforms
                            relative-transform transform)]
         (compute-subtree-transforms world child-name new-transform))
       world)))
 
-(defn wagon-compute-subtree-transforms [world name transform]
-  (let [wagon (get-in world [:parts name])]
-    (if (nil? (:base wagon))
-      world
-      (let [transform (get-in world [:parts (:base wagon) :transform])
-            rotation (get-transform-rotation transform)
-            position (get-position-in-loop world (:loop wagon) (:t wagon))
-            transform (make-transform position rotation)]
-        (-> world
-            (assoc-in [:parts name :transform] transform)
-            (compute-children-transforms name transform))))))
-
-(defn sheath-compute-subtree-transforms [world name transform]
-  (let [world (block-compute-subtree-transforms world name transform)
-        sheath (get-in world [:parts name])]
-    (set-body-transform (:body sheath) (:transform sheath))
-    world))
-
 (defn compute-subtree-transforms [world name transform]
   (let [part (get-in world [:parts name])]
     (case (:type part)
       :block (block-compute-subtree-transforms world name transform)
-      :track (block-compute-subtree-transforms world name transform)
-      :sheath (sheath-compute-subtree-transforms world name transform)
-      :axle (axle-compute-subtree-transforms world name transform)
-      :wagon (wagon-compute-subtree-transforms world name transform)
+      :track (track-compute-subtree-transforms world name transform)
+      ;; :sheath (sheath-compute-subtree-transforms world name transform)
+      ;; :wagon (wagon-compute-subtree-transforms world name transform)
       world)))
 
 (defn compute-transforms [world]
@@ -1948,12 +1870,11 @@
         type (:type part)
         new-value (float (get-function-value function (:time world)))]
     (cond
-      (= type :wagon)
-      (assoc-in world [:parts name :t] new-value)
+      ;; (= type :wagon)
+      ;; (assoc-in world [:parts name :t] new-value)
 
-      (= type :axle)
-      (assoc-in world [:parts name :angle]
-                (map-between-ranges new-value 0.0 1.0 0.0 360.0))
+      (= type :track)
+      (assoc-in world [:parts name :value] new-value)
 
       :else world)))
 
@@ -2136,23 +2057,25 @@
                          (make-transform [0 0 0] rotation)))]
     [p final-rotation]))
 
-;; (defn get-track-snap-specs [world]
-;;   (vec (mapcat (fn [track-name]
-;;                  (let [track (get-in world [:parts track-name])
-;;                        transform (:transform track)
-;;                        position (get-transform-position transform)
-;;                        rotation (get-transform-rotation transform)]
-;;                    [[position rotation track-name]]))
-;;                (get-parts-with-type (:parts world) :track))))
+(defn get-track-snap-specs [world]
+  (vec (map (fn [track-name]
+                 (let [track (get-in world [:parts track-name])
+                       transform (:transform track)
+                       position (get-transform-position transform)
+                       rotation (get-transform-rotation transform)]
+                   {:position position
+                    :rotation rotation
+                    :part track-name
+                    :center true}))
+               (get-parts-with-type (:parts world) :track))))
 
 (defn get-snap-specs [world]
-  ;; (let [moving-part-name (:moving-part world)
-  ;;       moving-part (get-in world [:parts moving-part-name])]
-  ;;   (if (= (:type moving-part) :wagon)
-  ;;     (get-track-snap-specs world)
   (let [grid-specs (vec (map (fn [[a b]]
-                               [[(- a 5.5) 0 (- b 5.5)] [1 0 0 0] :ground])
+                               {:position [(- a 5.5) 0 (- b 5.5)]
+                                :rotation [1 0 0 0]
+                                :part :ground})
                              (create-combinations (range 12) (range 12))))
+        track-snap-specs (get-track-snap-specs world)
         face-specs
         (vec
          (remove-nil
@@ -2163,10 +2086,13 @@
                           rotation (get-transform-rotation transform)
                           points (get-in world [:info (:type part) :points])]
                       (map (fn [p]
-                             (conj (make-spec position rotation p) name))
+                             (let [[pos rot] (make-spec position rotation p)]
+                               {:position pos
+                                :rotation rot
+                                :part name}))
                            points)))
                   (:parts world))))]
-    (vec (concat grid-specs face-specs))))
+    (vec (concat grid-specs face-specs track-snap-specs))))
 
 (defn update-parent [world child-name parent-name]
   (let [child (get-in world [:parts child-name])]
@@ -2201,11 +2127,11 @@
 
 (defn get-closest-snap-point [world x y & [ignore]]
   (let [line (unproject-point world [x y])
-        snap-specs (filter (fn [[_ _ name]]
-                             (not (in? name ignore)))
+        snap-specs (filter (fn [spec]
+                             (not (in? (:part spec) ignore)))
                            (:snap-specs world))
-        close-points (filter (fn [[p _ _]]
-                               (< (point-line-distance p line) 0.2))
+        close-points (filter (fn [spec]
+                               (< (point-line-distance (:position spec) line) 0.2))
                              snap-specs)
         eye (get-in world [:camera :eye])]
     (first (sort-by (fn [[p _ _]]
@@ -2245,7 +2171,7 @@
         world (dissoc-in world [:moving-part])]
     (if snapped
       (-> world
-          (set-wagon-loop moving-part static-part)
+          ;; (set-wagon-loop moving-part static-part)
           (update-parent moving-part static-part)
           (compute-affected-track-directions moving-part)
           (compute-transforms))
@@ -2254,37 +2180,66 @@
 ;;-------------------------------------------------------------------------------;;
 ;; insert mode
 
-(defn insert-part [world type color spec]
-  (let [part (create-part type color)
-        [final-point final-rotation static-part] spec
-        rotation-transform (make-transform [0 0 0] final-rotation)
-        offset (get-in world [:info (:type part) :offset])
-        offset [0 offset 0]
-        offset (apply-transform rotation-transform offset)
-        final-point (vector-add final-point offset)
-        final-transform (make-transform final-point final-rotation)
-        name (gen-keyword type)]
-    (-> world
-        (assoc-in [:parts name] part)
-        (assoc-in [:parts name :transform] final-transform)
-        (assoc-in [:wave-editor :functions name] [[0 0] [1 1]])
-        (set-wagon-loop name static-part)
-        (update-parent name static-part)
-        (compute-affected-track-directions name)
-        (compute-transforms))))
+(declare create-part)
+
+;; (defn insert-part [world type color spec]
+;;   (let [part (create-part type color)
+;;         final-point (:position spec)
+;;         final-rotation (:rotation spec)
+;;         static-part (:part spec)
+;;         rotation-transform (make-transform [0 0 0] final-rotation)
+;;         offset (get-in world [:info (:type part) :offset])
+;;         offset [0 offset 0]
+;;         offset (apply-transform rotation-transform offset)
+;;         final-point (vector-add final-point offset)
+;;         final-transform (make-transform final-point final-rotation)
+;;         name (gen-keyword type)]
+;;     (-> world
+;;         (assoc-in [:parts name] part)
+;;         (assoc-in [:parts name :transform] final-transform)
+;;         (assoc-in [:wave-editor :functions name] [[0 0] [1 0]])
+;;         ;; (set-wagon-loop name static-part)
+;;         (update-parent name static-part)
+;;         (compute-affected-track-directions name)
+;;         (compute-transforms))))
 
 (defn insert-mode-pressed [world event]
-  (let [spec (get-closest-snap-point world (:x event) (:y event))]
-    (case (:mode-part world)
-      :block (insert-part world :block :white spec)
-      :axle (insert-part world :axle :green spec)
-      :track (insert-part world :track :red spec)
-      world)))      
+  ;; (let [spec (get-closest-snap-point world (:x event) (:y event))]
+  ;;   (case (:mode-part world)
+  ;;     :block (insert-part world :block :white spec)
+  ;;     :pipe (insert-part world :track :red spec)
+  ;;     world))
+  (println! "insert part")
+  world
+  )      
 
 (defn insert-mode-moved [world event]
   world)
 
 (defn insert-mode-released [world event]
+  world)
+
+;;-------------------------------------------------------------------------------;;
+;; delete mode
+
+(defn delete-mode-pressed [world event]
+  (if-let [part-name (get-part-at world (:x event) (:y event))]
+    (let [parent-name (find-if (fn [name]
+                                 (let [parent (get-in world [:parts name])]
+                                   (in? part-name (keys (:children parent)))))
+                               (keys (:parts world)))
+          world (dissoc-in world [:wave-editor :functions part-name])
+          world (if (nil? parent-name)
+                  world
+                  (dissoc-in world [:parts parent-name :children part-name]))
+          world (dissoc-in world [:parts part-name])]
+      world)
+    world))
+
+(defn delete-mode-moved [world event]
+  world)
+
+(defn delete-mode-released [world event]
   world)
 
 ;;-------------------------------------------------------------------------------;;
@@ -2313,86 +2268,104 @@
                        (let [plane (:camera-plane world)
                              line (unproject-point world [x y])]
                          (line-plane-intersection line plane))
-                       (first snap-spec))]
-      (update-in world [:cursor] #(set-mesh-position % snap-point)))
+                       (:position snap-spec))
+          color (if (nil? snap-spec)
+                  :black
+                  :yellow)]
+      (-> world
+          (update-in [:cursor] #(set-mesh-position % snap-point))
+          (update-in [:cursor] #(set-mesh-color % color))))
     world))
+
+
+(reset-world!)
 
 (defn update-camera-plane [world]
   (assoc-in world [:camera-plane]
             (get-camera-plane world (get-in world [:camera :pivot]))))
 
 ;;-------------------------------------------------------------------------------;;
+;; parts
+
+(defn create-info []
+  (let [track-width 0.12]
+    {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                      [1 1 1] :white)
+             :points [[0.5 0 0] [-0.5 0 0]
+                      [0 0.5 0] [0 -0.5 0]
+                      [0 0 0.5] [0 0 -0.5]]
+             :offset 0.5
+             }
+
+     ;; :sheath {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+     ;;                                   [1.05 0.05 1.05] :white)
+     ;;          :points [[0 -0.025 0]
+     ;;                   ]
+     ;;          :offset 0.025
+     ;;          }
+
+     :track {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                          [0.1 1 0.1] :white)
+             :arm (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                        [track-width 0.5 track-width] :white)
+
+             :middle (create-sphere-mesh [0 0 0] [1 0 0 0]
+                                         [track-width
+                                          track-width
+                                          track-width] :white)
+             :points [[0 0.5 0] [0 -0.5 0]
+                      [-0.5 0 0] [0.5 0 0]
+                      [0 0 -0.5] [0 0 0.5]
+                      ]
+             :offset 0.5
+             }
+
+     ;; :wagon {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+     ;;                                  [0.5 0.5 0.5] :white)
+     ;;         :points [[0.25 0 0] [-0.25 0 0]
+     ;;                  [0 0.25 0] [0 -0.25 0]
+     ;;                  [0 0 0.25] [0 0 -0.25]]
+     ;;         :offset 0
+     ;;         }
+     }))
+
+;; (= type :sheath) (assoc-in part [:body]
+;;                            (create-kinematic-body
+;;                             [0 0 0] [1 0 0 0] [1 0.05 1]))
+(defn create-part [type color]
+  (let [x (- (rand-int 10) 5)
+        z (- (rand-int 10) 5)
+        part {:type type
+              :color color
+              :transform (make-transform [x 0.5 z] [0 1 0 0])
+              :value 0.0}]
+    (if (= type :track)
+      (assoc-in part [:directions] [[0 1 0]
+                                    [0 -1 0]])
+      part)))
+
+(defn draw-part! [world part]
+  (if (= (:type part) :track)
+    (draw-track! world part)
+    (let [info (get-in world [:info (:type part)])
+          transform (:transform part)
+          mesh (-> (:model info)
+                   (assoc-in [:transform] transform)
+                   (set-mesh-color (:color part)))]
+      (draw-mesh! world mesh))))
+
+;;-------------------------------------------------------------------------------;;
 
 (do
 1
 
-(defn create-parts! [] ;;#################################
-  (set-thing! [:ground-children] {:axle (make-transform [0 0.5 0] [1 0 0 0])})
-
-  (set-thing! [:parts :axle] {:type :axle
-                              :color :green
-                              :angle 54
-                              :transform (make-transform [0 0 0] [0 1 0 0])
-                              :children {:block (make-transform [0 1 0]
-                                                                [0 1 0 0])}
-                              })
-
-  (set-thing! [:parts :block] {:type :block
-                               :color :white
-                               :transform (make-transform [0 0 0] [0 1 0 0])
-                               :children {:track0 (make-transform [1 0 0]
-                                                                  [0 0 1 -90])}
-                               })
-
-  (set-thing! [:parts :track0] {:type :track
-                                :color :white
-                                :transform (make-transform [0 0 0] [0 1 0 0])
-                                :children {:track1 (make-transform [0 0 1]
-                                                                   [1 0 0 90])}
-                                })
-
-  (set-thing! [:parts :track1] {:type :track
-                                :color :red
-                                :transform (make-transform [0 0 0] [0 1 0 0])
-                                :children {:track2 (make-transform [0 1 0]
-                                                                   [1 0 0 0])
-                                           }
-                                })
-
-  (set-thing! [:parts :track2] {:type :track
-                                :color :red
-                                :transform (make-transform [0 0 0] [1 0 0 0])
-                                :children {:track3 (make-transform [1 0 0]
-                                                                   [0 0 1 90])
-                                           }
-                                })
-
-  (set-thing! [:parts :track3] {:type :track
-                                :color :red
-                                :transform (make-transform [0 0 0] [1 0 0 0])
-                                })
-
-  (set-thing! [:parts :sheath] {:type :sheath
-                                :color :purple
-                                :transform (make-transform [-2 0.5 0] [0 1 0 0])
-                                :body (create-kinematic-body [-2 0.5 0] [1 0 0 0]
-                                                             [1 0.05 1])
-                                })
-  (add-body-to-planet (:planet @world) (get-thing! [:parts :sheath :body]))
-
-  (set-thing! [:parts :orange] {:type :block
-                                :color :orange
-                                :transform (make-transform [0 3 0] [0 1 0 0])
-                                })
-  )
-
 (defn create-menus! []
   (set-thing! [:menus :tools]
-              (create-menu "res/tools.svg" 40 190 80 -1))
+              (create-menu "res/tools.svg" 40 153 80 -1))
   (set-thing! [:menus :actions]
-              (create-menu "res/actions.svg" (- 685 40) 192 80 -1))
+              (create-menu "res/actions.svg" (- 685 40) 152 80 -1))
   (set-thing! [:menus :colors]
-              (create-menu "res/colors.svg" 557 20 -1 40))
+              (create-menu "res/colors.svg" 480 20 -1 40))
   )
 
 (defn create-world! []
@@ -2433,27 +2406,25 @@
 
   (set-thing! [:info] (create-info))
 
-  (set-thing! [:ground-children] {})
-  (create-parts!)
+  (set-thing! [:ground-children] {:block (make-transform [0.5 0.5 0.5] [1 0 0 0])})
+  (set-thing! [:parts :block] {:type :block
+                               :color :white
+                               :transform (make-transform [0 0 0] [0 1 0 0])
+                               })
 
   (set-thing! [:wave-editor] {:x 340
                               :y 515
                               :w 650
                               :h 200
-
-                              :functions {;; :wagon [[0 0] [1 0]]
-                                          :axle [[0 1] [1 0]]
-                                          }
-
-                              })
+                              :functions {}})
 
   (set-thing! [:time] 0.0)
   (set-thing! [:last-time] 0.0)
   (set-thing! [:paused] true)
 
   (set-thing! [:spheres] [])
-  (update-thing! [] #(create-sphere % [-1.5 0.4 2]))
-  (update-thing! [] #(create-sphere % [-2 0.4 0]))
+  ;; (update-thing! [] #(create-sphere % [-1.5 0.4 2]))
+  ;; (update-thing! [] #(create-sphere % [-2 0.4 0]))
 
   (update-thing! [] run-waves)
   (update-thing! [] compute-transforms)
@@ -2502,6 +2473,7 @@
 
   (draw-spheres! world)
 
+  (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
   (if (and
        (in? (:mode world) [:insert :cable])
        (:paused world))
@@ -2549,36 +2521,6 @@
 (defn adjust-mode-released [world event]
   (println! "adjust mode released")
   world)
-
-(do
-1  
-
-(defn delete-mode-pressed [world event]
-  (if-let [part-name (get-part-at world (:x event) (:y event))]
-    (let [parent-name (find-if (fn [name]
-                                 (let [parent (get-in world [:parts name])]
-                                   (in? part-name (keys (:children parent)))))
-                               (keys (:parts world)))
-          world (dissoc-in world [:wave-editor :functions part-name])
-          world (if (nil? parent-name)
-                  world
-                  (dissoc-in world [:parts parent-name :children part-name]))
-          world (dissoc-in world [:parts part-name])
-          ]
-      world)
-    world))
-
-(defn delete-mode-moved [world event]
-  world)
-
-(defn delete-mode-released [world event]
-  world)
-
-(clear-output!)
-;; (delete-mode-released @world {:x 358 :y 123})
-)
-
-(reset-world!)
 
 (defn mouse-pressed [world event]
   (let [x (:x event)
@@ -2658,3 +2600,5 @@
                   world))]
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
+
+(reset-world!)
