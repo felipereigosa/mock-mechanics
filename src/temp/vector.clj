@@ -208,3 +208,7 @@
 ;;   (let [dx (- x1 x2)
 ;;         dy (- y1 y2)]
 ;;     (Math/sqrt (+ (* dx dx) (* dy dy)))))
+
+(defn vector-= [a b]
+  (every? #(float-equals? % 0.0) (vector-subtract a b)))
+  
