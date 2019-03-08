@@ -1395,6 +1395,22 @@
 ;; begin
 
 ;;-------------------------------------------------------------------------------;;
+;; debug
+
+(defn get-part-with-color [world color]
+  (first (find-if (fn [[name part]]
+                    (= (:color part) color))
+                  (:parts world))))
+
+(declare create-graph)
+  
+(defn create-graph! [color]
+  (let [part-name (get-part-with-color @world color)]
+    (update-thing! [] #(create-graph % part-name))
+    (sleep 100)
+    (reset! redraw-flag true)))
+
+;;-------------------------------------------------------------------------------;;
 ;; collision
 
 (defn get-mesh-triangles [mesh transform]
@@ -1525,15 +1541,19 @@
       (apply-transform transform point))
     nil))
 
-(defn tracks-connected? [world p0-name p1-name]
+(defn parts-connected? [world p0-name p1-name]
   (let [parts (:parts world)
         p0 (get-in parts [p0-name])
         p1 (get-in parts [p1-name])
         s1 (get-local-shared-point world p0-name p1-name)
         s2 (get-local-shared-point world p1-name p0-name)]
     (or
-     (in? p1-name (keys (:children p0)))
-     (in? p0-name (keys (:children p1)))
+     (and (in? p1-name (keys (:children p0)))
+          (not (= (:base p1) p0-name)))
+
+     (and (in? p0-name (keys (:children p1)))
+          (not (= (:base p0) p1-name)))
+     
      (vector= s1 [0 0.5 0])
      (vector= s2 [0 0.5 0]))))
 
@@ -1541,7 +1561,7 @@
   (filter (fn [other-part-name]
             (and
              (not (= other-part-name part-name))
-             (tracks-connected? world other-part-name part-name)))
+             (parts-connected? world other-part-name part-name)))
           (keys (:parts world))))
 
 (defn grow-loop [world track-names loop color]
@@ -1583,7 +1603,7 @@
         t0 (get-in world [:parts t0-name])
         loop-color (:color t0)
         loop (grow-loop world track-names [t0-name] loop-color)]
-    (if (tracks-connected? world (first loop) (last loop))
+    (if (parts-connected? world (first loop) (last loop))
       (rotate-loop loop t0-name)
       loop)))
 
@@ -1604,7 +1624,7 @@
         pairs (map vector loop (rest loop))
         [a b] [(last loop) (first loop)]
 
-        pairs (if (tracks-connected? world a b)
+        pairs (if (parts-connected? world a b)
                 (cons [a b] pairs)
                 pairs)
         before-track (first (find-if (fn [[a b]]
@@ -1651,6 +1671,7 @@
                   (/ (mod t track-size) track-size))
         track-name (nth loop track-number)]
     (get-position-in-track world track-name loop local-t)))
+
 
 (defn compute-track-directions [world track-name]
   (let [neighbours (get-neighbours world track-name)
@@ -1773,6 +1794,9 @@
           (dissoc-in [:parts parent-name :children child-name])
           (compute-tracks-directions)))))
 
+(defn get-part-type [world name]
+  (get-in world [:parts name :type]))
+
 (defn middle-of-track? [world snap-spec]
   (let [{:keys [position part]} snap-spec]
     (if (= (get-part-type world part) :track)
@@ -1786,12 +1810,24 @@
                  other-tracks))
       nil)))
 
+(defn update-parent [world child-name parent-name]
+  (let [child (get-in world [:parts child-name])]
+    (if (= parent-name :ground)
+      (assoc-in world [:ground-children child-name] (:transform child))
+      (let [parent (get-in world [:parts parent-name])
+            child-transform (:transform child)
+            parent-transform (:transform parent)
+            relative-transform (remove-transform child-transform
+                                                 parent-transform)]
+        (assoc-in world [:parts parent-name :children child-name]
+                  relative-transform)))))
+
 (defn attach-child [world child-name snap-spec]
   (let [parent-name (:part snap-spec)
         world (update-parent world child-name parent-name)
         child (get-in world [:parts child-name])
         world (if (and
-                   (= (:type child) :wagon)
+                   (= (:type child) :block)
                    (middle-of-track? world snap-spec))
                 (set-wagon-loop world child-name parent-name)
                 (compute-tracks-directions world))]
@@ -1799,6 +1835,11 @@
 
 ;;-------------------------------------------------------------------------------;;
 ;; wave editor
+
+(defn create-graph [world part-name]
+  (if (nil? (get-in world [:parts part-name]))
+    world
+    (assoc-in world [:wave-editor :functions part-name] [[0 0] [1 0]])))
 
 (defn global->editor-coordinates [wave-editor [t v]]
   (let [{:keys [x y w h]} wave-editor
@@ -2006,7 +2047,12 @@
 
 (defn menu-pressed [world event]
   (let [{:keys [x y]} event
-        [menu-name button-name] (get-button-at (:menus world) x y)]
+        [menu-name button-name] (get-button-at (:menus world) x y)
+        ;;###################################################################
+        world (if (= (:mode world) :cable)
+                (cable-mode-exited world)
+                world)
+        ]
     (cond
       (= menu-name :tools)
       (if (= button-name :cable)
@@ -2100,18 +2146,6 @@
                   (:parts world))))]
     (vec (concat grid-specs face-specs))))
 
-(defn update-parent [world child-name parent-name]
-  (let [child (get-in world [:parts child-name])]
-    (if (= parent-name :ground)
-      (assoc-in world [:ground-children child-name] (:transform child))
-      (let [parent (get-in world [:parts parent-name])
-            child-transform (:transform child)
-            parent-transform (:transform parent)
-            relative-transform (remove-transform child-transform
-                                                 parent-transform)]
-        (assoc-in world [:parts parent-name :children child-name]
-                  relative-transform)))))
-
 ;; (defn compute-affected-track-directions [world new-track-name]
 ;;   (let [affected (cons new-track-name (get-neighbours world new-track-name))]
 ;;     (reduce (fn [w name]
@@ -2137,9 +2171,6 @@
         (detach-child moving-part)
         (assoc-in [:moving-part] moving-part)
         (assoc-in [:start-rotation] rotation))))
-
-(defn get-part-type [world name]
-  (get-in world [:parts name :type]))
 
 (defn move-mode-moved [world event]
   (if-let [moving-part (:moving-part world)]
@@ -2203,9 +2234,11 @@
   (let [part (create-part type color)
         name (gen-keyword type)
         offset (get-in world [:info (:type part) :offset])
-        world (-> world
-                  (assoc-in [:parts name] part)
-                  (assoc-in [:wave-editor :functions name] [[0 0] [1 0]]))]
+        world ;; (-> world
+                  (assoc-in world [:parts name] part)
+                  ;; (assoc-in [:wave-editor :functions name] [[0 0] [1 0]])
+                  ;; )
+        ]
     (if-let [spec (get-closest-snap-point world x y (:snap-specs world))]
       (let [transform (spec->transform offset spec)]
         (-> world
@@ -2319,6 +2352,22 @@
                      (nth points (inc i))
                      (:color cable)))))
 
+(defn compute-cable-length [world cable-name]
+  (let [cable (get-in world [:cables cable-name])
+        points (actualize-points world (:points cable))]
+    (reduce + (map (fn [a b]
+                     (vector-length (vector-subtract a b)))
+                   points (rest points)))))
+
+(defn terminate-cable [world]
+  (if (:new-cable world)
+    (let [cable-name (:new-cable world)
+          length (compute-cable-length world cable-name)]
+      (-> world
+          (dissoc-in [:new-cable])
+          (assoc-in [:cables cable-name :length] length)))
+    world))
+
 (defn cable-mode-pressed [world event]
   (if (:cursor-snapped world)
     (let [x (:x event)
@@ -2331,10 +2380,25 @@
               (assoc-in [:cables name] {:points [snap-spec]
                                         :color :white})
               (assoc-in [:new-cable] name)))))
-    (dissoc-in world [:new-cable])))
+    (terminate-cable world)))
 
 (defn cable-mode-moved [world event] world)
 (defn cable-mode-released [world event] world)
+
+(defn cable-mode-exited [world]
+  (terminate-cable world))
+
+;;#######################################################
+(defn key-pressed [world event]
+  (case (:code event)
+    256 (terminate-cable world)
+    340 (assoc-in world [:shift-pressed] true)
+    world))
+
+(defn key-released [world event]
+  (case (:code event)
+    340 (assoc-in world [:shift-pressed] false)
+    world))
 
 ;;-------------------------------------------------------------------------------;;
 ;; adjust mode
@@ -2538,11 +2602,11 @@
   (set-thing! [:cable-mesh] (create-cylinder-mesh [0 0 0] [1 0 0 0]
                                                   [0.03 1 0.03] :blue))
 
-  (set-thing! [:pulley-mesh] (create-cylinder-mesh [0 1 0] [1 0 0 0]
-                                                 [0.1 0.2 0.1] :green))
+  (set-thing! [:pulley-mesh] (create-cube-mesh [0 1 0] [1 0 0 0]
+                                                 [0.15 0.15 0.15] :black))
 
   (set-thing! [:anchor-mesh] (create-sphere-mesh [0 0 0] [1 0 0 0]
-                                               [0.1 0.1 0.1] :green))
+                                               [0.1 0.1 0.1] :black))
   (set-thing! [:new-cable] nil)
 
   (set-thing! [:bounding-box] (create-cube-mesh [0 0 0] [1 0 0 0]
@@ -2551,6 +2615,31 @@
 
 (reset-world!)
 )
+
+(defn get-free-dof [world cable]
+  ;;###############################################
+  (get-part-with-color world :green))
+
+(defn enforce-cable-length [world cable-name]
+  (let [cable (get-in world [:cables cable-name])
+        dof-name (get-free-dof world cable) 
+        dof-part (get-in world [:parts dof-name])
+        desired-length (:length cable)
+        current-length (compute-cable-length world cable-name)
+        dl (- desired-length current-length)
+        test-length (-> world
+                        (update-in [:parts dof-name :value] #(+ % 0.1))
+                        (compute-transforms)
+                        (compute-cable-length cable-name))
+        dt (-  test-length current-length)
+        dvalue (/ (* 0.1 dl) dt)]
+    (update-in world [:parts dof-name :value] #(+ % dvalue))))
+
+(defn enforce-cable-lengths [world]
+  ;;###################################################
+  (if-let [cable-name (first (first (:cables world)))]
+    (enforce-cable-length world cable-name)
+    world))
 
 (defn update-world [world elapsed]
   (if (:paused world)
@@ -2561,8 +2650,10 @@
           (update-in [:time] (fn [v]
                                (if (:paused world)
                                  v
-                                 (mod (+ v 0.003) 1))))
+                                 (mod (+ v 0.005) 1))))
           (run-waves)
+          ;; (update-in [:cables :cable8989 :length] #(+ % 0.01)) ;;##############
+          (enforce-cable-lengths)
           (compute-transforms)))))
 
 (defn draw-3d! [world]
@@ -2684,4 +2775,47 @@
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
 
-(reset-world!)
+;; (def saved-parts (atom (:parts @world)))
+
+;; ;; (set-thing! [:parts] @saved-parts)
+
+
+
+
+;; (reset-world!)
+;; (create-graph! :yellow)
+;; (println! (:wave-editor @world))
+
+;; (do
+;; 1  
+
+;; (clear-output!)
+;; (enforce-cable-lenght @world (get-thing! [:cables :cable8989]))
+;; nil)
+
+
+;; (println! (compute-cable-length @world (get-thing! [:cables :cable8989])))
+
+;; (do
+;; 1
+
+;; (set-thing! [:parts :block8984 :value] 0.89)
+;; (update-thing! [] compute-transforms))
+;; (reset-world!)
+
+;; (do
+;; (set-thing! [:parts (get-part-with-color @world :green) :value] 0.0)
+;; (update-thing! [] compute-transforms)
+;; )
+
+;; (get-part-with-color @world :green)
+
+;; (set-thing! [:cables :cable12634 :length] 3.0)
+
+;; (update-thing! [:wave-editor :functions] #(dissoc-in % [:block12613]))
+
+;; (set-thing! [:cables] {})
+
+;; (reset-world!)
+
+;; (create-graph! :yellow)
