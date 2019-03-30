@@ -58,9 +58,9 @@
         width (* (/ 1 aspect-ratio) height)]
     (parse-svg-from-map document width height)))
 
-;; (defn parse-svg-with-width [filename width]
-;;   (let [document (read-xml filename)]
-;;     (parse-svg-from-map-with-width document width)))
+(defn parse-svg-with-width [filename width]
+  (let [document (read-xml filename)]
+    (parse-svg-from-map-with-width document width)))
 
 ;; (defn parse-svg-with-height [filename height]
 ;;   (let [document (read-xml filename)]

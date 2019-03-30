@@ -896,9 +896,9 @@
                    :scale scale}]
     (if (not (is-image? skin))
       (let [color (get-color skin)
-            r (/ (get-red color) 255)
-            g (/ (get-green color) 255)
-            b (/ (get-blue color) 255)]
+            r (/ (get-red color) 255.0)
+            g (/ (get-green color) 255.0)
+            b (/ (get-blue color) 255.0)]
         (-> base-mesh
             (assoc-in [:color] [r g b 1.0])
             (assoc-in [:program] :flat)))
@@ -1745,12 +1745,6 @@
             (assoc-in [:parts name :transform] transform)
             (compute-children-transforms name transform))))))
 
-;; (defn sheath-compute-subtree-transforms [world name transform]
-;;   (let [world (block-compute-subtree-transforms world name transform)
-;;         sheath (get-in world [:parts name])]
-;;     (set-body-transform (:body sheath) (:transform sheath))
-;;     world))
-
 (defn track-compute-subtree-transforms [world name transform]
   (let [track (get-in world [:parts name])
         angle (map-between-ranges (:value track) 0.0 1.0 0.0 360.0)
@@ -1769,7 +1763,6 @@
     (case (:type part)
       :block (block-compute-subtree-transforms world name transform)
       :track (track-compute-subtree-transforms world name transform)
-      ;; :sheath (sheath-compute-subtree-transforms world name transform)
       world)))
 
 (defn compute-transforms [world]
@@ -1938,6 +1931,11 @@
           world
           (keys (get-in world [:wave-editor :functions]))))
 
+(defn get-function-at [wave-editor t v]
+  ;;#########################################################
+  :track4741
+  )
+
 (defn editor-mouse-pressed [world event]
   (let [x (:x event)
         y (:y event)
@@ -1949,9 +1947,18 @@
             world (assoc-in world [:last-time] (get-current-time))]
         (if (< elapsed 200)
           (update-in world [:wave-editor] #(add-function-point % t v))
-          (-> world
-              (assoc-in [:moving-function-point] moving-point)
-              (assoc-in [:editor-last-point] [x y])))))))
+          (if (nil? moving-point)
+            (if-let [function-name (get-function-at (:wave-editor world) t v)]
+              (let [function (get-in world [:wave-editor
+                                            :functions function-name])]
+                ;;############################################################
+                (println! function)
+                world
+                )
+              world)
+            (-> world
+                (assoc-in [:moving-function-point] moving-point)
+                (assoc-in [:editor-last-point] [x y]))))))))
 
 (defn editor-mouse-moved [world event]
   (reset! redraw-flag true)
@@ -2045,14 +2052,15 @@
       nil
       (vec (take 2 button)))))
 
+(declare cable-mode-exited)
+
 (defn menu-pressed [world event]
   (let [{:keys [x y]} event
         [menu-name button-name] (get-button-at (:menus world) x y)
         ;;###################################################################
         world (if (= (:mode world) :cable)
                 (cable-mode-exited world)
-                world)
-        ]
+                world)]
     (cond
       (= menu-name :tools)
       (if (= button-name :cable)
@@ -2071,6 +2079,16 @@
         (update-in world [:paused] not)
         (assoc-in world [:mode] button-name))
 
+      (= menu-name :reflex-buttons)
+      (if (in? button-name [:pick :add :remove])
+        (-> world
+            (assoc-in [:saved-mode] (:mode world))
+            (assoc-in [:mode] :pick)
+            (assoc-in [:mode-action] button-name))
+        (do
+          (println! "other button")
+          world))
+      
       :else world)))
 
 (defn get-current-button [world]
@@ -2184,6 +2202,10 @@
           offset (get-in world [:info (:type part) :offset])]
       (if (nil? snap-spec)
         (let [plane-point (get-ground-camera-point world x y offset)
+              ;; offset [0 offset 0]
+              ;; rotation-transform (make-transform [0 0 0] (:start-rotation world))
+              ;; offset (apply-transform rotation-transform offset)
+              ;; final-point (vector-add plane-point offset)
               transform (make-transform plane-point (:start-rotation world))]
           (-> world
               (assoc-in [:parts moving-part :transform] transform)
@@ -2477,7 +2499,7 @@
      :track {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
                                           [0.1 1 0.1] :white)
              :arm (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                        [track-width 0.5 track-width] :white)
+                                    [track-width 0.5 track-width] :white)
 
              :middle (create-sphere-mesh [0 0 0] [1 0 0 0]
                                          [track-width
@@ -2528,7 +2550,49 @@
               (create-menu "res/actions.svg" (- 685 40) 152 80 -1))
   (set-thing! [:menus :colors]
               (create-menu "res/colors.svg" 480 20 -1 40))
+
+  (set-thing! [:menus :reflex-buttons]
+              (create-menu "res/reflex-buttons.svg" 342 600 -1 30))
+
+  (let [w (get-thing! [:menus :actions :regions :playpause :w])]
+    (set-thing! [:pause-image]
+                (parse-svg-with-width "res/pause.svg" (inc w))))
   )
+
+(defn draw-colored-mesh! [world mesh transform]
+  (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
+        program (get-in world [:programs (:program mesh)])
+        program-index (:index program)
+        attributes (:attributes program)
+        uniforms (:uniforms program)
+        model-matrix (multiply-matrices
+                      (apply get-scale-matrix (:scale mesh))
+                      (get-transform-matrix transform))
+        view-matrix (:view-matrix world)
+        projection-matrix (:projection-matrix world)
+        mv-matrix (multiply-matrices model-matrix view-matrix)
+        mvp-matrix (multiply-matrices mv-matrix projection-matrix)
+        itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
+    
+    (GL20/glUseProgram program-index)
+    (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
+                             (get-float-buffer itmv-matrix))
+    (GL20/glUniformMatrix4fv (:mvp-matrix uniforms) false
+                             (get-float-buffer mvp-matrix))
+
+    (GL20/glVertexAttribPointer (:position attributes) 3 GL11/GL_FLOAT
+                                false 0 (:vertices-buffer mesh))
+    (GL20/glEnableVertexAttribArray (:position attributes))
+
+    (GL20/glVertexAttribPointer (:normal attributes) 3 GL11/GL_FLOAT
+                                false 0 (:normals-buffer mesh))
+    (GL20/glEnableVertexAttribArray (:normal attributes))
+
+    (GL20/glVertexAttribPointer (:color attributes) 4 GL11/GL_FLOAT
+                                false 0 (:colors-buffer mesh))
+    (GL20/glEnableVertexAttribArray (:color attributes))
+
+    (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)))
 
 (defn create-world! []
   (set-thing! [] {})
@@ -2536,6 +2600,7 @@
   (set-thing! [:programs :flat] (create-program "flat"))
   (set-thing! [:programs :textured] (create-program "textured"))
   (set-thing! [:programs :ortho] (create-program "ortho"))
+  (set-thing! [:programs :colored] (create-program "colored"))
 
   (GL11/glEnable GL11/GL_SCISSOR_TEST)
   (GL11/glClearColor 0 0.5 0.8 0)
@@ -2546,7 +2611,7 @@
                                     10 (/ window-width window-height) 3 1000))
 
   (update-thing! [] (slots create-camera _ [0 0 1] 60 25 -35))
-  (set-thing! [:camera :pivot] [0 -2 0])
+  (set-thing! [:camera :pivot] [0 0 0])
   (update-thing! [] compute-camera)
   (update-thing! [] #(create-grid-mesh % 12 1))
   (set-thing! [:output] (create-ortho-mesh))
@@ -2571,9 +2636,9 @@
   (set-thing! [:ground-children] {})
 
   (set-thing! [:wave-editor] {:x 340
-                              :y 515
+                              :y 510
                               :w 650
-                              :h 200
+                              :h 150
                               :functions {}})
 
   (set-thing! [:time] 0.0)
@@ -2597,7 +2662,7 @@
   (update-thing! [] update-move-plane)
 
   (set-thing! [:cursor]
-              (create-cone-mesh [0 5 0] [1 0 0 0] [0.05 0.1 0.05] :black))
+              (create-cone-mesh [0 -5 0] [1 0 0 0] [0.05 0.1 0.05] :black))
 
   (set-thing! [:cable-mesh] (create-cylinder-mesh [0 0 0] [1 0 0 0]
                                                   [0.03 1 0.03] :blue))
@@ -2611,6 +2676,11 @@
 
   (set-thing! [:bounding-box] (create-cube-mesh [0 0 0] [1 0 0 0]
                                                 [0.2 1 0.2] :red))
+
+  ;; (dotimes [i 300]
+  ;;   (set-thing! [:meshes (gen-keyword :cube)]
+  ;;               (create-cube-mesh [(* i 0.01) (* i 0.01) (* i 0.01)] [1 0 0 0] [1 1 1] :red))
+  ;;   )
   )
 
 (reset-world!)
@@ -2663,8 +2733,11 @@
   (doseq [mesh (vals (:meshes world))]
     (draw-mesh! world mesh))
 
-  (doseq [part (vals (:parts world))]
-    (draw-part! world part))
+  ;; (doseq [part (vals (:parts world))] ;;#############################
+  ;;   (draw-part! world part))
+
+  (doseq [weld-group (vals (:weld-groups world))]
+    (draw-mesh! world weld-group))
 
   ;; (draw-2d! world)
 
@@ -2679,9 +2752,13 @@
        (in? (:mode world) [:insert :cable])
        (:paused world))
     (draw-mesh! world (:cursor world)))
+
   )
 
+(do
+1  
 (defn draw-2d! [world]
+  (fill-rect! (make-color 100 0 0) 342 520 800 190)
   (draw-wave-editor! world)
   (doseq [menu (vals (:menus world))]
     (draw-image! (:image menu) (:x menu) (:y menu)))
@@ -2694,7 +2771,32 @@
     (draw-rect! color (- x 1) y w h)
     (draw-rect! color x (+ y 1) w h)
     (draw-rect! color x (- y 1) w h))
+
+  (when (not (:paused world))
+    (let [{:keys [x y w h]} (get-in world [:menus :actions :regions :playpause])]
+      (draw-image! (:pause-image world) x y)))
   )
+(reset! redraw-flag true))
+
+(defn pick-mode-pressed [world event]
+  (let [x (:x event)
+        y (:y event)
+        reflex-buttons (get-in world [:menus :reflex-buttons])
+        world (assoc-in world [:mode] (:saved-mode world))]
+    (if (not (inside-box? reflex-buttons x y))
+      (if-let [part-name (get-part-at world x y)]
+        (case (:mode-action world)
+          :pick (do
+                  (println! "set trigger to " part-name)
+                  world)
+          :add (assoc-in world [:wave-editor :functions part-name] [[0 0] [1 0]])
+          :remove (dissoc-in world [:wave-editor :functions part-name])
+          world)
+        world)
+      world)))
+
+(defn pick-mode-moved [world event] world)
+(defn pick-mode-released [world event] world)
 
 (defn mouse-pressed [world event]
   (let [x (:x event)
@@ -2702,30 +2804,34 @@
         tools (get-in world [:menus :tools])
         actions (get-in world [:menus :actions])
         colors (get-in world [:menus :colors])
+        reflex-buttons (get-in world [:menus :reflex-buttons])
         wave-editor (:wave-editor world)]
-    (if (in? (:button event) [:middle :right])
+    (cond
+      (inside-box? wave-editor x y)
+      (editor-mouse-pressed world event)
+
+      (or
+       (inside-box? tools x y)
+       (inside-box? actions x y)
+       (inside-box? colors x y)
+       (inside-box? reflex-buttons x y))
+      (menu-pressed world event)
+
+      (in? (:button event) [:middle :right])
       (assoc-in world [:last-point] [(:x event) (:y event)])
-      (cond
-        (inside-box? wave-editor x y)
-        (editor-mouse-pressed world event)
 
-        (or
-         (inside-box? tools x y)
-         (inside-box? actions x y)
-         (inside-box? colors x y))
-        (menu-pressed world event)
-
-        :else
-        (if (:paused world)
-          (case (:mode world)
-            :insert (insert-mode-pressed world event)
-            :cable (cable-mode-pressed world event)
-            :color (color-mode-pressed world event)
-            :move (move-mode-pressed world event)
-            :adjust (adjust-mode-pressed world event)
-            :delete (delete-mode-pressed world event)
-            world)
-          world)))))
+      :else
+      (if (:paused world)
+        (case (:mode world)
+          :insert (insert-mode-pressed world event)
+          :cable (cable-mode-pressed world event)
+          :color (color-mode-pressed world event)
+          :move (move-mode-pressed world event)
+          :adjust (adjust-mode-pressed world event)
+          :delete (delete-mode-pressed world event)
+          :pick (pick-mode-pressed world event)
+          world)
+        world))))
 
 (defn mouse-moved [world event]
   (let [world (move-cursor world event)]
@@ -2748,6 +2854,7 @@
           :move (move-mode-moved world event)
           :adjust (adjust-mode-moved world event)
           :delete (delete-mode-moved world event)
+          :pick (pick-mode-moved world event)
           world)
         world))))
 
@@ -2770,52 +2877,209 @@
                     :move (move-mode-released world event)
                     :adjust (adjust-mode-released world event)
                     :delete (delete-mode-released world event)
+                    :pick (pick-mode-released world event)
                     world)
                   world))]
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
 
-;; (def saved-parts (atom (:parts @world)))
 
-;; ;; (set-thing! [:parts] @saved-parts)
+;;-------------------------------------------------------------------------------;;
 
-
-
-
-;; (reset-world!)
-;; (create-graph! :yellow)
-;; (println! (:wave-editor @world))
-
-;; (do
-;; 1  
-
-;; (clear-output!)
-;; (enforce-cable-lenght @world (get-thing! [:cables :cable8989]))
-;; nil)
-
-
-;; (println! (compute-cable-length @world (get-thing! [:cables :cable8989])))
 
 ;; (do
 ;; 1
 
-;; (set-thing! [:parts :block8984 :value] 0.89)
-;; (update-thing! [] compute-transforms))
-;; (reset-world!)
+;; (defn bake-part [info part]
+;;   (let [transform (:transform part)
+;;         model (get-in info [(:type part) :model])
+;;         scale (:scale model)
+;;         vertices (map (fn [v]
+;;                         (let [sv (map (fn [a b]
+;;                                         (* a b)) v scale)]
+;;                           (apply-transform transform sv)))
+;;                       (vec (partition 3 (:vertices model))))
+;;         color (let [color (get-color (:color part))
+;;                     r (/ (get-red color) 255.0)
+;;                     g (/ (get-green color) 255.0)
+;;                     b (/ (get-blue color) 255.0)]
+;;                 [r g b 1.0])]
+;;     {:vertices (vec (flatten vertices))
+;;      :colors (vec (flatten (repeat (count vertices) color)))}))
+
+;; (defn get-inverse-transform [transform]
+;;   (let [m (get-transform-matrix transform)
+;;         im (get-inverse-matrix m)]
+;;     (matrix->transform im)))
+
+;; (defn create-mesh-from-parts [parts names info]
+;;   (let [baked-parts (map (fn [name]
+;;                            (bake-part info (get-in parts [name])))
+;;                          names)
+
+;;         {:keys [vertices colors]} (reduce (fn [a b]
+;;                                             (merge-with (comp vec concat) a b))
+;;                                           baked-parts)
+
+;;         root (get-in parts [(first names)])
+;;         root-transform (:transform root)
+;;         inverse-transform (get-inverse-transform root-transform)
+;;         vertices (vec (flatten (map #(apply-transform inverse-transform %)
+;;                                (partition 3 vertices))))]
+;;     {:vertices (into-array Double/TYPE (map double vertices))
+;;      :vertices-buffer (get-float-buffer vertices)
+;;      :normals-buffer (get-float-buffer (into [] (compute-normals vertices)))
+;;      :colors-buffer (get-float-buffer colors)
+;;      :transform root-transform
+;;      :draw-fn draw-colored-mesh!
+;;      :scale [1 1 1]
+;;      :program :colored}))
+
+;; (defn get-limited-tree [parts root-name all-root-names]
+;;   (let [root (get-in parts [root-name])
+;;         children (filter (fn [name]
+;;                            (not (in? name all-root-names)))
+;;                          (keys (get-in root [:children])))
+;;         descendents (map #(get-limited-tree parts % all-root-names) children)]
+;;     (vec (apply concat [root-name] descendents))))
+
+;; (defn segregate-parts [world]
+;;   (let [roots (concat (keys (:ground-children world))
+;;                       (keys (get-in world [:wave-editor :functions]))
+;;                        ;; + cable dof parts
+;;                       )]
+;;     (vec (map (fn [root]
+;;                 (get-limited-tree (:parts world) root roots))
+;;               roots))))
+
+;; (defn is-child-group? [parts parent-names child-names]
+;;   (some (fn [parent-name]
+;;           (let [children (get-in parts [parent-name :children])]
+;;             (in? (first child-names) (keys children))))
+;;         parent-names))
+
+;; (defn get-group-children [parts group groups]
+;;   (apply merge
+;;          (map (fn [other-group]
+;;                 (if (is-child-group? parts group other-group)
+;;                   (let [parent (get-in parts [(first group)])
+;;                         child (get-in parts [(first other-group)])
+;;                         child-transform (:transform child)
+;;                         parent-transform (:transform parent)
+;;                         relative-transform (remove-transform child-transform
+;;                                                              parent-transform)]
+;;                   {(first other-group) relative-transform})))
+;;               groups)))
+
+;; (defn reset-part-values [world]
+;;   (let [parts (apply merge (map (fn [[name part]]
+;;                                   {name (assoc-in part [:value] 0.0)})
+;;                                 (:parts world)))]
+;;     (assoc-in world [:parts] parts)))
+
+;; (defn create-weld-groups [world]
+;;   (let [groups (segregate-parts world)
+;;         parts (:parts (compute-transforms (reset-part-values world)))
+;;         info (:info world)
+;;         weld-groups (apply merge
+;;                       (map (fn [names]
+;;                              (let [mesh (create-mesh-from-parts parts names info)
+;;                                    children (get-group-children parts names groups)
+;;                                    mesh (assoc-in mesh [:children] children)]
+;;                                {(first names) mesh}))
+;;                            groups))]
+;;     (assoc-in world [:weld-groups] weld-groups)))
+
+;; (clear-output!)
+;; (let [world @world
+   
+;;       ]
+;;   (set-thing! [] (create-weld-groups world))
+;;   ))
+
+;; (println! (keys (:parts @world)))
+
+;; ;; (save-world! [:wave-editor :parts :ground-children])
+;; (restore-world!)
+
+
+;; (set-thing! [] (dissoc-in @world [:weld-groups :transform]))
+
+;; (println! (keys (:weld-groups @world)))
+
 
 ;; (do
-;; (set-thing! [:parts (get-part-with-color @world :green) :value] 0.0)
-;; (update-thing! [] compute-transforms)
+
+;; (set-thing! [:weld-groups :block5206 :transform]
+;;             (make-transform [0 0.25 0] [1 0 0 0]))
+;; (set-thing! [:weld-groups :track5209 :transform]
+;;             (make-transform [0 0.25 2] [1 0 0 0]))
+;; (set-thing! [:weld-groups :track6757 :transform]
+;;             (make-transform [0 0.25 -2] [1 0 0 0]))
+
 ;; )
 
-;; (get-part-with-color @world :green)
+;; (set-thing! [:weld-groups :block5206 :children]
+;;             {:track5209 (make-transform [2 0 0] [1 0 0 0])
+;;              :track6757 (make-transform [-2 0 0] [1 0 0 0])})
 
-;; (set-thing! [:cables :cable12634 :length] 3.0)
+;; (do
+;; 1
 
-;; (update-thing! [:wave-editor :functions] #(dissoc-in % [:block12613]))
+;; (defn compute-group-children-transforms [world part-name transform]
+;;   (reduce (fn [w [child-name relative-transform]]
+;;             (let [new-transform (combine-transforms
+;;                                  relative-transform transform)]
+;;               (compute-group-subtree-transforms w child-name new-transform)))
+;;           world
+;;           (get-in world [:weld-groups part-name :children])))
 
-;; (set-thing! [:cables] {})
+;; (defn block-group-compute-subtree-transforms [world name transform]
+;;   (let [block (get-in world [:parts name])]
+;;     (if (nil? (:base block))
+;;       (-> world
+;;           (assoc-in [:weld-groups name :transform] transform)
+;;           (compute-group-children-transforms name transform))
+;;       ;; (let [transform (get-in world [:parts (:base block) :transform])
+;;       ;;       rotation (get-transform-rotation transform)
+;;       ;;       position (get-position-in-loop world (:loop block) (:value block))
+;;       ;;       transform (make-transform position rotation)]
+;;       ;;   (-> world
+;;       ;;       (assoc-in [:parts name :transform] transform)
+;;       ;;       (compute-children-transforms name transform)))
+;;       world
+;;       )))
 
-;; (reset-world!)
+;; (defn track-group-compute-subtree-transforms [world name transform]
+;;   (let [track (get-in world [:parts name])
+;;         angle (map-between-ranges (:value track) 0.0 1.0 0.0 360.0)
+;;         angle-transform (make-transform [0 0 0] [0 1 0 angle])
+;;         transform (combine-transforms angle-transform transform)
+;;         world (assoc-in world [:weld-groups name :transform] transform)]
+;;     (reduce (fn [w [child-name relative-transform]]
+;;               (let [new-transform (combine-transforms
+;;                                    relative-transform transform)]
+;;                 (compute-group-subtree-transforms w child-name new-transform)))
+;;             world
+;;             (get-in world [:weld-groups name :children]))))
+  
 
-;; (create-graph! :yellow)
+;; (defn compute-group-subtree-transforms [world name transform]
+;;   (case (get-in world [:parts name :type])
+;;     :block (block-group-compute-subtree-transforms world name transform)
+;;     :track (track-group-compute-subtree-transforms world name transform)
+;;     world))
+
+;; (defn compute-group-transforms [world]
+;;   (reduce (fn [w [name relative-transform]]
+;;             (compute-group-subtree-transforms w name relative-transform))
+;;           world
+;;           (:ground-children world)))
+
+;; (clear-output!)
+;; (set-thing! [] (compute-group-transforms @world))
+;; nil)
+
+
+;; (println! (get-thing! [:weld-groups :block-5]))
+

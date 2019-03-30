@@ -28,4 +28,15 @@
   (swap! world dissoc-in path)
   nil)
 
+(def saved-world (atom {}))
 
+(defn save-world! [names]
+  (reset! saved-world
+          (apply merge (map (fn [name]
+                              {name (get-in @world [name])})
+                            names)))
+  nil)
+
+(defn restore-world! []
+  (reset! world (merge-with (fn [a b] b) @world @saved-world))
+  nil)
