@@ -212,3 +212,7 @@
 (defn vector-= [a b]
   (every? #(float-equals? % 0.0) (vector-subtract a b)))
   
+(defn vector-interpolate [p1 p2 t]
+  (vec (map (fn [a b]
+              (+ (* a (- 1.0 t)) (* b t)))
+            p1 p2)))
