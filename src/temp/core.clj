@@ -894,6 +894,41 @@
 
     (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)))
 
+(defn draw-colored-mesh! [world mesh transform]
+  (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
+        program (get-in world [:programs (:program mesh)])
+        program-index (:index program)
+        attributes (:attributes program)
+        uniforms (:uniforms program)
+        model-matrix (multiply-matrices
+                      (apply get-scale-matrix (:scale mesh))
+                      (get-transform-matrix transform))
+        view-matrix (:view-matrix world)
+        projection-matrix (:projection-matrix world)
+        mv-matrix (multiply-matrices model-matrix view-matrix)
+        mvp-matrix (multiply-matrices mv-matrix projection-matrix)
+        itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
+    
+    (GL20/glUseProgram program-index)
+    (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
+                             (get-float-buffer itmv-matrix))
+    (GL20/glUniformMatrix4fv (:mvp-matrix uniforms) false
+                             (get-float-buffer mvp-matrix))
+
+    (GL20/glVertexAttribPointer (:position attributes) 3 GL11/GL_FLOAT
+                                false 0 (:vertices-buffer mesh))
+    (GL20/glEnableVertexAttribArray (:position attributes))
+
+    (GL20/glVertexAttribPointer (:normal attributes) 3 GL11/GL_FLOAT
+                                false 0 (:normals-buffer mesh))
+    (GL20/glEnableVertexAttribArray (:normal attributes))
+
+    (GL20/glVertexAttribPointer (:color attributes) 4 GL11/GL_FLOAT
+                                false 0 (:colors-buffer mesh))
+    (GL20/glEnableVertexAttribArray (:color attributes))
+
+    (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)))
+
 (defn create-mesh [vertices position rotation scale skin tex-coords]
   (let [base-mesh {:vertices (into-array Double/TYPE (map double vertices))
                    :vertices-buffer (get-float-buffer vertices)
@@ -1417,6 +1452,156 @@
     (sleep 100)
     (reset! redraw-flag true)))
 
+(defn draw-track! [world track offset]
+  (let [track-transform (:transform track)
+        offset-transform (make-transform offset [1 0 0 0])
+        track-transform (combine-transforms track-transform offset-transform)
+        mesh (-> (get-in world [:info :track :middle])
+                 (assoc-in [:transform] track-transform)
+                 (set-mesh-color (:color track)))]
+    (draw-mesh! world mesh)
+
+    (doseq [direction (:directions track)]
+      (let [offset (vector-multiply direction 0.25)
+            [x y z] direction
+            rotation (cond
+                       (not (zero? x)) [0 0 1 90]
+                       (not (zero? y)) [1 0 0 0]
+                       (not (zero? z)) [1 0 0 90])
+            arm-transform (make-transform offset rotation)
+            final-transform (combine-transforms arm-transform track-transform)
+            mesh (-> (get-in world [:info :track :arm])
+                     (assoc-in [:transform] final-transform)
+                     (set-mesh-color (:color track)))]
+            (draw-mesh! world mesh)))))
+
+(defn draw-part! [world part offset]
+  (if (= (:type part) :track)
+    (draw-track! world part offset)
+    (let [info (get-in world [:info (:type part)])
+          transform (:transform part)
+          offset-transform (make-transform offset [1 0 0 0])
+          transform (combine-transforms transform offset-transform)
+          mesh (-> (:model info)
+                   (assoc-in [:transform] transform)
+                   (set-mesh-color (:color part)))]
+      (draw-mesh! world mesh))))
+
+;;-------------------------------------------------------------------------------;;
+;; parts
+
+(defn get-part-position [world name]
+  (let [transform (get-in world [:parts name :transform])]
+    (get-transform-position transform)))
+
+(defn get-parts-with-type [parts type]
+  (filter (fn [part]
+            (= (get-in parts [part :type]) type))
+          (keys parts)))
+
+(defn get-part-type [world name]
+  (get-in world [:parts name :type]))
+
+(defn get-local-shared-point [world part-name neighbour-name]
+  (let [parts (:parts world)
+        info (:info world)
+        part (get-in parts [part-name])
+        part-transform (:transform part)
+        part-points (map (fn [point]
+                           [point (apply-transform part-transform point)])
+                         (get-in info [(:type part) :points]))
+        neighbour (get-in parts [neighbour-name])
+        neighbour-transform (:transform neighbour)
+        neighbour-points (map #(apply-transform neighbour-transform %)
+                              (get-in info [(:type neighbour) :points]))
+        epsilon 0.001]
+    (find-if (comp not nil?)
+             (mapcat (fn [[offset a]]
+                       (map (fn [b]
+                              (if (< (distance a b) epsilon)
+                                offset
+                                nil))
+                            neighbour-points))
+                     part-points))))
+
+(defn get-global-shared-point [world p1-name p2-name]
+  (if-let [point (get-local-shared-point world p1-name p2-name)]
+    (let [transform (get-in world [:parts p1-name :transform])]
+      (apply-transform transform point))
+    nil))
+
+(defn parts-connected? [world p0-name p1-name]
+  (let [parts (:parts world)
+        p0 (get-in parts [p0-name])
+        p1 (get-in parts [p1-name])
+        s1 (get-local-shared-point world p0-name p1-name)
+        s2 (get-local-shared-point world p1-name p0-name)]
+    (or
+     (and (in? p1-name (keys (:children p0)))
+          (nil? (:loop-fn p1)))
+
+     (and (in? p0-name (keys (:children p1)))
+          (nil? (:loop-fn p0)))
+     
+     (vector= s1 [0 0.5 0])
+     (vector= s2 [0 0.5 0]))))
+
+(defn get-neighbours [world part-name]
+  (filter (fn [other-part-name]
+            (and
+             (not (= other-part-name part-name))
+             (parts-connected? world other-part-name part-name)))
+          (keys (:parts world))))
+
+(defn create-info []
+  (let [track-width 0.12]
+    {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                      [0.5 0.5 0.5] :white)
+             :points [[0.25 0 0] [-0.25 0 0]
+                      [0 0.25 0] [0 -0.25 0]
+                      [0 0 0.25] [0 0 -0.25]]
+             :offset 0.25
+             }
+
+     ;; :sheath {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+     ;;                                   [1.05 0.05 1.05] :white)
+     ;;          :points [[0 -0.025 0]
+     ;;                   ]
+     ;;          :offset 0.025
+     ;;          }
+
+     :track {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                          [0.1 1 0.1] :white)
+             :arm (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                    [track-width 0.5 track-width] :white)
+
+             :middle (create-sphere-mesh [0 0 0] [1 0 0 0]
+                                         [track-width
+                                          track-width
+                                          track-width] :white)
+             :points [[0 0.5 0] [0 -0.5 0]
+                      [-0.5 0 0] [0.5 0 0]
+                      [0 0 -0.5] [0 0 0.5]
+                      ]
+             :offset 0.5
+             }
+     }))
+
+;; (= type :sheath) (assoc-in part [:body]
+;;                            (create-kinematic-body
+;;                             [0 0 0] [1 0 0 0] [1 0.05 1]))
+(defn create-part [type color]
+  (let [x (- (rand-int 10) 5)
+        z (- (rand-int 10) 5)
+        part {:type type
+              :color color
+              :transform (make-transform [x 0.5 z] [0 1 0 0])
+              :value 0.0}]
+    (if (= type :track)
+      (assoc-in part [:directions] [[0 1 0]
+                                    [0 -1 0]])
+      part)))
+
 ;;-------------------------------------------------------------------------------;;
 ;; collision
 
@@ -1515,65 +1700,58 @@
 ;;-------------------------------------------------------------------------------;;
 ;; track loop
 
-(defn get-parts-with-type [parts type]
-  (filter (fn [part]
-            (= (get-in parts [part :type]) type))
-          (keys parts)))
+(defn grow-loop [world loop color]
+  (let [start (first loop)
+        end (last loop)
+        get-next (fn [tip]
+                   (first
+                    (filter (fn [part-name]
+                              (let [part (get-in world [:parts part-name])]
+                                (and
+                                 (= (:type part) :track)
+                                 (= (:color part) color)
+                                 (not (in? part-name loop)))))
+                            (get-neighbours world tip))))
+        before (get-next start)
+        after (get-next end)]
+    (if (and (nil? before)
+             (nil? after))
+      loop
+      (let [new-loop (cond
+                       (or (nil? before)
+                           (= before after))
+                       (conj loop after)
 
-(defn get-local-shared-point [world part-name neighbour-name]
-  (let [parts (:parts world)
-        info (:info world)
-        part (get-in parts [part-name])
-        part-transform (:transform part)
-        part-points (map (fn [point]
-                           [point (apply-transform part-transform point)])
-                         (get-in info [(:type part) :points]))
-        neighbour (get-in parts [neighbour-name])
-        neighbour-transform (:transform neighbour)
-        neighbour-points (map #(apply-transform neighbour-transform %)
-                              (get-in info [(:type neighbour) :points]))
-        epsilon 0.001]
-    (find-if (comp not nil?)
-             (mapcat (fn [[offset a]]
-                       (map (fn [b]
-                              (if (< (distance a b) epsilon)
-                                offset
-                                nil))
-                            neighbour-points))
-                     part-points))))
+                       (nil? after)
+                       (vec (concat [before] loop))
 
-(defn get-global-shared-point [world p1-name p2-name]
-  (if-let [point (get-local-shared-point world p1-name p2-name)]
-    (let [transform (get-in world [:parts p1-name :transform])]
-      (apply-transform transform point))
-    nil))
+                       :else
+                       (vec (concat [before] (conj loop after))))]
+        (recur world new-loop color)))))
 
-(defn parts-connected? [world p0-name p1-name]
-  (let [parts (:parts world)
-        p0 (get-in parts [p0-name])
-        p1 (get-in parts [p1-name])
-        s1 (get-local-shared-point world p0-name p1-name)
-        s2 (get-local-shared-point world p1-name p0-name)]
-    (or
-     (and (in? p1-name (keys (:children p0)))
-          (nil? (:loop-fn p1)))
-
-     (and (in? p0-name (keys (:children p1)))
-          (nil? (:loop-fn p0)))
-     
-     (vector= s1 [0 0.5 0])
-     (vector= s2 [0 0.5 0]))))
-
-(defn get-neighbours [world part-name]
-  (filter (fn [other-part-name]
-            (and
-             (not (= other-part-name part-name))
-             (parts-connected? world other-part-name part-name)))
-          (keys (:parts world))))
+(defn rotate-loop [loop start]
+  (if (= (first loop) start)
+    (vec loop)
+    (recur (concat (rest loop) [(first loop)]) start)))
 
 (defn get-track-loop [world t0-name]
-  ;;######################################################
-  [[0 0 0] [0 1 0] [0 0 0]])
+  (let [t0 (get-in world [:parts t0-name])
+        loop-color (:color t0)
+        loop-names (grow-loop world [t0-name] loop-color)
+        p1 (first loop-names)
+        p2 (last loop-names)
+        closed-loop (parts-connected? world p1 p2)
+        loop-names (if closed-loop
+                     (rotate-loop loop-names t0-name)
+                     loop-names)
+        points (map (fn [name]
+                      (get-part-position world name))
+                    loop-names)
+        inverse-transform (get-inverse-transform (:transform t0))
+        relative-points (vec (map #(apply-transform inverse-transform %) points))]
+    (if closed-loop
+      (conj relative-points [0 0 0])
+      relative-points)))
 
 (defn compute-loop-function [loop]
   (let [lengths (map (fn [a b]
@@ -1610,86 +1788,249 @@
             world
             track-names)))
 
-(defn draw-track! [world track]
-  (let [track-transform (:transform track)
-        mesh (-> (get-in world [:info :track :middle])
-                 (assoc-in [:transform] track-transform)
-                 (set-mesh-color (:color track)))]
-    (draw-mesh! world mesh)
+;;-------------------------------------------------------------------------------;;
+;; weld groups
 
-    (doseq [direction (:directions track)]
-      (let [offset (vector-multiply direction 0.25)
-            [x y z] direction
-            rotation (cond
-                       (not (zero? x)) [0 0 1 90]
-                       (not (zero? y)) [1 0 0 0]
-                       (not (zero? z)) [1 0 0 90])
-            arm-transform (make-transform offset rotation)
-            final-transform (combine-transforms arm-transform track-transform)
-            mesh (-> (get-in world [:info :track :arm])
-                     (assoc-in [:transform] final-transform)
-                     (set-mesh-color (:color track)))]
-            (draw-mesh! world mesh)))))
+(defn get-limited-tree [parts root-name all-root-names]
+  (let [root (get-in parts [root-name])
+        children (filter (fn [name]
+                           (not (in? name all-root-names)))
+                         (keys (get-in root [:children])))
+        descendents (map #(get-limited-tree parts % all-root-names) children)]
+    (vec (apply concat [root-name] descendents))))
+
+(defn segregate-parts [world]
+  (let [roots (concat (keys (:ground-children world))
+                      (keys (get-in world [:wave-editor :functions]))
+                       ;; + cable dof parts
+                      )]
+    (vec (map (fn [root]
+                (get-limited-tree (:parts world) root roots))
+              roots))))
+
+(defn bake-mesh [mesh transform scale color-name]
+  (let [vertices (map (fn [v]
+                        (let [sv (map (fn [a b]
+                                        (* a b)) v scale)]
+                          (apply-transform transform sv)))
+                      (vec (partition 3 (:vertices mesh))))
+        color (let [color (get-color color-name)
+                    r (/ (get-red color) 255.0)
+                    g (/ (get-green color) 255.0)
+                    b (/ (get-blue color) 255.0)]
+                [r g b 1.0])]
+    {:vertices (vec (flatten vertices))
+     :colors (vec (flatten (repeat (count vertices) color)))}))
+
+(defn bake-arm [mesh transform direction color-name]
+  (let [offset (vector-multiply direction 0.25)
+        [x y z] direction
+        rotation (cond
+                   (not (zero? x)) [0 0 1 90]
+                   (not (zero? y)) [1 0 0 0]
+                   (not (zero? z)) [1 0 0 90])
+        arm-transform (make-transform offset rotation)
+        final-transform (combine-transforms arm-transform transform)]
+    (bake-mesh mesh final-transform (:scale mesh) color-name)))
+
+(defn opposite-directions? [directions]
+  (some #(vector-= % [0 0 0])
+        (mapcat (fn [a]
+                  (map (fn [b]
+                         (vector-add a b))
+                       directions))
+                directions)))
+
+(defn bake-part [info part]
+  (if (= (:type part) :block)
+    (let [model (get-in info [(:type part) :model])]
+      (bake-mesh model (:transform part) (:scale model) (:color part)))
+    (let [directions (:directions part)
+          transform (:transform part)
+          arm (get-in info [:track :arm])          
+          baked-arms (map #(bake-arm arm transform % (:color part)) directions)
+          baked (if (opposite-directions? directions)
+                  baked-arms
+                  (let [middle (get-in info [:block :model])
+                        baked-middle (bake-mesh middle transform
+                                                [0.2 0.2 0.2] (:color part))]
+                    (cons baked-middle baked-arms)))]          
+      (reduce (fn [a b]
+                (merge-with (comp vec concat) a b))
+              baked))))
+
+(defn create-mesh-from-parts [parts names info]
+  (let [baked-parts (map (fn [name]
+                           (bake-part info (get-in parts [name])))
+                         names)
+
+        {:keys [vertices colors]} (reduce (fn [a b]
+                                            (merge-with (comp vec concat) a b))
+                                          baked-parts)
+
+        root (get-in parts [(first names)])
+        root-transform (:transform root)
+        inverse-transform (get-inverse-transform root-transform)
+        vertices (vec (flatten (map #(apply-transform inverse-transform %)
+                               (partition 3 vertices))))]
+    {:vertices (into-array Double/TYPE (map double vertices))
+     :vertices-buffer (get-float-buffer vertices)
+     :normals-buffer (get-float-buffer (into [] (compute-normals vertices)))
+     :colors-buffer (get-float-buffer colors)
+     :transform root-transform
+     :draw-fn draw-colored-mesh!
+     :scale [1 1 1]
+     :program :colored}))
+
+(defn is-child-group? [parts parent-names child-names]
+  (some (fn [parent-name]
+          (let [children (get-in parts [parent-name :children])]
+            (in? (first child-names) (keys children))))
+        parent-names))
+
+(defn get-group-children [parts group groups]
+  (apply merge
+         (map (fn [other-group]
+                (if (is-child-group? parts group other-group)
+                  (let [parent (get-in parts [(first group)])
+                        child (get-in parts [(first other-group)])
+                        child-transform (:transform child)
+                        parent-transform (:transform parent)
+                        relative-transform (remove-transform child-transform
+                                                             parent-transform)]
+                  {(first other-group) relative-transform})))
+              groups)))
+
+(defn reset-part-values [world]
+  (let [parts (apply merge (map (fn [[name part]]
+                                  {name (assoc-in part [:value] 0.0)})
+                                (:parts world)))]
+    (assoc-in world [:parts] parts)))
+
+(defn create-weld-groups [world]
+  (let [groups (segregate-parts world)
+        parts (:parts (compute-group-transforms (reset-part-values world) :parts))
+        info (:info world)
+        weld-groups (apply merge
+                      (map (fn [names]
+                             (let [mesh (create-mesh-from-parts parts names info)
+                                   children (get-group-children parts names groups)
+                                   mesh (assoc-in mesh [:children] children)]
+                               {(first names) mesh}))
+                           groups))]
+    (assoc-in world [:weld-groups] weld-groups)))
 
 ;;-------------------------------------------------------------------------------;;
 ;; mechanical tree
 
-(declare compute-subtree-transforms)
+(declare compute-group-subtree-transforms)
 (declare get-function-value)
 
-(defn compute-children-transforms [world part-name transform]
-  (let [part (get-in world [:parts part-name])]
-    (reduce (fn [w [child-name relative-transform]]
-              (let [new-transform (combine-transforms
-                                   relative-transform transform)]
-                (compute-subtree-transforms w child-name new-transform)))
-            world
-            (:children part))))
+(defn compute-group-children-transforms [world part-name transform key]
+  (reduce (fn [w [child-name relative-transform]]
+            (let [new-transform (combine-transforms
+                                 relative-transform transform)]
+              (compute-group-subtree-transforms w child-name new-transform key)))
+          world
+          (get-in world [key part-name :children])))
 
-(defn block-compute-subtree-transforms [world name transform]
+(defn block-group-compute-subtree-transforms [world name transform key]
   (let [block (get-in world [:parts name])]
     (if (nil? (:loop-fn block))
       (-> world
-          (assoc-in [:parts name :transform] transform)
-          (compute-children-transforms name transform))
+          (assoc-in [key name :transform] transform)
+          (compute-group-children-transforms name transform key))
       (let [rotation (get-transform-rotation transform)
             loop-fn (map (fn [[t v]]
                            [t (apply-transform transform v)])
                          (:loop-fn block))
-            position (get-function-value loop-fn
-                                         (within (:value block)
-                                                 0.0 1.0)
-                                         vector-interpolate)
+            value (within (:value block) 0.0 1.0)
+            position (get-function-value loop-fn value vector-interpolate)
             transform (make-transform position rotation)]
         (-> world
-            (assoc-in [:parts name :transform] transform)
-            (compute-children-transforms name transform))))))
+            (assoc-in [key name :transform] transform)
+            (compute-group-children-transforms name transform key))))))
 
-(defn track-compute-subtree-transforms [world name transform]
+(defn track-group-compute-subtree-transforms [world name transform key]
   (let [track (get-in world [:parts name])
         angle (map-between-ranges (:value track) 0.0 1.0 0.0 360.0)
         angle-transform (make-transform [0 0 0] [0 1 0 angle])
         transform (combine-transforms angle-transform transform)
-        world (assoc-in world [:parts name :transform] transform)]
+        world (assoc-in world [key name :transform] transform)]
     (reduce (fn [w [child-name relative-transform]]
               (let [new-transform (combine-transforms
                                    relative-transform transform)]
-                (compute-subtree-transforms w child-name new-transform)))
+                (compute-group-subtree-transforms w child-name new-transform key)))
             world
-            (:children track))))
+            (get-in world [key name :children]))))  
 
-(defn compute-subtree-transforms [world name transform]
-  (let [part (get-in world [:parts name])]
-    (case (:type part)
-      :block (block-compute-subtree-transforms world name transform)
-      :track (track-compute-subtree-transforms world name transform)
-      world)))
+(defn compute-group-subtree-transforms [world name transform key]
+  (case (get-in world [:parts name :type])
+    :block (block-group-compute-subtree-transforms world name transform key)
+    :track (track-group-compute-subtree-transforms world name transform key)
+    world))
 
-(defn compute-transforms [world]
+(defn compute-group-transforms [world key] 
   (reduce (fn [w [name relative-transform]]
-            (compute-subtree-transforms w name relative-transform))
+            (compute-group-subtree-transforms w name relative-transform key))
           world
           (:ground-children world)))
+
+;; (declare compute-subtree-transforms)
+
+;; (defn compute-children-transforms [world part-name transform]
+;;   (let [part (get-in world [:parts part-name])]
+;;     (reduce (fn [w [child-name relative-transform]]
+;;               (let [new-transform (combine-transforms
+;;                                    relative-transform transform)]
+;;                 (compute-subtree-transforms w child-name new-transform)))
+;;             world
+;;             (:children part))))
+
+;; (defn block-compute-subtree-transforms [world name transform]
+;;   (let [block (get-in world [:parts name])]
+;;     (if (nil? (:loop-fn block))
+;;       (-> world
+;;           (assoc-in [:parts name :transform] transform)
+;;           (compute-children-transforms name transform))
+;;       (let [rotation (get-transform-rotation transform)
+;;             loop-fn (map (fn [[t v]]
+;;                            [t (apply-transform transform v)])
+;;                          (:loop-fn block))
+;;             position (get-function-value loop-fn
+;;                                          (within (:value block)
+;;                                                  0.0 1.0)
+;;                                          vector-interpolate)
+;;             transform (make-transform position rotation)]
+;;         (-> world
+;;             (assoc-in [:parts name :transform] transform)
+;;             (compute-children-transforms name transform))))))
+
+;; (defn track-compute-subtree-transforms [world name transform]
+;;   (let [track (get-in world [:parts name])
+;;         angle (map-between-ranges (:value track) 0.0 1.0 0.0 360.0)
+;;         angle-transform (make-transform [0 0 0] [0 1 0 angle])
+;;         transform (combine-transforms angle-transform transform)
+;;         world (assoc-in world [:parts name :transform] transform)]
+;;     (reduce (fn [w [child-name relative-transform]]
+;;               (let [new-transform (combine-transforms
+;;                                    relative-transform transform)]
+;;                 (compute-subtree-transforms w child-name new-transform)))
+;;             world
+;;             (:children track))))
+
+;; (defn compute-subtree-transforms [world name transform]
+;;   (let [part (get-in world [:parts name])]
+;;     (case (:type part)
+;;       :block (block-compute-subtree-transforms world name transform)
+;;       :track (track-compute-subtree-transforms world name transform)
+;;       world)))
+
+;; (defn compute-transforms [world]
+;;   (reduce (fn [w [name relative-transform]]
+;;             (compute-subtree-transforms w name relative-transform))
+;;           world
+;;           (:ground-children world)))
 
 (defn detach-child [world child-name]
   (let [parent-name (find-if (fn [name]
@@ -1703,12 +2044,7 @@
       (nil? parent-name) world
       
       :else
-      (-> world
-          (dissoc-in [:parts parent-name :children child-name])
-          (compute-tracks-directions)))))
-
-(defn get-part-type [world name]
-  (get-in world [:parts name :type]))
+      (dissoc-in world [:parts parent-name :children child-name]))))
 
 (defn middle-of-track? [world snap-spec]
   (let [{:keys [position part]} snap-spec]
@@ -1745,7 +2081,10 @@
         world (if wagon?
                 (set-wagon-loop world child-name parent-name)
                 (compute-tracks-directions world))]
-    (compute-transforms world)))
+    (-> world
+        (create-weld-groups)
+        (compute-group-transforms :weld-groups)
+        (compute-group-transforms :parts))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; wave editor
@@ -1901,10 +2240,12 @@
                      :else
                      coords)]
         (assoc-in world [:wave-editor :functions function-name index] coords))
-      (-> world
-          (assoc-in [:time] (first coords))
-          (run-waves)
-          (compute-transforms)))))
+      ;; (-> world
+      ;;     (assoc-in [:time] (first coords))
+      ;;     (run-waves)
+      ;;     (compute-transforms))
+      world
+      )))
 
 (defn editor-mouse-released [world event]
   (-> world
@@ -2126,10 +2467,6 @@
           offset (get-in world [:info (:type part) :offset])]
       (if (nil? snap-spec)
         (let [plane-point (get-ground-camera-point world x y offset)
-              ;; offset [0 offset 0]
-              ;; rotation-transform (make-transform [0 0 0] (:start-rotation world))
-              ;; offset (apply-transform rotation-transform offset)
-              ;; final-point (vector-add plane-point offset)
               transform (make-transform plane-point (:start-rotation world))]
           (-> world
               (assoc-in [:parts moving-part :transform] transform)
@@ -2153,7 +2490,9 @@
         (-> world
             (attach-child moving-part snap-spec)
             (dissoc-in [:moving-part])))
-      (dissoc-in world [:moving-part]))
+      (-> world
+          (dissoc-in [:moving-part])
+          (compute-tracks-directions)))
     world))
 
 ;;-------------------------------------------------------------------------------;;
@@ -2257,7 +2596,8 @@
     (-> world
         (detach-child part-name)
         (dissoc-in [:wave-editor :functions part-name])
-        (dissoc-in [:parts part-name]))
+        (dissoc-in [:parts part-name])
+        (compute-tracks-directions))
     (if-let [cable-name (get-cable-at world (:x event) (:y event))]
       (dissoc-in world [:cables cable-name])
       world)))
@@ -2401,68 +2741,6 @@
     world))
 
 ;;-------------------------------------------------------------------------------;;
-;; parts
-
-(defn create-info []
-  (let [track-width 0.12]
-    {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                      [0.5 0.5 0.5] :white)
-             :points [[0.25 0 0] [-0.25 0 0]
-                      [0 0.25 0] [0 -0.25 0]
-                      [0 0 0.25] [0 0 -0.25]]
-             :offset 0.25
-             }
-
-     ;; :sheath {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-     ;;                                   [1.05 0.05 1.05] :white)
-     ;;          :points [[0 -0.025 0]
-     ;;                   ]
-     ;;          :offset 0.025
-     ;;          }
-
-     :track {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                          [0.1 1 0.1] :white)
-             :arm (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                    [track-width 0.5 track-width] :white)
-
-             :middle (create-sphere-mesh [0 0 0] [1 0 0 0]
-                                         [track-width
-                                          track-width
-                                          track-width] :white)
-             :points [[0 0.5 0] [0 -0.5 0]
-                      [-0.5 0 0] [0.5 0 0]
-                      [0 0 -0.5] [0 0 0.5]
-                      ]
-             :offset 0.5
-             }
-     }))
-
-;; (= type :sheath) (assoc-in part [:body]
-;;                            (create-kinematic-body
-;;                             [0 0 0] [1 0 0 0] [1 0.05 1]))
-(defn create-part [type color]
-  (let [x (- (rand-int 10) 5)
-        z (- (rand-int 10) 5)
-        part {:type type
-              :color color
-              :transform (make-transform [x 0.5 z] [0 1 0 0])
-              :value 0.0}]
-    (if (= type :track)
-      (assoc-in part [:directions] [[0 1 0]
-                                    [0 -1 0]])
-      part)))
-
-(defn draw-part! [world part]
-  (if (= (:type part) :track)
-    (draw-track! world part)
-    (let [info (get-in world [:info (:type part)])
-          transform (:transform part)
-          mesh (-> (:model info)
-                   (assoc-in [:transform] transform)
-                   (set-mesh-color (:color part)))]
-      (draw-mesh! world mesh))))
-
-;;-------------------------------------------------------------------------------;;
 
 (do
 1
@@ -2482,41 +2760,6 @@
     (set-thing! [:pause-image]
                 (parse-svg-with-width "res/pause.svg" (inc w))))
   )
-
-(defn draw-colored-mesh! [world mesh transform]
-  (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
-        program (get-in world [:programs (:program mesh)])
-        program-index (:index program)
-        attributes (:attributes program)
-        uniforms (:uniforms program)
-        model-matrix (multiply-matrices
-                      (apply get-scale-matrix (:scale mesh))
-                      (get-transform-matrix transform))
-        view-matrix (:view-matrix world)
-        projection-matrix (:projection-matrix world)
-        mv-matrix (multiply-matrices model-matrix view-matrix)
-        mvp-matrix (multiply-matrices mv-matrix projection-matrix)
-        itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
-    
-    (GL20/glUseProgram program-index)
-    (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
-                             (get-float-buffer itmv-matrix))
-    (GL20/glUniformMatrix4fv (:mvp-matrix uniforms) false
-                             (get-float-buffer mvp-matrix))
-
-    (GL20/glVertexAttribPointer (:position attributes) 3 GL11/GL_FLOAT
-                                false 0 (:vertices-buffer mesh))
-    (GL20/glEnableVertexAttribArray (:position attributes))
-
-    (GL20/glVertexAttribPointer (:normal attributes) 3 GL11/GL_FLOAT
-                                false 0 (:normals-buffer mesh))
-    (GL20/glEnableVertexAttribArray (:normal attributes))
-
-    (GL20/glVertexAttribPointer (:color attributes) 4 GL11/GL_FLOAT
-                                false 0 (:colors-buffer mesh))
-    (GL20/glEnableVertexAttribArray (:color attributes))
-
-    (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)))
 
 (defn create-world! []
   (set-thing! [] {})
@@ -2573,10 +2816,6 @@
   ;; (update-thing! [] #(create-sphere % [-1.5 0.4 2]))
   ;; (update-thing! [] #(create-sphere % [-2 0.4 0]))
 
-  (update-thing! [] run-waves)
-  (update-thing! [] compute-transforms)
-  (update-thing! [] compute-tracks-directions)
-
   (create-menus!)
 
   (set-thing! [:mode] :insert)
@@ -2615,19 +2854,21 @@
   (get-part-with-color world :green))
 
 (defn enforce-cable-length [world cable-name]
-  (let [cable (get-in world [:cables cable-name])
-        dof-name (get-free-dof world cable) 
-        dof-part (get-in world [:parts dof-name])
-        desired-length (:length cable)
-        current-length (compute-cable-length world cable-name)
-        dl (- desired-length current-length)
-        test-length (-> world
-                        (update-in [:parts dof-name :value] #(+ % 0.1))
-                        (compute-transforms)
-                        (compute-cable-length cable-name))
-        dt (-  test-length current-length)
-        dvalue (/ (* 0.1 dl) dt)]
-    (update-in world [:parts dof-name :value] #(+ % dvalue))))
+  ;; (let [cable (get-in world [:cables cable-name])
+  ;;       dof-name (get-free-dof world cable) 
+  ;;       dof-part (get-in world [:parts dof-name])
+  ;;       desired-length (:length cable)
+  ;;       current-length (compute-cable-length world cable-name)
+  ;;       dl (- desired-length current-length)
+  ;;       test-length (-> world
+  ;;                       (update-in [:parts dof-name :value] #(+ % 0.1))
+  ;;                       (compute-transforms)
+  ;;                       (compute-cable-length cable-name))
+  ;;       dt (-  test-length current-length)
+  ;;       dvalue (/ (* 0.1 dl) dt)]
+  ;;   (update-in world [:parts dof-name :value] #(+ % dvalue)))
+  world
+  )
 
 (defn enforce-cable-lengths [world]
   ;;###################################################
@@ -2648,7 +2889,7 @@
           (run-waves)
           ;; (update-in [:cables :cable8989 :length] #(+ % 0.01)) ;;##############
           (enforce-cable-lengths)
-          (compute-transforms)))))
+          (compute-group-transforms :weld-groups)))))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -2657,8 +2898,8 @@
   (doseq [mesh (vals (:meshes world))]
     (draw-mesh! world mesh))
 
-  (doseq [part (vals (:parts world))] ;;#############################
-    (draw-part! world part))
+  ;; (doseq [part (vals (:parts world))] ;;#############################
+  ;;   (draw-part! world part [3 0 0]))
 
   (doseq [weld-group (vals (:weld-groups world))]
     (draw-mesh! world weld-group))
@@ -2806,308 +3047,3 @@
                   world))]
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
-
-
-;;-------------------------------------------------------------------------------;;
-
-;; (do
-;; 1
-;;########################################## SPLITING PARTS INTO WELD GROUPS
-;; (defn bake-part [info part]
-;;   (let [transform (:transform part)
-;;         model (get-in info [(:type part) :model])
-;;         scale (:scale model)
-;;         vertices (map (fn [v]
-;;                         (let [sv (map (fn [a b]
-;;                                         (* a b)) v scale)]
-;;                           (apply-transform transform sv)))
-;;                       (vec (partition 3 (:vertices model))))
-;;         color (let [color (get-color (:color part))
-;;                     r (/ (get-red color) 255.0)
-;;                     g (/ (get-green color) 255.0)
-;;                     b (/ (get-blue color) 255.0)]
-;;                 [r g b 1.0])]
-;;     {:vertices (vec (flatten vertices))
-;;      :colors (vec (flatten (repeat (count vertices) color)))}))
-
-;; (defn create-mesh-from-parts [parts names info]
-;;   (let [baked-parts (map (fn [name]
-;;                            (bake-part info (get-in parts [name])))
-;;                          names)
-
-;;         {:keys [vertices colors]} (reduce (fn [a b]
-;;                                             (merge-with (comp vec concat) a b))
-;;                                           baked-parts)
-
-;;         root (get-in parts [(first names)])
-;;         root-transform (:transform root)
-;;         inverse-transform (get-inverse-transform root-transform)
-;;         vertices (vec (flatten (map #(apply-transform inverse-transform %)
-;;                                (partition 3 vertices))))]
-;;     {:vertices (into-array Double/TYPE (map double vertices))
-;;      :vertices-buffer (get-float-buffer vertices)
-;;      :normals-buffer (get-float-buffer (into [] (compute-normals vertices)))
-;;      :colors-buffer (get-float-buffer colors)
-;;      :transform root-transform
-;;      :draw-fn draw-colored-mesh!
-;;      :scale [1 1 1]
-;;      :program :colored}))
-
-;; (defn get-limited-tree [parts root-name all-root-names]
-;;   (let [root (get-in parts [root-name])
-;;         children (filter (fn [name]
-;;                            (not (in? name all-root-names)))
-;;                          (keys (get-in root [:children])))
-;;         descendents (map #(get-limited-tree parts % all-root-names) children)]
-;;     (vec (apply concat [root-name] descendents))))
-
-;; (defn segregate-parts [world]
-;;   (let [roots (concat (keys (:ground-children world))
-;;                       (keys (get-in world [:wave-editor :functions]))
-;;                        ;; + cable dof parts
-;;                       )]
-;;     (vec (map (fn [root]
-;;                 (get-limited-tree (:parts world) root roots))
-;;               roots))))
-
-;; (defn is-child-group? [parts parent-names child-names]
-;;   (some (fn [parent-name]
-;;           (let [children (get-in parts [parent-name :children])]
-;;             (in? (first child-names) (keys children))))
-;;         parent-names))
-
-;; (defn get-group-children [parts group groups]
-;;   (apply merge
-;;          (map (fn [other-group]
-;;                 (if (is-child-group? parts group other-group)
-;;                   (let [parent (get-in parts [(first group)])
-;;                         child (get-in parts [(first other-group)])
-;;                         child-transform (:transform child)
-;;                         parent-transform (:transform parent)
-;;                         relative-transform (remove-transform child-transform
-;;                                                              parent-transform)]
-;;                   {(first other-group) relative-transform})))
-;;               groups)))
-
-;; (defn reset-part-values [world]
-;;   (let [parts (apply merge (map (fn [[name part]]
-;;                                   {name (assoc-in part [:value] 0.0)})
-;;                                 (:parts world)))]
-;;     (assoc-in world [:parts] parts)))
-
-;; (defn create-weld-groups [world]
-;;   (let [groups (segregate-parts world)
-;;         parts (:parts (compute-transforms (reset-part-values world)))
-;;         info (:info world)
-;;         weld-groups (apply merge
-;;                       (map (fn [names]
-;;                              (let [mesh (create-mesh-from-parts parts names info)
-;;                                    children (get-group-children parts names groups)
-;;                                    mesh (assoc-in mesh [:children] children)]
-;;                                {(first names) mesh}))
-;;                            groups))]
-;;     (assoc-in world [:weld-groups] weld-groups)))
-
-;; (clear-output!)
-;; (let [world @world
-   
-;;       ]
-;;   (set-thing! [] (create-weld-groups world))
-;;   ))
-
-;; (println! (keys (:parts @world)))
-
-;; ;; (save-world! [:wave-editor :parts :ground-children])
-;; (restore-world!)
-
-
-;; (set-thing! [] (dissoc-in @world [:weld-groups :transform]))
-
-;; (println! (keys (:weld-groups @world)))
-
-
-;; (do
-;; 1
-;;######################## COMPUTING TRANSFORMS FOR WELD GROUPS (SAME EXCEPT FOR KEY)
-;; (declare compute-group-subtree-transforms)
-
-;; (defn compute-group-children-transforms [world part-name transform]
-;;   (reduce (fn [w [child-name relative-transform]]
-;;             (let [new-transform (combine-transforms
-;;                                  relative-transform transform)]
-;;               (compute-group-subtree-transforms w child-name new-transform)))
-;;           world
-;;           (get-in world [:weld-groups part-name :children])))
-
-;; (defn block-group-compute-subtree-transforms [world name transform]
-;;   (let [block (get-in world [:parts name])]
-;;     (if (nil? (:base block))
-;;       (-> world
-;;           (assoc-in [:weld-groups name :transform] transform)
-;;           (compute-group-children-transforms name transform))
-;;       (let [;; transform (get-in world [:parts (:base block) :transform])
-;;             ;; rotation (get-transform-rotation transform)
-;;             ;; position (get-position-in-loop world (:loop block) (:value block))
-;;             ;; transform (make-transform position rotation)
-;;             ]
-;;         ;; (-> world
-;;         ;;     (assoc-in [:parts name :transform] transform)
-;;         ;;     (compute-children-transforms name transform))
-;;         (println! "here")
-;;         (-> world
-;;             (assoc-in [:weld-groups name :transform] transform)
-;;             (compute-group-children-transforms name transform))
-;;       ))))
-
-;; (defn track-group-compute-subtree-transforms [world name transform]
-;;   (let [track (get-in world [:parts name])
-;;         angle (map-between-ranges (:value track) 0.0 1.0 0.0 360.0)
-;;         angle-transform (make-transform [0 0 0] [0 1 0 angle])
-;;         transform (combine-transforms angle-transform transform)
-;;         world (assoc-in world [:weld-groups name :transform] transform)]
-;;     (reduce (fn [w [child-name relative-transform]]
-;;               (let [new-transform (combine-transforms
-;;                                    relative-transform transform)]
-;;                 (compute-group-subtree-transforms w child-name new-transform)))
-;;             world
-;;             (get-in world [:weld-groups name :children]))))
-  
-
-;; (defn compute-group-subtree-transforms [world name transform]
-;;   (case (get-in world [:parts name :type])
-;;     :block (block-group-compute-subtree-transforms world name transform)
-;;     :track (track-group-compute-subtree-transforms world name transform)
-;;     world))
-
-;; (defn compute-group-transforms [world]
-;;   (reduce (fn [w [name relative-transform]]
-;;             (compute-group-subtree-transforms w name relative-transform))
-;;           world
-;;           (:ground-children world)))
-
-;; (clear-output!)
-;; (set-thing! [] (compute-group-transforms @world))
-;; nil)
-
-;;-------------------------------------------------------------------------------;;
-
-;; (do
-;; 1
-
-;;############################### PRE-COMPUTING TRACK LOOP (USING IT ALREADY WORKS)
-
-;; (defn grow-loop [world track-names loop color]
-;;   (let [start (first loop)
-;;         end (last loop)
-;;         get-next (fn [tip]
-;;                    (first
-;;                     (filter (fn [part-name]
-;;                               (let [part (get-in world [:parts part-name])]
-;;                                 (and
-;;                                  (= (:type part) :track)
-;;                                  (= (:color part) color)
-;;                                  (not (in? part-name loop)))))
-;;                             (get-neighbours world tip))))
-;;         before (get-next start)
-;;         after (get-next end)]
-;;     (if (and (nil? before)
-;;              (nil? after))
-;;       loop
-;;       (let [new-loop (cond
-;;                        (or (nil? before)
-;;                            (= before after))
-;;                        (conj loop after)
-
-;;                        (nil? after)
-;;                        (vec (concat [before] loop))
-
-;;                        :else
-;;                        (vec (concat [before] (conj loop after))))]
-;;         (recur world track-names new-loop color)))))
-
-;; (defn rotate-loop [loop start]
-;;   (if (= (first loop) start)
-;;     (vec loop)
-;;     (recur (concat (rest loop) [(first loop)]) start)))
-
-;; (defn get-part-position [world name]
-;;   (let [transform (get-in world [:parts name :transform])]
-;;     (get-transform-position transform)))
-
-;; (defn get-end-point [world loop-names]
-;;   (let [track-name (first loop-names)
-;;         track (get-in world [:parts track-name])
-;;         loop-color (:color track)
-;;         anchors (vec (disj (set (get-neighbours world track-name))
-;;                                  (second loop-names)))
-;;         anchor-name (if (= (count anchors) 1)
-;;                       (first anchors)
-;;                       (find-if (fn [name]
-;;                                  (let [part (get-in world [:parts name])]
-;;                                    (and
-;;                                     (= (:type part) :track)
-;;                                     (= (:color part) loop-color))))
-;;                                anchors))]
-;;     (println! anchor-name)
-;;     (if (nil? anchor-name)
-;;       (apply-transform (:transform track) [0 0.25 0])
-;;       (let [track-point (get-part-position world track-name)
-;;             anchor-point (get-part-position world anchor-name)
-;;             cap-length (if (parts-connected? world (first loop-names)
-;;                                              (last loop-names))
-;;                          0.5
-;;                          0.25)
-;;             end-direction (vector-subtract anchor-point track-point)
-;;             end-direction (-> end-direction
-;;                               (vector-normalize)
-;;                               (vector-multiply cap-length))]
-;;         (vector-add end-direction track-point)))))
-
-;; (defn get-track-loop [world t0-name]
-;;   (let [track-names (get-parts-with-type (:parts world) :track)
-;;         t0 (get-in world [:parts t0-name])
-;;         loop-color (:color t0)
-;;         loop-names (grow-loop world track-names [t0-name] loop-color)
-;;         loop-names (if (parts-connected? world
-;;                                          (first loop-names)
-;;                                          (last loop-names))
-;;                      (rotate-loop loop-names t0-name)
-;;                      loop-names)
-;;         points (map (fn [name]
-;;                       (get-part-position world name))
-;;                     loop-names)
-
-;;         first-point (get-end-point world loop-names)
-;;         last-point (get-end-point world (reverse loop-names))
-;;         points (conj (vec (cons first-point points)) last-point)
-;;         inverse-transform (get-inverse-transform (:transform t0))
-;;         ]
-
-;;     (map #(apply-transform inverse-transform %) points)
-;;     ))
-    
-
-;; (clear-output!)
-;; (let [world @world
-;;       ]
-;;   ;; (println! (get-track-loop world :track6787))
-;;   (println! (compute-loop-function (get-track-loop world :track10211)))
-;;   ))
-
-;; (get-part-with-color @world :yellow)
-
-;; (println! (get-in @world [:parts :block10164 :loop-fn]))
-
-;; (get-in @world [:parts :track9585 :children])
-
-;; (do
-;; 1
-
-;; (clear-output!)
-;; (let [world @world
-;;       track (get-in world [:parts :track6787])
-;;       point (apply-transform (:transform track) [2.24 1 0])
-;;       ]
-;;   (set-thing! [:parts :block8802 :transform]
-;;               (make-transform point [1 0 0 0]))
-;;   ))
