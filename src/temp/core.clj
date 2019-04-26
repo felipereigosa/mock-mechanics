@@ -1484,6 +1484,7 @@
           transform (combine-transforms transform offset-transform)
           mesh (-> (:model info)
                    (assoc-in [:transform] transform)
+                   (assoc-in [:scale] (:scale part))
                    (set-mesh-color (:color part)))]
       (draw-mesh! world mesh))))
 
@@ -1600,7 +1601,15 @@
     (if (= type :track)
       (assoc-in part [:directions] [[0 1 0]
                                     [0 -1 0]])
-      part)))
+      (assoc-in part [:scale] [0.5 0.5 0.5]))))
+
+(defn get-parent-part [world child-name]
+  (if (in? child-name (keys (:ground-children world)))
+    :ground
+    (find-if (fn [name]
+               (let [parent (get-in world [:parts name])]
+                 (in? child-name (keys (:children parent)))))
+             (keys (:parts world)))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; collision
@@ -1662,12 +1671,13 @@
                                mesh (or (:collision-box info)
                                         (:model info))
                                transform (:transform part)
-                               [_ d p] (get-mesh-collision mesh transform line)]
+                               [i d p] (get-mesh-collision mesh transform line)]
                            (if (nil? d)
                              nil
                              {:part-name name
                               :distance d
-                              :point p})))
+                              :point p
+                              :index i})))
                        (:parts world))]
     (first (sort-by :distance (remove-nil distances)))))
 
@@ -1907,9 +1917,11 @@
                                 (:parts world)))]
     (assoc-in world [:parts] parts)))
 
+(declare compute-transforms)
+
 (defn create-weld-groups [world]
   (let [groups (segregate-parts world)
-        parts (:parts (compute-group-transforms (reset-part-values world) :parts))
+        parts (:parts (compute-transforms (reset-part-values world) :parts))
         info (:info world)
         weld-groups (apply merge
                       (map (fn [names]
@@ -1923,23 +1935,23 @@
 ;;-------------------------------------------------------------------------------;;
 ;; mechanical tree
 
-(declare compute-group-subtree-transforms)
+(declare compute-subtree-transforms)
 (declare get-function-value)
 
-(defn compute-group-children-transforms [world part-name transform key]
+(defn compute-children-transforms [world part-name transform key]
   (reduce (fn [w [child-name relative-transform]]
             (let [new-transform (combine-transforms
                                  relative-transform transform)]
-              (compute-group-subtree-transforms w child-name new-transform key)))
+              (compute-subtree-transforms w child-name new-transform key)))
           world
           (get-in world [key part-name :children])))
 
-(defn block-group-compute-subtree-transforms [world name transform key]
+(defn block-compute-subtree-transforms [world name transform key]
   (let [block (get-in world [:parts name])]
     (if (nil? (:loop-fn block))
       (-> world
           (assoc-in [key name :transform] transform)
-          (compute-group-children-transforms name transform key))
+          (compute-children-transforms name transform key))
       (let [rotation (get-transform-rotation transform)
             loop-fn (map (fn [[t v]]
                            [t (apply-transform transform v)])
@@ -1949,9 +1961,9 @@
             transform (make-transform position rotation)]
         (-> world
             (assoc-in [key name :transform] transform)
-            (compute-group-children-transforms name transform key))))))
+            (compute-children-transforms name transform key))))))
 
-(defn track-group-compute-subtree-transforms [world name transform key]
+(defn track-compute-subtree-transforms [world name transform key]
   (let [track (get-in world [:parts name])
         angle (map-between-ranges (:value track) 0.0 1.0 0.0 360.0)
         angle-transform (make-transform [0 0 0] [0 1 0 angle])
@@ -1960,85 +1972,26 @@
     (reduce (fn [w [child-name relative-transform]]
               (let [new-transform (combine-transforms
                                    relative-transform transform)]
-                (compute-group-subtree-transforms w child-name new-transform key)))
+                (compute-subtree-transforms w child-name new-transform key)))
             world
             (get-in world [key name :children]))))  
 
-(defn compute-group-subtree-transforms [world name transform key]
+(defn compute-subtree-transforms [world name transform key]
   (case (get-in world [:parts name :type])
-    :block (block-group-compute-subtree-transforms world name transform key)
-    :track (track-group-compute-subtree-transforms world name transform key)
+    :block (block-compute-subtree-transforms world name transform key)
+    :track (track-compute-subtree-transforms world name transform key)
     world))
 
-(defn compute-group-transforms [world key] 
+(defn compute-transforms [world key] 
   (reduce (fn [w [name relative-transform]]
-            (compute-group-subtree-transforms w name relative-transform key))
+            (compute-subtree-transforms w name relative-transform key))
           world
           (:ground-children world)))
 
-;; (declare compute-subtree-transforms)
-
-;; (defn compute-children-transforms [world part-name transform]
-;;   (let [part (get-in world [:parts part-name])]
-;;     (reduce (fn [w [child-name relative-transform]]
-;;               (let [new-transform (combine-transforms
-;;                                    relative-transform transform)]
-;;                 (compute-subtree-transforms w child-name new-transform)))
-;;             world
-;;             (:children part))))
-
-;; (defn block-compute-subtree-transforms [world name transform]
-;;   (let [block (get-in world [:parts name])]
-;;     (if (nil? (:loop-fn block))
-;;       (-> world
-;;           (assoc-in [:parts name :transform] transform)
-;;           (compute-children-transforms name transform))
-;;       (let [rotation (get-transform-rotation transform)
-;;             loop-fn (map (fn [[t v]]
-;;                            [t (apply-transform transform v)])
-;;                          (:loop-fn block))
-;;             position (get-function-value loop-fn
-;;                                          (within (:value block)
-;;                                                  0.0 1.0)
-;;                                          vector-interpolate)
-;;             transform (make-transform position rotation)]
-;;         (-> world
-;;             (assoc-in [:parts name :transform] transform)
-;;             (compute-children-transforms name transform))))))
-
-;; (defn track-compute-subtree-transforms [world name transform]
-;;   (let [track (get-in world [:parts name])
-;;         angle (map-between-ranges (:value track) 0.0 1.0 0.0 360.0)
-;;         angle-transform (make-transform [0 0 0] [0 1 0 angle])
-;;         transform (combine-transforms angle-transform transform)
-;;         world (assoc-in world [:parts name :transform] transform)]
-;;     (reduce (fn [w [child-name relative-transform]]
-;;               (let [new-transform (combine-transforms
-;;                                    relative-transform transform)]
-;;                 (compute-subtree-transforms w child-name new-transform)))
-;;             world
-;;             (:children track))))
-
-;; (defn compute-subtree-transforms [world name transform]
-;;   (let [part (get-in world [:parts name])]
-;;     (case (:type part)
-;;       :block (block-compute-subtree-transforms world name transform)
-;;       :track (track-compute-subtree-transforms world name transform)
-;;       world)))
-
-;; (defn compute-transforms [world]
-;;   (reduce (fn [w [name relative-transform]]
-;;             (compute-subtree-transforms w name relative-transform))
-;;           world
-;;           (:ground-children world)))
-
 (defn detach-child [world child-name]
-  (let [parent-name (find-if (fn [name]
-                               (let [parent (get-in world [:parts name])]
-                                 (in? child-name (keys (:children parent)))))
-                             (keys (:parts world)))]
+  (let [parent-name (get-parent-part world child-name)]
     (cond
-      (in? child-name (keys (:ground-children world)))
+      (= parent-name :ground)
       (dissoc-in world [:ground-children child-name])
 
       (nil? parent-name) world
@@ -2082,9 +2035,9 @@
                 (set-wagon-loop world child-name parent-name)
                 (compute-tracks-directions world))]
     (-> world
-        (create-weld-groups)
-        (compute-group-transforms :weld-groups)
-        (compute-group-transforms :parts))))
+        ;; (create-weld-groups)
+        ;; (compute-transforms :weld-groups)
+        (compute-transforms :parts))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; wave editor
@@ -2689,17 +2642,62 @@
 ;;-------------------------------------------------------------------------------;;
 ;; adjust mode
 
+(defn set-block-size [world block-name original-scale
+                      original-center increase]
+  (let [block (get-in world [:parts block-name])
+        new-scale (map (fn [a b]
+                     (if (zero? b)
+                       a
+                       (abs b)))
+                       original-scale increase)
+        scale-change (vector-subtract new-scale original-scale)
+        value (if (some neg? increase)
+                -0.5
+                0.5)
+        part-rotation (get-transform-rotation (:transform block))
+        rotation-transform (make-transform [0 0 0] part-rotation)
+        offset (apply-transform rotation-transform
+                                (vector-multiply scale-change value))
+        new-center (vector-add original-center offset)        
+        new-transform (make-transform new-center part-rotation)
+        wagon? (not-nil? (:loop-fn block))
+        parent-name (get-parent-part world block-name)]
+    (-> world
+        (assoc-in [:parts block-name :scale] (map abs new-scale))
+        (assoc-in [:parts block-name :transform] new-transform)
+        (update-parent block-name parent-name wagon?))))
+
+(do
+1  
+
 (defn adjust-mode-pressed [world event]
-  (println! "adjust mode pressed")
-  world)
+  (let [x (:x event)
+        y (:y event)]
+    (if-let [{:keys [part-name index]} (get-part-collision world x y)]
+      (do
+        (println! part-name index)
+        world
+        )
+      world)))
 
 (defn adjust-mode-moved [world event]
-  (println! "adjust mode moved")
   world)
 
 (defn adjust-mode-released [world event]
-  (println! "adjust mode released")
   world)
+
+;; (clear-output!)
+;; (let [world @world
+;;       ;; block-name (get-part-with-color world :yellow)
+;;       ;; block (get-in world [:parts block-name])
+;;       ;; original-scale (:scale block)
+;;       ;; original-center (get-transform-position (:transform block))
+;;       ]
+;;   ;; (set-thing! [] (set-block-size world block-name original-scale
+;;   ;;                                original-center [0 0 0.5]))
+;;   )
+)
+
 
 ;;-------------------------------------------------------------------------------;;
 ;; miscellaneous
@@ -2889,7 +2887,7 @@
           (run-waves)
           ;; (update-in [:cables :cable8989 :length] #(+ % 0.01)) ;;##############
           (enforce-cable-lengths)
-          (compute-group-transforms :weld-groups)))))
+          (compute-transforms :parts))))) ;;############# weld-groups
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -2898,11 +2896,11 @@
   (doseq [mesh (vals (:meshes world))]
     (draw-mesh! world mesh))
 
-  ;; (doseq [part (vals (:parts world))] ;;#############################
-  ;;   (draw-part! world part [3 0 0]))
+  (doseq [part (vals (:parts world))] ;;#############################
+    (draw-part! world part [0 0 0]))
 
-  (doseq [weld-group (vals (:weld-groups world))]
-    (draw-mesh! world weld-group))
+  ;; (doseq [weld-group (vals (:weld-groups world))]
+  ;;   (draw-mesh! world weld-group))
 
   ;; (draw-2d! world)
 
