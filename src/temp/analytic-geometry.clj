@@ -132,3 +132,16 @@
       (= delta 0.0) [(t-fn 0)]
       :else (let [sd (sqrt delta)]
               [(t-fn (- sd)) (t-fn sd)]))))
+
+(defn line-line-closest-point [l1 l2]
+  (let [[p1 v1] l1
+        [p2 v2] l2
+        p1v1 (vector-dot-product p1 v1)
+        p1v2 (vector-dot-product p1 v2)
+        p2v1 (vector-dot-product p2 v1)
+        p2v2 (vector-dot-product p2 v2)
+        v1v1 (vector-dot-product v1 v1)
+        v1v2 (vector-dot-product v1 v2)
+        v2v2 (vector-dot-product v2 v2)]
+    (/ (+ p1v2 (- p2v2) (* (- p2v1 p1v1) (/ v2v2 v1v2)))
+       (/ (- (* v1v1 v2v2) (* v1v2 v1v2)) v1v2))))

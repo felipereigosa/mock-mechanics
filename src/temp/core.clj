@@ -555,6 +555,10 @@
     (.getOpenGLMatrix transform matrix)
     matrix))
 
+(defn get-rotation-component [transform]
+  (let [rotation (get-transform-rotation transform)]
+    (make-transform [0 0 0] rotation)))
+
 (declare matrix->transform)
 
 (defn get-inverse-transform [transform]
@@ -1488,6 +1492,35 @@
                    (set-mesh-color (:color part)))]
       (draw-mesh! world mesh))))
 
+(defn create-debug-meshes! []
+  (set-thing! [:meshes :red-point]
+              (create-cube-mesh [0 -1 0] [1 0 0 0] [0.1 0.1 0.1] :red))
+  (set-thing! [:meshes :green-point]
+              (create-cube-mesh [0.1 -1 0] [1 0 0 0] [0.1 0.1 0.1] :green))
+  (set-thing! [:meshes :blue-point]
+              (create-cube-mesh [0.2 -1 0] [1 0 0 0] [0.1 0.1 0.1] :blue))
+  (set-thing! [:meshes :yellow-point]
+              (create-cube-mesh [0.3 -1 0] [1 0 0 0] [0.1 0.1 0.1] :yellow))
+
+  (set-thing! [:meshes :red-line]
+              (create-line-mesh [0 0 0] [1 -1 1] :red))
+  (set-thing! [:meshes :green-line]
+              (create-line-mesh [0 0 0] [1.1 -1 1] :green))
+  (set-thing! [:meshes :blue-line]
+              (create-line-mesh [0 0 0] [1.2 -1 1] :blue))
+  (set-thing! [:meshes :yellow-line]
+              (create-line-mesh [0 0 0] [1.3 -1 1] :yellow)))
+
+(defn set-point [world color position]
+  (let [name (keyword (subs (str color "-point") 1))]
+    (update-in world [:meshes name] #(set-mesh-position % position))))
+
+(defn set-line [world color a b]
+  (let [name (keyword (subs (str color "-line") 1))
+        vertices (into [] (concat a b))]              
+    (assoc-in world [:meshes name :vertices-buffer]
+              (get-float-buffer vertices))))
+
 ;;-------------------------------------------------------------------------------;;
 ;; parts
 
@@ -1558,9 +1591,9 @@
   (let [track-width 0.12]
     {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                       [0.5 0.5 0.5] :white)
-             :points [[0.25 0 0] [-0.25 0 0]
-                      [0 0.25 0] [0 -0.25 0]
-                      [0 0 0.25] [0 0 -0.25]]
+             :points [[0.5 0 0] [-0.5 0 0]
+                      [0 0.5 0] [0 -0.5 0]
+                      [0 0 0.5] [0 0 -0.5]]
              :offset 0.25
              }
 
@@ -1580,9 +1613,9 @@
                                          [track-width
                                           track-width
                                           track-width] :white)
-             :points [[0 0.5 0] [0 -0.5 0]
-                      [-0.5 0 0] [0.5 0 0]
-                      [0 0 -0.5] [0 0 0.5]
+             :points [[0 1 0] [0 -1 0]
+                      [-1 0 0] [1 0 0]
+                      [0 0 -1] [0 0 1]
                       ]
              :offset 0.5
              }
@@ -1592,16 +1625,15 @@
 ;;                            (create-kinematic-body
 ;;                             [0 0 0] [1 0 0 0] [1 0.05 1]))
 (defn create-part [type color]
-  (let [x (- (rand-int 10) 5)
-        z (- (rand-int 10) 5)
-        part {:type type
+  (let [part {:type type
               :color color
-              :transform (make-transform [x 0.5 z] [0 1 0 0])
-              :value 0.0}]
+              :transform (make-transform [0 0.5 0] [0 1 0 0])
+              :value 0.0
+              :scale [0.5 0.5 0.5]}]
     (if (= type :track)
       (assoc-in part [:directions] [[0 1 0]
                                     [0 -1 0]])
-      (assoc-in part [:scale] [0.5 0.5 0.5]))))
+      part)))
 
 (defn get-parent-part [world child-name]
   (if (in? child-name (keys (:ground-children world)))
@@ -1613,18 +1645,6 @@
 
 ;;-------------------------------------------------------------------------------;;
 ;; collision
-
-(defn get-mesh-triangles [mesh transform]
-  (let [vertices (partition 3 (into [] (:vertices mesh)))
-        matrix (multiply-matrices
-                (apply get-scale-matrix (:scale mesh))
-                (get-transform-matrix transform))
-        vertices (map (fn [[x y z]]
-                        (let [vertex (into-array Float/TYPE [x y z 1])]
-                          (butlast (into [] (multiply-matrix-vector
-                                             matrix vertex)))))
-                      vertices)]
-    (partition 3 vertices)))
 
 (defn unproject-point [world [x y]]
   (let [dx (dec (/ x (/ window-width 2)))
@@ -1651,8 +1671,20 @@
     (and (nil? a) (nil? b)) a
     :else (< a b)))
 
-(defn get-mesh-collision [mesh transform line]
-  (let [triangles (get-mesh-triangles mesh transform)
+(defn get-mesh-triangles [mesh transform scale]
+  (let [vertices (partition 3 (into [] (:vertices mesh)))
+        matrix (multiply-matrices
+                (apply get-scale-matrix scale)
+                (get-transform-matrix transform))
+        vertices (map (fn [[x y z]]
+                        (let [vertex (into-array Float/TYPE [x y z 1])]
+                          (butlast (into [] (multiply-matrix-vector
+                                             matrix vertex)))))
+                      vertices)]
+    (partition 3 vertices)))
+
+(defn get-mesh-collision [mesh transform scale line]
+  (let [triangles (get-mesh-triangles mesh transform scale)
         measured-triangles (map (fn [i]
                                   {:d (line-triangle-distance
                                        line (nth triangles i))
@@ -1671,7 +1703,9 @@
                                mesh (or (:collision-box info)
                                         (:model info))
                                transform (:transform part)
-                               [i d p] (get-mesh-collision mesh transform line)]
+                               scale (:scale part)
+                               [i d p] (get-mesh-collision mesh transform
+                                                           scale line)]
                            (if (nil? d)
                              nil
                              {:part-name name
@@ -2667,37 +2701,44 @@
         (assoc-in [:parts block-name :transform] new-transform)
         (update-parent block-name parent-name wagon?))))
 
-(do
-1  
-
 (defn adjust-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
-    (if-let [{:keys [part-name index]} (get-part-collision world x y)]
-      (do
-        (println! part-name index)
-        world
-        )
+    (if-let [{:keys [part-name point index]} (get-part-collision world x y)]
+      (let [part (get-in world [:parts part-name])
+            vertices (get-in world [:info :block :model :vertices])
+            triangles (partition 3 (partition 3 vertices))
+            [a b c] (nth triangles index)
+            v1 (vector-subtract b a)
+            v2 (vector-subtract c a)
+            normal (vector-cross-product v1 v2)
+            rotation-transform (get-rotation-component (:transform part))
+            v (apply-transform rotation-transform normal)
+            scale (:scale part)
+            center (get-transform-position (:transform part))]
+        (-> world
+            (assoc-in [:adjusted-block] part-name)
+            (assoc-in [:adjust-line] [point (vector-normalize v)])
+            (assoc-in [:original-scale] scale)
+            (assoc-in [:original-center] center)
+            (assoc-in [:normal] normal)))
       world)))
 
 (defn adjust-mode-moved [world event]
-  world)
+  (if-let [block-name (:adjusted-block world)]
+    (let [adjust-line (:adjust-line world)
+          mouse-line (unproject-point world [(:x event) (:y event)])
+          d (line-line-closest-point adjust-line mouse-line)
+          scale (:original-scale world)
+          center (:original-center world)
+          normal (:normal world)
+          l (within (+ d (reduce + (map * normal scale))) 0.1 10)
+          increase-vector (map * (:normal world) [l l l])]
+      (set-block-size world block-name scale center increase-vector))
+    world))
 
 (defn adjust-mode-released [world event]
-  world)
-
-;; (clear-output!)
-;; (let [world @world
-;;       ;; block-name (get-part-with-color world :yellow)
-;;       ;; block (get-in world [:parts block-name])
-;;       ;; original-scale (:scale block)
-;;       ;; original-center (get-transform-position (:transform block))
-;;       ]
-;;   ;; (set-thing! [] (set-block-size world block-name original-scale
-;;   ;;                                original-center [0 0 0.5]))
-;;   )
-)
-
+  (dissoc-in world [:adjusted-block]))
 
 ;;-------------------------------------------------------------------------------;;
 ;; miscellaneous
@@ -2780,8 +2821,9 @@
   (update-thing! [] compute-camera)
   (update-thing! [] #(create-grid-mesh % 12 1))
   (set-thing! [:output] (create-ortho-mesh))
+  (create-debug-meshes!)
   (clear-output!)
-
+  
   ;;-------------------------------------------------;;
 
   (set-thing! [:planet] (create-planet!))
@@ -2842,6 +2884,11 @@
   ;;   (set-thing! [:meshes (gen-keyword :cube)]
   ;;               (create-cube-mesh [(* i 0.01) (* i 0.01) (* i 0.01)] [1 0 0 0] [1 1 1] :red))
   ;;   )
+
+  ;; (set-thing! [:meshes :cube] (create-cube-mesh [0 1 0] [0 0 1 45] [1 1 1] :red))
+
+  ;; (set-thing! [:meshes :big-cube] (create-cube-mesh [0 1 0] [0 0 1 45] [2 2 2] :yellow))
+
   )
 
 (reset-world!)
