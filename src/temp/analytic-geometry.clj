@@ -108,11 +108,13 @@
           dist
           nil)))))
 
-(defn point-line-projection [point [pl vl]]
+(defn point-line-coordinate [point [pl vl]]
   (let [vl (vector-normalize vl)
-        point-n (vector-subtract point pl)
-        k (vector-scalar-projection point-n vl)]
-    (line-get-point [pl vl] k)))
+        point-n (vector-subtract point pl)]
+    (vector-scalar-projection point-n vl)))
+
+(defn point-line-projection [point line]
+  (line-get-point line (point-line-coordinate point line)))
 
 (defn point-line-distance [point line]
   (let [pl (point-line-projection point line)

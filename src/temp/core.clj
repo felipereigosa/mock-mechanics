@@ -1211,6 +1211,11 @@
         vector (into-array Float/TYPE (conj (into [] point) 1))]
     (into [] (butlast (multiply-matrix-vector matrix vector)))))
 
+(defn apply-rotation [transform point]
+  (let [rotation (get-transform-rotation transform)
+        rotation-transform (make-transform [0 0 0] rotation)]
+    (apply-transform rotation-transform point)))
+
 ;;-------------------------------------------------------------------------------;;
 ;; output
 
@@ -1296,13 +1301,13 @@
 
 (defn draw-output! []
   (let [lines (split @output #"\n")
-        last-lines (take-last 6 lines)
+        last-lines (take-last 5 lines)
         hw (/ window-width 2)
         hh (/ window-height 2)]
     (fill-rect! :dark-gray hw (- window-height 50) window-width 100)
     (dotimes [i (count last-lines)]
       (draw-text! :green (nth last-lines i)
-                  15 (+ (* i 15) (- window-height 90)) 14))))
+                  15 (+ (* i 15) (- window-height 80)) 14))))
 
 (defn println! [& args]
   (apply gl-println args)
@@ -1520,8 +1525,11 @@
                     (= (:color part) color))
                   (:parts world))))
 
-(declare create-graph)
-  
+(defn create-graph [world part-name]
+  (if (nil? (get-in world [:parts part-name]))
+    world
+    (assoc-in world [:wave-editor :functions part-name] [[0 0] [1 0]])))
+
 (defn create-graph! [color]
   (let [part-name (get-part-with-color @world color)]
     (update-thing! [] #(create-graph % part-name))
@@ -1551,8 +1559,8 @@
         (draw-mesh! world mesh)))))
 
 (defn draw-part! [world part offset]
-  (if (= (:type part) :track)
-    (draw-track! world part offset)
+  ;; (if (= (:type part) :track)
+  ;;   (draw-track! world part offset)
     (let [info (get-in world [:info (:type part)])
           transform (:transform part)
           offset-transform (make-transform offset [1 0 0 0])
@@ -1561,7 +1569,7 @@
                    (assoc-in [:transform] transform)
                    (assoc-in [:scale] (:scale part))
                    (set-mesh-color (:color part)))]
-      (draw-mesh! world mesh))))
+      (draw-mesh! world mesh)))
 
 ;;-------------------------------------------------------------------------------;;
 ;; parts
@@ -1630,38 +1638,39 @@
           (keys (:parts world))))
 
 (defn create-info []
-  (let [track-width 0.12]
-    {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                      [1 1 1] :white)
-             :points [[0.5 0 0] [-0.5 0 0]
-                      [0 0.5 0] [0 -0.5 0]
-                      [0 0 0.5] [0 0 -0.5]]
-             :offset 0.25
-             }
+  {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                    [1 1 1] :white)
+           :points [[0.5 0 0] [-0.5 0 0]
+                    [0 0.5 0] [0 -0.5 0]
+                    [0 0 0.5] [0 0 -0.5]]
+           :offset 0.25
+           }
 
-     :track {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                          [0.1 1 0.1] :white)
-             :arm (create-cylinder-mesh [0 0 0] [1 0 0 0]
-                                    [track-width 0.5 track-width] :white)
+   :track {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                        [1 1 1] :white)
+           ;; :arm (create-cylinder-mesh [0 0 0] [1 0 0 0]
+           ;;                        [track-width 0.5 track-width] :white)
 
-             :middle (create-sphere-mesh [0 0 0] [1 0 0 0]
-                                         [track-width
-                                          track-width
-                                          track-width] :white)
-             :points [[0 1 0] [0 -1 0]
-                      [-1 0 0] [1 0 0]
-                      [0 0 -1] [0 0 1]
-                      ]
-             :offset 0.5
-             }
-     }))
+           ;; :middle (create-sphere-mesh [0 0 0] [1 0 0 0]
+           ;;                             [track-width
+           ;;                              track-width
+           ;;                              track-width] :white)
+           :points [[0.5 0 0] [-0.5 0 0]
+                    [0 0.5 0] [0 -0.5 0]
+                    [0 0 0.5] [0 0 -0.5]]
+           :offset 0.5
+           }
+   })
 
 (defn create-part [type color]
-  (let [part {:type type
+  (let [scale (if (= type :block)
+                [0.5 0.5 0.5]
+                [0.12 1 0.12])
+        part {:type type
               :color color
               :transform (make-transform [0 0.5 0] [0 1 0 0])
               :value 0.0
-              :scale [0.5 0.5 0.5]}]
+              :scale scale}]
     (if (= type :track)
       (assoc-in part [:directions] [[0 1 0]
                                     [0 -1 0]])
@@ -1674,6 +1683,14 @@
                (let [parent (get-in world [:parts name])]
                  (in? child-name (keys (:children parent)))))
              (keys (:parts world)))))
+
+(defn set-pivot [world x y]
+  (let [pos (if-let [part-name (get-part-at world x y)]
+              (get-part-position world part-name)
+              (let [line (unproject-point world [x y])
+                    ground-plane [[0 0 0] [1 0 0] [0 0 1]]]
+                (line-plane-intersection line ground-plane)))]
+    (compute-camera (assoc-in world [:camera :pivot] pos))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; collision
@@ -2058,14 +2075,14 @@
                  other-tracks))
       nil)))
 
-(defn update-parent [world child-name parent-name wagon?]
+(defn update-parent [world child-name parent-name]
   (let [child (get-in world [:parts child-name])]
     (if (= parent-name :ground)
       (assoc-in world [:ground-children child-name] (:transform child))
       (let [parent (get-in world [:parts parent-name])
             child-transform (:transform child)
             parent-transform (:transform parent)
-            final-transform (if wagon?
+            final-transform (if (not-nil? (:loop-fn child))
                               (make-transform [0 0 0] [1 0 0 0])
                               (remove-transform child-transform parent-transform))]
         (assoc-in world [:parts parent-name :children child-name]
@@ -2076,10 +2093,10 @@
         child (get-in world [:parts child-name])
         wagon? (and (= (:type child) :block)
                     (middle-of-track? world snap-spec))
-        world (update-parent world child-name parent-name wagon?)
         world (if wagon?
                 (set-wagon-loop world child-name parent-name)
-                (compute-tracks-directions world))]
+                (compute-tracks-directions world))
+        world (update-parent world child-name parent-name)]
     (-> world
         ;; (create-weld-groups)
         ;; (compute-transforms :weld-groups)
@@ -2088,10 +2105,10 @@
 ;;-------------------------------------------------------------------------------;;
 ;; wave editor
 
-(defn create-graph [world part-name]
-  (if (nil? (get-in world [:parts part-name]))
-    world
-    (assoc-in world [:wave-editor :functions part-name] [[0 0] [1 0]])))
+(defn add-graph [world x y]
+  (if-let [part-name (get-part-at world x y)]
+    (assoc-in world [:wave-editor :functions part-name] [[0 0] [1 0]])
+    world))
 
 (defn global->editor-coordinates [wave-editor [t v]]
   (let [{:keys [x y w h]} wave-editor
@@ -2326,32 +2343,32 @@
                 (cable-mode-exited world)
                 world)]
     (cond
-      (= menu-name :tools)
-      (if (= button-name :cable)
-        (assoc-in world [:mode] :cable)
-        (-> world
-            (assoc-in [:mode] :insert)
-            (assoc-in [:mode-part] button-name)))
+      ;;   (= menu-name :tools)
+      ;;   (if (= button-name :cable)
+      ;;     (assoc-in world [:mode] :cable)
+      ;;     (-> world
+      ;;         (assoc-in [:mode] :insert)
+      ;;         (assoc-in [:mode-part] button-name)))
 
       (= menu-name :colors)
-      (-> world
-          (assoc-in [:mode] :color)
-          (assoc-in [:mode-color] button-name))
+      (assoc-in world [:current-color] button-name)
 
       (= menu-name :actions)
       (if (= button-name :playpause)
         (update-in world [:paused] not)
-        (assoc-in world [:mode] button-name))
+        ;; (assoc-in world [:mode] button-name)
+        world
+        )
 
-      (= menu-name :reflex-buttons)
-      (if (in? button-name [:pick :add :remove])
-        (-> world
-            (assoc-in [:saved-mode] (:mode world))
-            (assoc-in [:mode] :pick)
-            (assoc-in [:mode-action] button-name))
-        (do
-          (println! "other button")
-          world))
+      ;;   (= menu-name :reflex-buttons)
+      ;;   (if (in? button-name [:pick :add :remove])
+      ;;     (-> world
+      ;;         (assoc-in [:saved-mode] (:mode world))
+      ;;         (assoc-in [:mode] :pick)
+      ;;         (assoc-in [:mode-action] button-name))
+      ;;     (do
+      ;;       (println! "other button")
+      ;;       world))
       
       :else world)))
 
@@ -2369,18 +2386,14 @@
 
 (declare get-cable-at)
 
-(defn color-mode-pressed [world event]
-  (if-let [part-name (get-part-at world (:x event) (:y event))]
-    (assoc-in world [:parts part-name :color] (:mode-color world))
-    (if-let [cable-name (get-cable-at world (:x event) (:y event))]
-      (assoc-in world [:cables cable-name :color] (:mode-color world))
-      world)))
-
-(defn color-mode-moved [world event]
-  world)
-
-(defn color-mode-released [world event]
-  world)
+(defn set-color [world x y]
+  (if-let [part-name (get-part-at world x y)]
+    (assoc-in world [:parts part-name :color] (:current-color world))
+    ;; (if-let [cable-name (get-cable-at world (:x event) (:y event))]
+    ;;   (assoc-in world [:cables cable-name :color] (:mode-color world))
+    ;;   world)
+    world
+    ))
 
 ;;-------------------------------------------------------------------------------;;
 ;; move mode
@@ -2409,10 +2422,10 @@
         ;;                         :local [(- a 5.5) 0 (- b 5.5)]
         ;;                         :part :ground})
         ;;                      (create-combinations (range 12) (range 12))))
-        grid-specs [{:position [0 0 0]
+        grid-specs [{:position [0.5 0 0.5]
                      :rotation [1 0 0 0]
-                     ;; :local [0 0 0]
-                     :part :ground}]
+                     :part :ground}
+                    ]
         face-specs
         (vec
          (remove-nil
@@ -2430,7 +2443,6 @@
                              (let [[pos rot] (make-spec position rotation p)]
                                {:position pos
                                 :rotation rot
-                                ;; :local p
                                 :part name}))
                            points)))
                   (:parts world))))]
@@ -2445,55 +2457,55 @@
     (first (sort-by (fn [spec]
                       (distance (:position spec) eye)) close-points))))
 
-(defn move-mode-pressed [world event]
-  (let [moving-part (get-part-at world (:x event) (:y event))
-        part (get-in world [:parts moving-part])
-        transform (:transform part)
-        rotation (get-transform-rotation transform)]
-    (-> world
-        (detach-child moving-part)
-        (assoc-in [:moving-part] moving-part)
-        (assoc-in [:start-rotation] rotation))))
+;; (defn move-mode-pressed [world event]
+;;   (let [moving-part (get-part-at world (:x event) (:y event))
+;;         part (get-in world [:parts moving-part])
+;;         transform (:transform part)
+;;         rotation (get-transform-rotation transform)]
+;;     (-> world
+;;         (detach-child moving-part)
+;;         (assoc-in [:moving-part] moving-part)
+;;         (assoc-in [:start-rotation] rotation))))
 
-(defn move-mode-moved [world event]
-  (if-let [moving-part (:moving-part world)]
-    (let [x (:x event)
-          y (:y event)
-          snap-specs (filter (fn [spec]
-                               (not (= (:part spec) moving-part)))
-                             (:snap-specs world))
-          snap-spec (get-closest-snap-point world x y snap-specs)
-          part (get-in world [:parts moving-part])
-          offset (get-in world [:info (:type part) :offset])]
-      (if (nil? snap-spec)
-        (let [plane-point (get-ground-camera-point world x y offset)
-              transform (make-transform plane-point (:start-rotation world))]
-          (-> world
-              (assoc-in [:parts moving-part :transform] transform)
-              (assoc-in [:snap-spec] nil)))
-        (let [final-point (:position snap-spec)
-              final-rotation (:rotation snap-spec)
-              rotation-transform (make-transform [0 0 0] final-rotation)
-              offset [0 offset 0]
-              offset (apply-transform rotation-transform offset)
-              final-point (vector-add final-point offset)
-              final-transform (make-transform final-point final-rotation)]
-          (-> world
-              (assoc-in [:parts moving-part :transform] final-transform)
-              (assoc-in [:snap-spec] snap-spec)))))
-    world))
+;; (defn move-mode-moved [world event]
+;;   (if-let [moving-part (:moving-part world)]
+;;     (let [x (:x event)
+;;           y (:y event)
+;;           snap-specs (filter (fn [spec]
+;;                                (not (= (:part spec) moving-part)))
+;;                              (:snap-specs world))
+;;           snap-spec (get-closest-snap-point world x y snap-specs)
+;;           part (get-in world [:parts moving-part])
+;;           offset (get-in world [:info (:type part) :offset])]
+;;       (if (nil? snap-spec)
+;;         (let [plane-point (get-ground-camera-point world x y offset)
+;;               transform (make-transform plane-point (:start-rotation world))]
+;;           (-> world
+;;               (assoc-in [:parts moving-part :transform] transform)
+;;               (assoc-in [:snap-spec] nil)))
+;;         (let [final-point (:position snap-spec)
+;;               final-rotation (:rotation snap-spec)
+;;               rotation-transform (make-transform [0 0 0] final-rotation)
+;;               offset [0 offset 0]
+;;               offset (apply-transform rotation-transform offset)
+;;               final-point (vector-add final-point offset)
+;;               final-transform (make-transform final-point final-rotation)]
+;;           (-> world
+;;               (assoc-in [:parts moving-part :transform] final-transform)
+;;               (assoc-in [:snap-spec] snap-spec)))))
+;;     world))
 
-(defn move-mode-released [world event]
-  (if-let [moving-part (:moving-part world)]
-    (if-let [snap-spec (:snap-spec world)]
-      (let [static-part (:part snap-spec)]
-        (-> world
-            (attach-child moving-part snap-spec)
-            (dissoc-in [:moving-part])))
-      (-> world
-          (dissoc-in [:moving-part])
-          (compute-tracks-directions)))
-    world))
+;; (defn move-mode-released [world event]
+;;   (if-let [moving-part (:moving-part world)]
+;;     (if-let [snap-spec (:snap-spec world)]
+;;       (let [static-part (:part snap-spec)]
+;;         (-> world
+;;             (attach-child moving-part snap-spec)
+;;             (dissoc-in [:moving-part])))
+;;       (-> world
+;;           (dissoc-in [:moving-part])
+;;           (compute-tracks-directions)))
+;;     world))
 
 ;;-------------------------------------------------------------------------------;;
 ;; insert mode
@@ -2527,20 +2539,6 @@
             (attach-child name spec)))
       (assoc-in world [:parts name :transform]
                 (get-ground-transform world x y offset)))))
-
-;; (defn insert-mode-pressed [world event]
-;;   (let [x (:x event)
-;;         y (:y event)]
-;;     (case (:mode-part world)
-;;       :block (insert-part world :block :white x y)
-;;       :pipe (insert-part world :track :red x y)
-;;       world)))
-
-;; (defn insert-mode-moved [world event]
-;;   world)
-
-;; (defn insert-mode-released [world event]
-;;   world)
 
 ;;-------------------------------------------------------------------------------;;
 ;; delete mode
@@ -2587,88 +2585,82 @@
                       (cable-collision? world cable line))
                     (:cables world)))))
 
-(defn delete-mode-pressed [world event]
-  (if-let [part-name (get-part-at world (:x event) (:y event))]
+(defn delete-part [world x y]
+  (if-let [part-name (get-part-at world x y)]
     (-> world
         (detach-child part-name)
         (dissoc-in [:wave-editor :functions part-name])
         (dissoc-in [:parts part-name])
         (compute-tracks-directions))
-    (if-let [cable-name (get-cable-at world (:x event) (:y event))]
+    (if-let [cable-name (get-cable-at world x y)]
       (dissoc-in world [:cables cable-name])
       world)))
-
-(defn delete-mode-moved [world event]
-  world)
-
-(defn delete-mode-released [world event]
-  world)
 
 ;;-------------------------------------------------------------------------------;;
 ;; cable mode
 
-(defn draw-segment! [world start end color]
-  (let [mesh (-> (:cable-mesh world)
-                 (set-mesh-color color)
-                 (mesh-to-from start end))]
-    (draw-mesh! world mesh)))
+;; (defn draw-segment! [world start end color]
+;;   (let [mesh (-> (:cable-mesh world)
+;;                  (set-mesh-color color)
+;;                  (mesh-to-from start end))]
+;;     (draw-mesh! world mesh)))
 
-(defn draw-cable! [world [name cable]]
-  (let [points (actualize-points world (:points cable))
-        points (if (= name (:new-cable world))
-                 (conj (vec points) (get-mesh-position (:cursor world)))
-                 points)]
+;; (defn draw-cable! [world [name cable]]
+;;   (let [points (actualize-points world (:points cable))
+;;         points (if (= name (:new-cable world))
+;;                  (conj (vec points) (get-mesh-position (:cursor world)))
+;;                  points)]
 
-    (draw-mesh! world (set-mesh-position (:anchor-mesh world) (first points)))
+;;     (draw-mesh! world (set-mesh-position (:anchor-mesh world) (first points)))
 
-    (if (not (= name (:new-cable world)))
-      (draw-mesh! world (set-mesh-position (:anchor-mesh world) (last points))))
+;;     (if (not (= name (:new-cable world)))
+;;       (draw-mesh! world (set-mesh-position (:anchor-mesh world) (last points))))
 
-    (doseq [i (range 1 (dec (count points)))]
-      (let [point (nth points i)]
-        (draw-mesh! world (set-mesh-position (:pulley-mesh world) point))))
+;;     (doseq [i (range 1 (dec (count points)))]
+;;       (let [point (nth points i)]
+;;         (draw-mesh! world (set-mesh-position (:pulley-mesh world) point))))
 
-    (dotimes [i (dec (count points))]
-      (draw-segment! world
-                     (nth points i)
-                     (nth points (inc i))
-                     (:color cable)))))
+;;     (dotimes [i (dec (count points))]
+;;       (draw-segment! world
+;;                      (nth points i)
+;;                      (nth points (inc i))
+;;                      (:color cable)))))
 
-(defn compute-cable-length [world cable-name]
-  (let [cable (get-in world [:cables cable-name])
-        points (actualize-points world (:points cable))]
-    (reduce + (map (fn [a b]
-                     (vector-length (vector-subtract a b)))
-                   points (rest points)))))
+;; (defn compute-cable-length [world cable-name]
+;;   (let [cable (get-in world [:cables cable-name])
+;;         points (actualize-points world (:points cable))]
+;;     (reduce + (map (fn [a b]
+;;                      (vector-length (vector-subtract a b)))
+;;                    points (rest points)))))
 
-(defn terminate-cable [world]
-  (if (:new-cable world)
-    (let [cable-name (:new-cable world)
-          length (compute-cable-length world cable-name)]
-      (-> world
-          (dissoc-in [:new-cable])
-          (assoc-in [:cables cable-name :length] length)))
-    world))
+;; (defn terminate-cable [world]
+;;   (if (:new-cable world)
+;;     (let [cable-name (:new-cable world)
+;;           length (compute-cable-length world cable-name)]
+;;       (-> world
+;;           (dissoc-in [:new-cable])
+;;           (assoc-in [:cables cable-name :length] length)))
+;;     world))
 
-(defn cable-mode-pressed [world event]
-  (if (:cursor-snapped world)
-    (let [x (:x event)
-          y (:y event)
-          snap-spec (get-closest-snap-point world x y (:snap-specs world))]
-      (if-let [new-cable (:new-cable world)]
-        (update-in world [:cables new-cable :points] #(conj % snap-spec)) 
-        (let [name (gen-keyword :cable)]
-          (-> world
-              (assoc-in [:cables name] {:points [snap-spec]
-                                        :color :white})
-              (assoc-in [:new-cable] name)))))
-    (terminate-cable world)))
+;; (defn cable-mode-pressed [world event]
+;;   (if (:cursor-snapped world)
+;;     (let [x (:x event)
+;;           y (:y event)
+;;           snap-spec (get-closest-snap-point world x y (:snap-specs world))]
+;;       (if-let [new-cable (:new-cable world)]
+;;         (update-in world [:cables new-cable :points] #(conj % snap-spec)) 
+;;         (let [name (gen-keyword :cable)]
+;;           (-> world
+;;               (assoc-in [:cables name] {:points [snap-spec]
+;;                                         :color :white})
+;;               (assoc-in [:new-cable] name)))))
+;;     (terminate-cable world)))
 
-(defn cable-mode-moved [world event] world)
-(defn cable-mode-released [world event] world)
+;; (defn cable-mode-moved [world event] world)
+;; (defn cable-mode-released [world event] world)
 
-(defn cable-mode-exited [world]
-  (terminate-cable world))
+;; (defn cable-mode-exited [world]
+;;   (terminate-cable world))
 
 ;; (defn get-free-dof [world cable]
 ;;   ;;###############################################
@@ -2698,7 +2690,7 @@
 ;;     world))
 
 ;;-------------------------------------------------------------------------------;;
-;; adjust mode
+;; scale mode
 
 (defn set-block-size [world block-name original-scale
                       original-center increase]
@@ -2718,12 +2710,16 @@
                                 (vector-multiply scale-change value))
         new-center (vector-add original-center offset)        
         new-transform (make-transform new-center part-rotation)
-        wagon? (not-nil? (:loop-fn block))
-        parent-name (get-parent-part world block-name)]
-    (-> world
-        (assoc-in [:parts block-name :scale] (map abs new-scale))
-        (assoc-in [:parts block-name :transform] new-transform)
-        (update-parent block-name parent-name wagon?))))
+        parent-name (get-parent-part world block-name)
+        world (-> world
+                  (assoc-in [:parts block-name :scale] (map abs new-scale))
+                  (assoc-in [:parts block-name :transform] new-transform)
+                  (update-parent block-name parent-name))]
+    ;; smart move children ###########################################
+    (reduce (fn [w child-name]
+              (update-parent w child-name block-name))
+            world
+            (keys (:children block)))))
 
 (defn scale-mode-pressed [world event]
   (let [x (:x event)
@@ -2754,9 +2750,7 @@
           mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point adjust-line mouse-line)
           grain-size 0.1
-          d (if (:shift-pressed world)
-              (* grain-size (round (/ d grain-size)))
-              d)
+          d (* grain-size (round (/ d grain-size)))
           scale (:original-scale world)
           center (:original-center world)
           normal (:normal world)
@@ -2766,7 +2760,60 @@
     world))
 
 (defn scale-mode-released [world event]
-  (dissoc-in world [:adjusted-block]))
+  (-> world
+      (dissoc-in [:adjusted-block])
+      (compute-transforms :parts)))
+
+;;-------------------------------------------------------------------------------;;
+;; move mode (slide)
+
+(defn move-mode-pressed [world event]
+  (let [x (:x event)
+        y (:y event)]
+    (if-let [{:keys [part-name point index]} (get-part-collision world x y)]
+      (let [part (get-in world [:parts part-name])
+            v1 (apply-rotation (:transform part) [1 0 0])
+            v2 (apply-rotation (:transform part) [0 0 1])
+            plane [point (vector-add point v1) (vector-add point v2)]
+            part-position (get-part-position world part-name)
+            offset (vector-subtract part-position point)]
+        (-> world
+            (assoc-in [:moving-part] part-name)
+            (assoc-in [:plane] plane)
+            (assoc-in [:offset] offset)
+            (assoc-in [:original-position] part-position)))
+      world)))
+
+(defn move-mode-moved [world event]
+  (if-let [part-name (:moving-part world)]
+    (let [line (unproject-point world [(:x event) (:y event)])
+          touch-point (line-plane-intersection line (:plane world))
+          position (vector-add touch-point (:offset world))
+          [a b c] (:plane world)
+          v1 (vector-subtract b a)
+          v2 (vector-subtract c a)
+          origin (:original-position world)
+          s (point-line-coordinate position [origin v1])
+          t (point-line-coordinate position [origin v2])
+          grain-size 0.1
+          s (* grain-size (round (/ s grain-size)))
+          t (* grain-size (round (/ t grain-size)))
+          snapped-position (reduce vector-add [origin
+                                               (vector-multiply v1 s)
+                                               (vector-multiply v2 t)])
+          part (get-in world [:parts part-name])
+          rotation (get-transform-rotation (:transform part))
+          transform (make-transform snapped-position rotation)]
+      (assoc-in world [:parts part-name :transform] transform))
+    world))
+
+(defn move-mode-released [world event]
+  (if-let [part-name (:moving-part world)]
+    (let [parent-name (get-parent-part world part-name)]
+      (-> world
+          (update-parent part-name parent-name)
+          (dissoc-in [:moving-part])))
+    world))
 
 ;;-------------------------------------------------------------------------------;;
 ;; actions
@@ -2777,27 +2824,23 @@
                   keys)))
 
 (defn key-pressed [world event]
-  (println! (:code event))
+  ;; (println! (:code event))
   (if-let [key (get-key-name (:keys world) (:code event))]
-    (do
-      (println! "activate " key)
-      (assoc-in world [:keys key :active] true))
+    (let [world (assoc-in world [:keys key :active] true)]
+      ;; (println! "activate " key)
+      (if (in? key [:b :t])
+        (assoc-in world [:show-cursor] true)
+        world))
     world))
 
 (defn key-released [world event]
   (if-let [key (get-key-name (:keys world) (:code event))]
-    (do
-      (println! "unactivate " key)
-      (assoc-in world [:keys key :active] false))
+    (let [world (assoc-in world [:keys key :active] false)]
+      ;; (println! "unactivate " key)
+      (if (in? key [:b :t])
+        (assoc-in world [:show-cursor] false)
+        world))
     world))
-
-(defn set-pivot [world x y]
-  (let [pos (if-let [part-name (get-part-at world x y)]
-              (get-part-position world part-name)
-              (let [line (unproject-point world [x y])
-                    ground-plane [[0 0 0] [1 0 0] [0 0 1]]]
-                (line-plane-intersection line ground-plane)))]
-    (compute-camera (assoc-in world [:camera :pivot] pos))))
 
 (do
 1
@@ -2819,6 +2862,18 @@
       (get-in keys [:s :active])
       (scale-mode-pressed world event)
 
+      (get-in keys [:c :active])
+      (set-color world x y)
+
+      (get-in keys [:d :active])
+      (delete-part world x y)
+
+      (get-in keys [:g :active])
+      (add-graph world x y)
+
+      (get-in keys [:m :active])
+      (move-mode-pressed world event)
+
       :else
       world)))
 
@@ -2830,6 +2885,9 @@
       (get-in keys [:s :active])
       (scale-mode-moved world event)
 
+      (get-in keys [:m :active])
+      (move-mode-moved world event)
+
       :else
       world)))
 
@@ -2839,7 +2897,10 @@
         y (:y event)]
     (cond
       (get-in keys [:s :active])
-      (scale-mode-releaseds world event)
+      (scale-mode-released world event)
+
+      (get-in keys [:m :active])
+      (move-mode-released world event)
 
       :else
       world)))
@@ -2867,22 +2928,20 @@
             (get-camera-plane world (get-in world [:camera :pivot]))))
 
 (defn move-cursor [world event]
-  (if (:paused world)
-    (let [x (:x event)
-          y (:y event)
-          snap-spec (get-closest-snap-point world x y (:snap-specs world))
-          [snap-point snap-rotation color snapped]
-          (if (nil? snap-spec)
-            [(get-ground-camera-point world x y 0) [0 1 0 0] :black false]
-            [(:position snap-spec) (:rotation snap-spec) :yellow true])
-          transform (make-transform snap-point snap-rotation)]
-      (-> world
-          (update-in [:cursor] (fn [cursor]
-                                 (-> cursor
-                                     (assoc-in [:transform] transform)
-                                     (set-mesh-color color))))
-          (assoc-in [:cursor-snapped] snapped)))
-    world))
+  (let [x (:x event)
+        y (:y event)
+        snap-spec (get-closest-snap-point world x y (:snap-specs world))
+        [snap-point snap-rotation color snapped]
+        (if (nil? snap-spec)
+          [(get-ground-camera-point world x y 0) [0 1 0 0] :black false]
+          [(:position snap-spec) (:rotation snap-spec) :yellow true])
+        transform (make-transform snap-point snap-rotation)]
+    (-> world
+        (update-in [:cursor] (fn [cursor]
+                               (-> cursor
+                                   (assoc-in [:transform] transform)
+                                   (set-mesh-color color))))
+        (assoc-in [:cursor-snapped] snapped))))
 
 (defn create-menus! []
   (set-thing! [:menus :tools]
@@ -2892,8 +2951,8 @@
   (set-thing! [:menus :colors]
               (create-menu "resources/colors.svg" 480 20 -1 40))
 
-  (set-thing! [:menus :reflex-buttons]
-              (create-menu "resources/reflex-buttons.svg" 342 600 -1 30))
+  ;; (set-thing! [:menus :reflex-buttons]
+  ;;             (create-menu "resources/reflex-buttons.svg" 342 600 -1 30))
 
   (let [w (get-thing! [:menus :actions :regions :playpause :w])]
     (set-thing! [:pause-image]
@@ -2947,9 +3006,9 @@
 
   (set-thing! [:ground-children] {})
 
-  (set-thing! [:wave-editor] {:x 340
-                              :y 510
-                              :w 650
+  (set-thing! [:wave-editor] {:x 343
+                              :y 540
+                              :w 685
                               :h 150
                               :functions {}})
 
@@ -2990,13 +3049,18 @@
                        :period {:code 46 :active false} ;; center
                        :b {:code 66 :active false} ;; block
                        :t {:code 84 :active false} ;; track
-                       :c {:code 67 :active false} ;; color
                        :s {:code 83 :active false} ;; scale
+                       :c {:code 67 :active false} ;; color
                        :d {:code 68 :active false} ;; delete
                        :m {:code 77 :active false} ;; move
-                       :p {:code 80 :active false} ;; place
-                       :g {:code 71 :active false} ;; add graph                       
+                       :g {:code 71 :active false} ;; add graph
+                       
+                       :p {:code 80 :active false} ;; place                       
                        })
+
+  (set-thing! [:current-color] :yellow)
+
+  (set-thing! [:show-cursor] false)
   )
 (reset-world!)
 )
@@ -3034,34 +3098,30 @@
 
   (draw-spheres! world)
 
-  (doseq [cable (:cables world)]
-    (draw-cable! world cable))
+  ;; (doseq [cable (:cables world)]
+  ;;   (draw-cable! world cable))
     
   (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
       
-  (if (and
-       (in? (:mode world) [:insert :cable])
-       (:paused world))
+  (if (:show-cursor world)
     (draw-mesh! world (:cursor world)))
-
   )
 
 (do
 1  
 (defn draw-2d! [world]
-  (fill-rect! (make-color 100 0 0) 342 520 800 190)
   (draw-wave-editor! world)
   (doseq [menu (vals (:menus world))]
     (draw-image! (:image menu) (:x menu) (:y menu)))
 
-  (let [[menu button] (get-current-button world)
-        {:keys [x y w h]} (get-in world [:menus menu :regions button])
-        color :black]
-    (draw-rect! color x y w h)
-    (draw-rect! color (+ x 1) y w h)
-    (draw-rect! color (- x 1) y w h)
-    (draw-rect! color x (+ y 1) w h)
-    (draw-rect! color x (- y 1) w h))
+  ;; (let [[menu button] (get-current-button world)
+  ;;       {:keys [x y w h]} (get-in world [:menus menu :regions button])
+  ;;       color :black]
+  ;;   (draw-rect! color x y w h)
+  ;;   (draw-rect! color (+ x 1) y w h)
+  ;;   (draw-rect! color (- x 1) y w h)
+  ;;   (draw-rect! color x (+ y 1) w h)
+  ;;   (draw-rect! color x (- y 1) w h))
 
   (when (not (:paused world))
     (let [{:keys [x y w h]} (get-in world [:menus :actions :regions :playpause])]
@@ -3069,44 +3129,22 @@
   )
 (reset! redraw-flag true))
 
-;; (defn pick-mode-pressed [world event]
-;;   (let [x (:x event)
-;;         y (:y event)
-;;         reflex-buttons (get-in world [:menus :reflex-buttons])
-;;         world (assoc-in world [:mode] (:saved-mode world))]
-;;     (if (not (inside-box? reflex-buttons x y))
-;;       (if-let [part-name (get-part-at world x y)]
-;;         (case (:mode-action world)
-;;           :pick (do
-;;                   (println! "set trigger to " part-name)
-;;                   world)
-;;           :add (assoc-in world [:wave-editor :functions part-name] [[0 0] [1 0]])
-;;           :remove (dissoc-in world [:wave-editor :functions part-name])
-;;           world)
-;;         world)
-;;       world)))
-
-;; (defn pick-mode-moved [world event] world)
-;; (defn pick-mode-released [world event] world)
-
 (defn mouse-pressed [world event]
   (let [x (:x event)
         y (:y event)
         tools (get-in world [:menus :tools])
         actions (get-in world [:menus :actions])
         colors (get-in world [:menus :colors])
-        reflex-buttons (get-in world [:menus :reflex-buttons])
         wave-editor (:wave-editor world)]
     (cond
       (inside-box? wave-editor x y)
       (editor-mouse-pressed world event)
 
-      ;; (or
-      ;;  (inside-box? tools x y)
-      ;;  (inside-box? actions x y)
-      ;;  (inside-box? colors x y)
-      ;;  (inside-box? reflex-buttons x y))
-      ;; (menu-pressed world event)
+      (or
+       (inside-box? tools x y)
+       (inside-box? actions x y)
+       (inside-box? colors x y))
+      (menu-pressed world event)
 
       (in? (:button event) [:middle :right])
       (assoc-in world [:last-point] [(:x event) (:y event)])
@@ -3149,4 +3187,4 @@
                   (action-mouse-released world event)
                   world))]
     (draw-2d! world)
-    (assoc-in world [:snap-specs] (get-snap-specs world))))
+    (assoc-in world [:snap-specs] (get-snap-specs world))))b
