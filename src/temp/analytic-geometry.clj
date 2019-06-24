@@ -147,3 +147,17 @@
         v2v2 (vector-dot-product v2 v2)]
     (/ (+ p1v2 (- p2v2) (* (- p2v1 p1v1) (/ v2v2 v1v2)))
        (/ (- (* v1v1 v2v2) (* v1v2 v1v2)) v1v2))))
+
+(defn point-inside-triangle [point triangle]
+  (if (float-equals? (point-plane-distance point triangle) 0.0)
+    (let [[p0 p1 p2] triangle
+          v1 (vector-subtract p1 p0)
+          v2 (vector-subtract p2 p0)
+          vp (vector-subtract point p0)
+          [s t] (get-affine-coordinates v1 v2 vp)]
+      (and (>= s 0.0)
+           (<= s 1.0)
+           (>= t 0.0)
+           (<= t 1.0)
+           (<= (+ s t) 1.0)))
+    false))
