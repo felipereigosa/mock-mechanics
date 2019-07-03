@@ -1608,8 +1608,6 @@
 (defn get-part-type [world name]
   (get-in world [:parts name :type]))
 
-(do
-
 (defn create-info []
   {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                     [0.12 0.12 0.12] :white) ;;; ##### 0.12??
@@ -1638,10 +1636,6 @@
            :offset 1
            }
    })
-
-(set-thing! [:info] (create-info))
-(set-thing! [:snap-specs] (get-snap-specs @world))
-)
 
 (defn create-part [type color]
   (let [scale (if (= type :block)
@@ -2352,6 +2346,14 @@
 ;;-------------------------------------------------------------------------------;;
 ;; scale mode
 
+(defn set-value-0-transform [world part-name]
+  (let [parent-name (get-parent-part world part-name)
+        parent (get-in world [:parts parent-name])
+        parent-transform (:transform parent)
+        relative-transform (get-in parent [:children part-name])
+        transform (combine-transforms relative-transform parent-transform)]
+    (assoc-in world [:parts part-name :transform] transform)))
+
 (defn set-block-size [world block-name original-scale
                       original-center increase]
   (let [block (get-in world [:parts block-name])
@@ -2373,6 +2375,9 @@
     (-> world
         (assoc-in [:parts block-name :scale] (map abs new-scale))
         (assoc-in [:parts block-name :transform] new-transform))))
+
+(do
+1
 
 (defn scale-block-pressed [world event]
   (let [x (:x event)
@@ -2402,12 +2407,12 @@
     (let [adjust-line (:adjust-line world)
           mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point adjust-line mouse-line)
-          grain-size 0.1
+          grain-size 0.2
           d (* grain-size (round (/ d grain-size)))
           scale (:original-scale world)
           center (:original-center world)
           normal (:normal world)
-          l (within (+ d (abs (reduce + (map * normal scale)))) grain-size 10)
+          l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
           increase-vector (map * (:normal world) [l l l])]
       (println! "scale:" (round (/ l grain-size)))
       (-> world
@@ -2418,29 +2423,29 @@
 (defn scale-block-released [world event]
   (if-let [block-name (:adjusted-block world)]
     (let [parent-name (get-parent-part world block-name)
-          parent (get-in world [:parts parent-name])
-          parent-transform (:transform parent)
-          relative-transform d(get-in parent [:children block-name])
-          transform (combine-transforms relative-transform parent-transform)
           scale (:original-scale world)
+          increase-vector (:increase-vector world)
           world (-> world
                     (assoc-in [:parts block-name :scale] scale)
-                    (assoc-in [:parts block-name :transform] transform))
-
-          increase-vector (:increase-vector world)
-          center (get-transform-position transform)]
+                    (set-value-0-transform block-name))
+          center (get-part-position world block-name)]
       (-> world
           (set-block-size block-name scale center increase-vector)
           (create-relative-transform block-name parent-name)
           (dissoc-in [:adjusted-block])))
     world))
+)
+
 
 (defn set-track-size [world track-name original-scale original-center height]
   (let [track (get-in world [:parts track-name])
         new-scale (assoc original-scale 1 height)
         scale-change (vector-subtract new-scale original-scale)
         part-rotation (get-transform-rotation (:transform track))
-        new-center (vector-add original-center scale-change)        
+        rotation-transform (make-transform [0 0 0] part-rotation)
+        new-center (->> scale-change
+                        (apply-transform rotation-transform)
+                        (vector-add original-center))
         new-transform (make-transform new-center part-rotation)]
     (-> world
         (assoc-in [:parts track-name :scale] new-scale)
@@ -2473,26 +2478,23 @@
           scale (:original-scale world)
           center (:original-center world)
           normal (second adjust-line)
-          l (within (+ d (abs (reduce + (map * normal scale)))) grain-size 10)]
+          l (within (+ (apply max scale) d) grain-size 10)]
       (println! "scale:" (round (/ l grain-size)))
       (-> world
           (set-track-size track-name scale center l)
-          (assoc-in [:track-length] l)))
+          (assoc-in [:track-length] l)
+          ))
       world))
 
 (defn scale-track-released [world event]
   (if-let [track-name (:adjusted-track world)]
     (let [parent-name (get-parent-part world track-name)
-          parent (get-in world [:parts parent-name])
-          parent-transform (:transform parent)
-          relative-transform (get-in parent [:children track-name])
-          transform (combine-transforms relative-transform parent-transform)
           scale (:original-scale world)
           world (-> world
                     (assoc-in [:parts track-name :scale] scale)
-                    (assoc-in [:parts track-name :transform] transform))
-          track-length (:track-length world)
-          center (get-transform-position transform)]
+                    (set-value-0-transform track-name))
+          center (get-part-position world track-name)
+          track-length (:track-length world)]
       (-> world
           (set-track-size track-name scale center track-length)
           (create-relative-transform track-name parent-name)
@@ -2529,7 +2531,8 @@
   (let [x (:x event)
         y (:y event)]
     (if-let [{:keys [part-name point index]} (get-part-collision world x y)]
-      (let [part (get-in world [:parts part-name])
+      (let [w (set-value-0-transform world part-name)
+            part (get-in w [:parts part-name])
             v1 (apply-rotation (:transform part) [1 0 0])
             v2 (apply-rotation (:transform part) [0 0 1])
             plane [point (vector-add point v1) (vector-add point v2)]
@@ -2562,13 +2565,21 @@
           part (get-in world [:parts part-name])
           rotation (get-transform-rotation (:transform part))
           transform (make-transform snapped-position rotation)]
-      (assoc-in world [:parts part-name :transform] transform))
+      (-> world
+          (assoc-in [:parts part-name :transform] transform)
+          (assoc-in [:snapped-position] snapped-position)))          
     world))
 
 (defn move-mode-released [world event]
   (if-let [part-name (:moving-part world)]
-    (let [parent-name (get-parent-part world part-name)]
+    (let [parent-name (get-parent-part world part-name)
+          world (set-value-0-transform world part-name)
+          part (get-in world [:parts part-name])
+          rotation (get-transform-rotation (:transform part))
+          snapped-position (:snapped-position world)
+          transform (make-transform snapped-position rotation)]
       (-> world
+          (assoc-in [:parts part-name :transform] transform)
           (create-relative-transform part-name parent-name)
           (dissoc-in [:moving-part])))
     world))
@@ -2932,23 +2943,4 @@
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
 
-;; (do
-;; 1
-
-;; (clear-output!)
-;; (let [world @world
-;;       ;; track-name (get-part-with-color world :yellow)
-;;       red-track (get-part-with-color world :red)
-;;       blue-track (get-part-with-color world :blue)
-;;       yellow-track (get-part-with-color world :yellow)
-;;       block (get-part-with-color world :white)
-;;       ]
-
-;;   (println! (track-track-connected? world blue-track yellow-track))
-  
-;;   ;; (println! (track-block-connected? world red-track block))
-  
-;;   ;; (println! (get-track-neighbours world blue-track))
-;;   ;; (println! (get-track)(point-on-block-surface? world part-name point))
-
-;;   ))
+(save-world! [:parts :ground-children])
