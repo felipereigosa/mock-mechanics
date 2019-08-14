@@ -198,3 +198,9 @@
   (let [before (take index seq)
         after (nthrest seq (inc index))]
     (vec (concat before after))))
+
+(defn kw->str [k]
+  (subs (str k) 1))
+
+(defn map-map [func m]
+  (apply merge (map func m)))
