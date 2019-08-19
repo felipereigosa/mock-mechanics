@@ -49,6 +49,7 @@
 (load "xml")
 (load "svg")
 (load "physics")
+(load "keymap")
 
 (defn create-world! [])
 (defn draw-world! [world])
@@ -1527,26 +1528,6 @@
 ;;-------------------------------------------------------------------------------;;
 ;; miscellaneous
 
-;; (defn create-graph [world part-name]
-;;   (if (nil? (get-in world [:parts part-name]))
-;;     world
-;;     (assoc-in world [:wave-editor :functions part-name] [[0 0] [1 0]])))
-
-;; (defn create-graph! [color]
-;;   (if-let [part-name (get-part-with-color @world color)]
-;;     (do
-;;       (update-thing! [] #(create-graph % part-name))
-;;       (sleep 100)
-;;       (reset! redraw-flag true)))
-
-;; (defn get-parts-with-type [parts type]
-;;   (filter (fn [part]
-;;             (= (get-in parts [part :type]) type))
-;;           (keys parts)))
-
-;; (defn get-part-type [world name]
-;;   (get-in world [:parts name :type]))
-
 (defn create-info []
   {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                     [0.12 0.12 0.12] :white) ;;; ##### 0.12??
@@ -1663,6 +1644,14 @@
                                          :regions (:current-color world)])]
     (dotimes [i 3]
       (draw-rect! :black x y (- w i 1) (- h i 1)))))
+
+(defn set-pivot [world x y]
+  (let [pos (if-let [part-name (get-part-at world x y)]
+              (get-part-position world part-name)
+              (let [line (unproject-point world [x y])
+                    ground-plane [[0 0 0] [1 0 0] [0 0 1]]]
+                (line-plane-intersection line ground-plane)))]
+    (compute-camera (assoc-in world [:camera :pivot] pos))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; draw parts
@@ -2268,15 +2257,6 @@
 
       :else world)))
 
-;; (defn get-current-button [world]
-;;   (case (:mode world)
-;;     :insert [:tools (:mode-part world)]
-;;     :cable [:tools :cable]
-;;     :color [:colors (:mode-color world)]
-;;     :move [:actions :move]
-;;     :adjust [:actions :adjust]
-;;     :delete [:actions :delete]))
-
 (defn create-menus! []
   (set-thing! [:menus :tools]
               (create-menu "resources/tools.svg" 40 153 80 -1))
@@ -2348,50 +2328,6 @@
 ;;-------------------------------------------------------------------------------;;
 ;; delete mode
 
-;; (defn mesh-to-from [mesh start end]
-;;   (let [v (vector-subtract end start)
-;;         length (vector-length v)]
-;;     (if (float-equals? length 0.0)
-;;       (set-mesh-position mesh [-1000 0 0])
-;;       (let [position (vector-multiply (vector-add end start) 0.5)
-;;             rotation [1 0 0 0]]
-;;         (-> mesh
-;;             (assoc-in [:transform] (make-transform position rotation))
-;;             (point-mesh-towards v)
-;;             (assoc-in [:scale 1] length))))))
-
-;; (defn actualize-points [world points]
-;;   (map (fn [p]
-;;          (if (map? p)
-;;            (let [{:keys [local part]} p]
-;;              (if (= part :ground)
-;;                local
-;;                (let [part (get-in world [:parts part])
-;;                      transform (:transform part)]
-;;                  (apply-transform transform local))))
-;;            p))
-;;        points))
-
-;; (defn segment-collision? [mesh start end line]
-;;   (let [mesh (mesh-to-from mesh start end)
-;;         transform (:transform mesh)]
-;;     (get-mesh-collision mesh transform line)))
-
-;; (defn cable-collision? [world cable line]
-;;   (let [points (actualize-points world (:points cable))]
-;;     (some (fn [[a b]]
-;;             (segment-collision? (:bounding-box world)
-;;                                 a b line))
-;;           (map vector points (rest points)))))
-
-(defn get-cable-at [world x y]
-  ;; (let [line (unproject-point world [x y])]
-  ;;   (first (find-if (fn [[name cable]]
-  ;;                     (cable-collision? world cable line))
-  ;;                   (:cables world))))
-  nil
-  )
-
 (defn detach-child [world child-name]
   (let [parent-name (get-parent-part world child-name)]
     (cond
@@ -2411,9 +2347,8 @@
         (detach-child part-name)
         (dissoc-in [:wave-editor :functions part-name])
         (dissoc-in [:parts part-name]))
-    (if-let [cable-name (get-cable-at world x y)]
-      (dissoc-in world [:cables cable-name])
-      world)))
+    world
+    ))
 
 ;;-------------------------------------------------------------------------------;;
 ;; scale mode
@@ -2648,98 +2583,68 @@
 ;;-------------------------------------------------------------------------------;;
 ;; actions
 
-(defn get-key-name [keys code]
-  (first (find-if (fn [[name info]]
-                    (= (:code info) code))
-                  keys)))
+(defn get-key [control-pressed code]
+  (if-let [name (get-in keymap [code])]
+    (if control-pressed
+      (str "C-" name)
+      name)
+    nil))
+
+(defn execute-command [world]
+  (if-let [binding (get (:bindings world) (:command world))]
+    (let [world (-> world
+                    (assoc-in [:binding] binding)
+                    (assoc-in [:end-of-command] true))]
+      (if-let [key-fn (:key-fn binding)]
+        (key-fn world)
+        world))
+    world))
 
 (defn key-pressed [world event]
-  (if-let [key (get-key-name (:keys world) (:code event))]
-    (let [world (assoc-in world [:keys key :active] true)]
-      (if (in? key [:b :t])
-        (assoc-in world [:show-cursor] true)
-        world))
-    world))
+  (if (in? (:code event) [341 345])
+    (assoc-in world [:control-pressed] true)
+    (if-let [key (get-key (:control-pressed world) (:code event))]
+      (if (= key "C-g")
+        (assoc-in world [:command] "")
+        (-> world
+            (update-in [:command] (fn [c]
+                                    (if (or (empty? c)
+                                            (:end-of-command world))
+                                      key
+                                      (str c " " key))))
+            (assoc-in [:end-of-command] false)
+            (execute-command)))
+      world)))
 
 (defn key-released [world event]
-  (if-let [key (get-key-name (:keys world) (:code event))]
-    (let [world (assoc-in world [:keys key :active] false)]
-      (if (in? key [:b :t])
-        (assoc-in world [:show-cursor] false)
-        world))
+  (draw-2d! world)
+  
+  (if (in? (:code event) [341 345])
+    (assoc-in world [:control-pressed] false)
     world))
-
-(defn set-pivot [world x y]
-  (let [pos (if-let [part-name (get-part-at world x y)]
-              (get-part-position world part-name)
-              (let [line (unproject-point world [x y])
-                    ground-plane [[0 0 0] [1 0 0] [0 0 1]]]
-                (line-plane-intersection line ground-plane)))]
-    (compute-camera (assoc-in world [:camera :pivot] pos))))
 
 ;;---
 
 (defn action-mouse-pressed [world event]
-  (let [keys (:keys world)
-        x (:x event)
-        y (:y event)]
-    (cond
-      (get-in keys [:b :active])
-      (insert-part world :block :white x y)
-
-      (get-in keys [:t :active])
-      (insert-part world :track :red x y)
-
-      (get-in keys [:w :active])
-      (insert-wagon world :yellow x y)
-
-      (get-in keys [:period :active])
-      (set-pivot world x y)
-
-      (get-in keys [:s :active])
-      (scale-mode-pressed world event)
-
-      (get-in keys [:c :active])
-      (set-color world x y)
-
-      (get-in keys [:d :active])
-      (delete-part world x y)
-
-      (get-in keys [:g :active])
-      (add-graph world x y)
-
-      (get-in keys [:m :active])
-      (move-mode-pressed world event)
-
-      :else
-      world)))
+  (if-let [binding (:binding world)]
+    (if-let [press-fn (:press-fn binding)]
+      (press-fn world event)
+      world)
+    world))
 
 (defn action-mouse-moved [world event]
-  (let [keys (:keys world)
-        x (:x event)
-        y (:y event)]
-    (cond
-      (get-in keys [:s :active])
-      (scale-mode-moved world event)
-
-      (get-in keys [:m :active])
-      (move-mode-moved world event)
-
-      :else
-      world)))
+  (if-let [binding (:binding world)]
+    (if-let [move-fn (:move-fn binding)]
+      (move-fn world event)
+      world)
+    world))
 
 (defn action-mouse-released [world event]
-  (let [keys (:keys world)
-        x (:x event)
-        y (:y event) world (cond
-                             (get-in keys [:s :active])
-                             (scale-mode-released world event)
-
-                             (get-in keys [:m :active])
-                             (move-mode-released world event)
-
-                             :else
-                             world)]
+  (let [world (if-let [binding (:binding world)]
+                (if-let [release-fn (:release-fn binding)]
+                  (release-fn world event)
+                  world)
+                world)]
     (compute-transforms world :parts)))
 
 ;;-------------------------------------------------------------------------------;;
@@ -2794,6 +2699,97 @@
         (assoc-in [:ground-children] ground-children)
         (assoc-in [:parts] parts)
         (compute-transforms :parts))))
+
+;;-------------------------------------------------------------------------------;;
+;; bindings
+
+(defn create-bindings! []
+  (set-thing!
+   [:bindings]
+   {"b" {:key-fn (fn [w]
+                   (println! "insert block")
+                   w)
+         
+         :press-fn (fn [w e]
+                     (insert-part w :block :white (:x e) (:y e)))
+         }
+
+    "t" {:key-fn (fn [w]
+                   (println! "insert track")
+                   w)
+         
+         :press-fn (fn [w e]
+                     (insert-part w :track :red (:x e) (:y e)))
+         }
+
+    "w" {:key-fn (fn [w]
+                   (println! "insert wagon")
+                   w)
+         
+         :press-fn (fn [w e]
+                     (insert-wagon w :yellow (:x e) (:y e)))
+         }
+
+    "." {:key-fn (fn [w]
+                   (println! "center view")
+                   w)
+         
+         :press-fn (fn [w e]
+                     (set-pivot w (:x e) (:y e)))
+         }
+
+    "d" {:key-fn (fn [w]
+                   (println! "delete")
+                   w)
+         
+         :press-fn (fn [w e]
+                     (delete-part w (:x e) (:y e)))
+         }
+
+    "c" {:key-fn (fn [w]
+                   (println! "set color")
+                   w)
+         
+         :press-fn (fn [w e]
+                     (set-color w (:x e) (:y e)))
+         }
+
+    "g" {:key-fn (fn [w]
+                   (println! "add graph")
+                   w)
+         
+         :press-fn (fn [w e]
+                     (add-graph w (:x e) (:y e)))
+         }
+
+    "C-x s" {:key-fn (fn [w]
+                       (println! "save machine")
+                       w)
+             }
+
+    "C-x l" {:key-fn (fn [w]
+                       (println! "load machine")
+                       w)
+             }
+
+    "m" {:key-fn (fn [w]
+                   (println! "slide part")
+                   w)
+         
+         :press-fn move-mode-pressed
+         :move-fn move-mode-moved
+         :release-fn move-mode-released
+         }
+
+    "s" {:key-fn (fn [w]
+                   (println! "scale part")
+                   w)
+         
+         :press-fn scale-mode-pressed
+         :move-fn scale-mode-moved
+         :release-fn scale-mode-released
+         }
+    }))
 
 ;;-------------------------------------------------------------------------------;;
 
@@ -2853,13 +2849,8 @@
   (set-thing! [:paused] true)
 
   (set-thing! [:spheres] [])
-  ;; (update-thing! [] #(create-sphere % [-1.5 0.4 2]))
-  ;; (update-thing! [] #(create-sphere % [-2 0.4 0]))
 
   (create-menus!)
-
-  ;; (set-thing! [:mode] :insert)
-  ;; (set-thing! [:mode-part] :block)
 
   (set-thing! [:snap-specs] (get-snap-specs @world))
   (update-thing! [] update-move-plane)
@@ -2867,37 +2858,12 @@
   (set-thing! [:cursor]
               (create-cone-mesh [0 -5 0] [1 0 0 0] [0.05 0.1 0.05] :black))
 
-  ;; (set-thing! [:cable-mesh] (create-cylinder-mesh [0 0 0] [1 0 0 0]
-  ;;                                                 [0.03 1 0.03] :blue))
-
-  ;; (set-thing! [:pulley-mesh] (create-cube-mesh [0 1 0] [1 0 0 0]
-  ;;                                                [0.15 0.15 0.15] :black))
-
-  ;; (set-thing! [:anchor-mesh] (create-sphere-mesh [0 0 0] [1 0 0 0]
-  ;;                                              [0.1 0.1 0.1] :black))
-  ;; (set-thing! [:new-cable] nil)
-
-  ;; (set-thing! [:bounding-box] (create-cube-mesh [0 0 0] [1 0 0 0]
-  ;;                                               [0.2 1 0.2] :red))
-
-  (set-thing! [:keys] {:esq {:code 256 :active false}
-                       :shift {:code 340 :active false}
-                       :period {:code 46 :active false} ;; center
-                       :b {:code 66 :active false} ;; block
-                       :t {:code 84 :active false} ;; track
-                       :s {:code 83 :active false} ;; scale
-                       :c {:code 67 :active false} ;; color
-                       :d {:code 68 :active false} ;; delete
-                       :m {:code 77 :active false} ;; move
-                       :g {:code 71 :active false} ;; add graph
-                       :w {:code 87 :active false} ;; wagon
-                       ;; :p {:code 80 :active false} ;; place
-                       })
-
   (set-thing! [:current-color] :red)
 
-  (set-thing! [:show-cursor] false)
   (set-thing! [:show-editor] false)
+
+  (set-thing! [:command] "")
+  (create-bindings!)
   )
 (reset-world!)
 )
@@ -2929,16 +2895,21 @@
 
   (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
 
-  (if (:show-cursor world)
-    (draw-mesh! world (:cursor world)))
-  )
+  (draw-mesh! world (:cursor world)))
 
 (do
 1
+
+(defn draw-command! [command]
+  (fill-rect! :black 75 603 150 25)
+  (draw-text! :green command 10 605 14))
+
 (defn draw-2d! [world]
+  (draw-command! (:command world))
+  
   (if (:show-editor world)
     (draw-wave-editor! world))
-
+  
   (doseq [menu (vals (:menus world))]
     (draw-image! (:image menu) (:x menu) (:y menu)))
 
@@ -3010,215 +2981,3 @@
                   world))]
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
-
-;; (do
-;; 1
-;; (set-thing! [:wave-editor :functions :wagon2910] [[0 0.1] [0.5 0.9] [1 0.1]])
-;; (reset! redraw-flag true)
-;; )
-
-;; (do
-;; 1
-
-;; (set-thing! [:ground-children] {:block1 (make-transform [0 0.25 0] [1 0 0 0])})
-;; (set-thing! [:parts] {:block1 {:type :block
-;;                                :color :white
-;;                                :transform (make-transform [0 0 0] [1 0 0 0])
-;;                                :value 0.0
-;;                                :scale [0.5 0.5 0.5]
-;;                                :children {:track1 (make-transform [1.25 0 0] [0 0 -1 90])}
-;;                                }
-;;                       :track1 {:type :track
-;;                                :color :yellow
-;;                                :transform (make-transform [0 0 0] [1 0 0 0])
-;;                                :value 0.0
-;;                                :scale [0.1 1 0.1]
-;;                                }})
-;; (update-thing! [] #(compute-transforms % :parts))
-;; )
-
-;; (do
-;; 1
-
-;; (defn tree->xml [t]
-;;   (let [[name content] t]
-;;     {:tag name
-;;      :attrs nil
-;;      :content (if (map? content)
-;;                 (vec (map tree->xml content))
-;;                 [content])}))
-
-
-;; (clear-output!)
-;; (println! (xml->str (tree->xml (first {:machine {:block {:name "block1"}
-;;                                        :track {:value "0.5"}}}))))
-
-;; (println! (xml->str {:tag :machine
-;;                      :attrs nil
-;;                      :content ["foo"]}))
-;; )
-
-;; {:machine {:block {:name "block1"}
-;;            :track {:value "0.5"}}}
-
-;; {:tag :machine,
-;;  :attrs nil,
-;;  :content [{:tag :block,
-;;             :attrs nil,
-;;             :content [{:tag :name,
-;;                        :attrs nil,
-;;                        :content ["block1"]}]}
-;;            {:tag :track,
-;;             :attrs nil,
-;;             :content [{:tag :value,
-;;                        :attrs nil,
-;;                        :content ["0.5"]}]}]}
-
-;; <machine>
-;;   <block>
-;;     <name>block1</name>
-;;   </block>
-;;   <track>
-;;     <value>0.5</value>
-;;   </track>
-;; </machine>
-
-;; (do
-;; 1
-
-;; (clear-output!)
-;; (let [t [:machine [:block [:name "block1"]
-;;                    :track [:name "track1"]
-;;                    :block [:name "block2"]
-;;                    ]]
-;;       ]
-;;   (println! (-> t
-;;                 (tree->xml)
-;;                 (xml->str)
-;;                 (.replaceAll "\n" "")
-;;                 (ppxml)))
-;;   ))
-
-  ;; [:machine [:block [:name "block1"
-  ;;                    :position "0.25 0.25 0.25"
-  ;;                    :rotation "1 0 0 0"
-  ;;                    :scale "0.5 0.5 0.5"
-  ;;                    :color "white"
-  ;;                    :value "0.0"
-  ;;                    :children "track1"
-  ;;                    ]
-  ;;            :track [:name "track1"
-  ;;                    :position "1.25 0 0"
-  ;;                    :rotation "0 0 -1 90"
-  ;;                    :height "1.0"
-  ;;                    :color "red"
-  ;;                    :value "0.127"
-  ;;                    :children "block2"
-  ;;                    ]             
-  ;;            :block [:name "block2"
-  ;;                    :position "0.0 0.25 0 0"
-  ;;                    :rotation "1 0 0 0"
-  ;;                    :scale "0.5 0.5 0.5"
-  ;;                    :color "yellow"
-  ;;                    :value "0.0"]
-;;            ]]
-
-;; (do
-;; 1
-
-;; (defn parse-entry [entry]
-;;   (let [content (.trim (first (:content entry)))]
-;;     (case (:tag entry)
-;;       :children {:children (vec (map keyword
-;;                                      (split (first (:content entry)) #" ")))}
-;;       :height {:scale [0.1 (read-string content) 0.1]}
-;;       :value {:value (read-string content)}
-;;       (let [content (if (Character/isDigit (first content))
-;;                       (read-string (str "[" content "]"))
-;;                       (keyword content))]
-;;         {(:tag entry) content}))))
-
-;; (defn parse-part [m]
-;;   (-> (apply merge (map parse-entry (:content m)))
-;;       (assoc-in [:type] (:tag m))))
-
-;; (defn get-part-transform [parts name]
-;;   (let [{:keys [position rotation]} (find-if (fn [part]
-;;                                                (= (:name part) name)) parts)
-;;         position (or position [0 0 0])
-;;         rotation (or rotation [1 0 0 0])]
-;;     (make-transform position rotation)))
-
-;; (defn modify-part [part parts]
-;;   (let [children (apply merge (map (fn [child-name]
-;;                                      {child-name (get-part-transform
-;;                                                   parts child-name)})
-;;                                    (:children part)))]
-;;     {(:name part) {:type (:type part)
-;;                    :color (or (:color part) :white)
-;;                    :transform (make-transform [0 0 0] [1 0 0 0])
-;;                    :value (or (:value part) 0)
-;;                    :scale (or (:scale part)
-;;                               (if (= (:type part) :block)
-;;                                      [0.5 0.5 0.5]
-;;                                      [0.1 1 0.1]))
-;;                    :children children}}))
-
-;; (defn load-machine [world filename]
-;;   (let [document (read-xml filename)
-;;         parts (map parse-part (:content document))
-;;         root-name (:name (first parts))
-;;         root-transform (get-part-transform parts root-name)]
-;;     (-> world
-;;         (assoc-in [:ground-children] {root-name root-transform})
-;;         (assoc-in [:parts] (apply merge (map #(modify-part % parts) parts)))
-;;         (compute-transforms :parts))))
-
-;; (defn unmodify-part [[name part] world]
-;;   (let [parent (get-parent-part world name)
-;;         transform (if (= parent :ground)
-;;                     (get-in world [:ground-children name])
-;;                     (get-in world [:parts parent :children name]))
-;;         position (join " " (get-transform-position transform))
-;;         rotation (join " " (get-transform-rotation transform))
-;;         [scale scale-value] (if (= (:type part) :track)
-;;                               [:height (str (second (:scale part)))]
-;;                               [:scale (join " " (:scale part))])
-;;         p [:name (kw->str name)
-;;            :position position
-;;            :rotation rotation
-;;            scale scale-value
-;;            :color (kw->str (:color part))
-;;            :value (str (:value part))]]
-;;     (if (:children part)
-;;       (let [children-names (keys (:children part))
-;;             children (join " " (map kw->str children-names))]
-;;         [(:type part) (vec (concat p [:children children]))])
-;;       [(:type part) p])))
-  
-;; (defn save-machine! [world filename]
-;;   (let [t [:machine (vec
-;;                      (apply concat
-;;                             (map #(unmodify-part % world)
-;;                                  (:parts world))))]]
-;;     (spit filename (-> t
-;;                        (tree->xml)
-;;                        (xml->str)
-;;                        (.replaceAll "\n" "")
-;;                        (ppxml)))
-;;   (println! "saved to" filename)))
-
-;; (do
-;; 1
-
-
-;; (clear-output!)
-;; (println! "---")
-;; (let [world @world]
-
-;;   ;; (save-machine! world "resources/saved.xml")
-;;   (set-thing! [] (load-machine world "resources/saved.xml"))
-  
-;;   nil
-;;   ))
-
