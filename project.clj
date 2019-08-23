@@ -11,8 +11,7 @@
                  [matrix/matrix "1.0.0"]
                  [batik/batik "1.7.1"]
                  ]
-  ;; :plugins [[cider/cider-nrepl "0.21.1"]]
-
+  :plugins [[cider/cider-nrepl "0.21.1"]]
   :main ^:skip-aot temp.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})

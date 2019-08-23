@@ -1,5 +1,3 @@
-
-
 (ns temp.core)
 
 (require '[clojure.set :refer [difference union map-invert]])
@@ -1453,51 +1451,24 @@
 ;;-------------------------------------------------------------------------------;;
 ;; debug shapes
 
+(def debug-meshes (atom nil))
+
 (defn create-debug-meshes! []
-  (set-thing! [:meshes :red-point]
-              (create-cube-mesh [0 -1 0] [1 0 0 0] [0.1 0.1 0.1] :red))
-  (set-thing! [:meshes :green-point]
-              (create-cube-mesh [0.1 -1 0] [1 0 0 0] [0.1 0.1 0.1] :green))
-  (set-thing! [:meshes :blue-point]
-              (create-cube-mesh [0.2 -1 0] [1 0 0 0] [0.1 0.1 0.1] :blue))
-  (set-thing! [:meshes :yellow-point]
-              (create-cube-mesh [0.3 -1 0] [1 0 0 0] [0.1 0.1 0.1] :yellow))
+  (reset! debug-meshes {:points {:red (create-cube-mesh
+                                       [-100 0 0] [1 0 0 0]
+                                       [0.05 0.05 0.05] :red)}}))
 
-  (set-thing! [:meshes :red-line]
-              (create-line-mesh [0 0 0] [1 -1 1] :red))
-  (set-thing! [:meshes :green-line]
-              (create-line-mesh [0 0 0] [1.1 -1 1] :green))
-  (set-thing! [:meshes :blue-line]
-              (create-line-mesh [0 0 0] [1.2 -1 1] :blue))
-  (set-thing! [:meshes :yellow-line]
-              (create-line-mesh [0 0 0] [1.3 -1 1] :yellow)))
-
-(defn set-point [world color position]
-  (let [name (keyword (subs (str color "-point") 1))]
-    (update-in world [:meshes name] #(set-mesh-position % position))))
-
-(defn set-line [world color a b]
-  (let [name (keyword (subs (str color "-line") 1))
-        vertices (into [] (concat a b))]
-    (assoc-in world [:meshes name :vertices-buffer]
-              (get-float-buffer vertices))))
+(defn draw-debug-meshes! []
+  (let [points (:points @debug-meshes)]
+    (doseq [mesh (vals points)]
+      (draw-mesh! @world mesh))))
 
 (defn set-point! [color position]
-  (update-thing! [] #(set-point % color position)))
-
-(defn set-line! [color a b]
-  (update-thing! [] #(set-line % color a b)))
-
-(defn hide-debug-shapes! []
-  (set-point! :red [0 -1 0])
-  (set-point! :green [0 -1 0])
-  (set-point! :blue [0 -1 0])
-  (set-point! :yellow [0 -1 0])
-
-  (set-line! :red [0 0 0] [0 -1 0])
-  (set-line! :green [0 0 0] [0 -1 0])
-  (set-line! :blue [0 0 0] [0 -1 0])
-  (set-line! :yellow [0 0 0] [0 -1 0]))
+  (swap! debug-meshes
+         (fn [dm]
+           (update-in dm [:points color]
+                      #(set-mesh-position % position))))
+  nil)
 
 ;;-------------------------------------------------------------------------------;;
 ;; camera manipulation
@@ -1538,10 +1509,10 @@
            }
 
    :track {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                    [0.1 0.1 0.1] :white)
-           :points [[0.12 0 0] [-0.12 0 0]
-                    [0 0.12 0]
-                    [0 0 0.12] [0 0 -0.12]
+                                    [0.12 0.12 0.12] :white)
+           :points [[0.2 0 0] [-0.2 0 0]
+                    [0 0.2 0]
+                    [0 0 0.2] [0 0 -0.2]
                     ]
            :offset 1
            }
@@ -1613,23 +1584,27 @@
 
 (declare get-closest-snap-point)
 
+(defn inserting? [world]
+  (and (:paused world)
+       (in? (:command world) ["b" "t"])))
+
 (defn move-cursor [world event]
-  ;; (let [x (:x event)
-  ;;       y (:y event)
-  ;;       snap-spec (get-closest-snap-point world x y (:snap-specs world))
-  ;;       [snap-point snap-rotation color snapped]
-  ;;       (if (nil? snap-spec)
-  ;;         [(get-ground-camera-point world x y 0) [0 1 0 0] :black false]
-  ;;         [(:position snap-spec) (:rotation snap-spec) :yellow true])
-  ;;       transform (make-transform snap-point snap-rotation)]
-  ;;   (-> world
-  ;;       (update-in [:cursor] (fn [cursor]
-  ;;                              (-> cursor
-  ;;                                  (assoc-in [:transform] transform)
-  ;;                                  (set-mesh-color color))))
-  ;;       (assoc-in [:cursor-snapped] snapped)))
-  world
-  )
+  (if (inserting? world)
+    (let [x (:x event)
+          y (:y event)
+          snap-spec (get-closest-snap-point world x y (:snap-specs world))
+          [snap-point snap-rotation color snapped]
+          (if (nil? snap-spec)
+            [(get-ground-camera-point world x y 0) [0 1 0 0] :black false]
+            [(:position snap-spec) (:rotation snap-spec) :yellow true])
+          transform (make-transform snap-point snap-rotation)]
+      (-> world
+          (update-in [:cursor] (fn [cursor]
+                                 (-> cursor
+                                     (assoc-in [:transform] transform)
+                                     (set-mesh-color color))))
+          (assoc-in [:cursor-snapped] snapped)))
+    world))
 
 (defn draw-color-indicator! [world]
   (let [{:keys [x y w h]} (get-in world [:menus :colors
@@ -1735,6 +1710,16 @@
         eye (get-in world [:camera :eye])]
     (first (sort-by (fn [spec]
                       (distance (:position spec) eye)) close-points))))
+
+;; (defn get-closest-snap-point [world x y snap-specs]
+;;   (let [line (unproject-point world [x y])
+;;         sorted-specs (sort-by (fn [spec]
+;;                                 (point-line-distance (:position spec) line))
+;;                               snap-specs)
+;;         d (point-line-distance (:position (first sorted-specs)) line)]
+;;     (if (< d 0.2)
+;;       (first sorted-specs)
+;;       nil)))
 
 ;;-------------------------------------------------------------------------------;;
 ;; collision
@@ -1912,6 +1897,12 @@
           world
           (get-in world [key part-name :children])))
 
+(defn compute-translated-loop-fn [loop-fn]
+  (let [offset (second (first loop-fn))]
+    (map (fn [[t p]]
+           [t (vector-subtract p offset)])
+         loop-fn)))
+
 (defn block-compute-subtree-transforms [world name transform key]
   (let [block (get-in world [:parts name])]
     (if (nil? (:loop-fn block))
@@ -1919,9 +1910,12 @@
           (assoc-in [key name :transform] transform)
           (compute-children-transforms name transform key))
       (let [rotation (get-transform-rotation transform)
+            loop-fn (if (= key :weld-groups)
+                      (compute-translated-loop-fn (:loop-fn block))
+                      (:loop-fn block))            
             loop-fn (map (fn [[t v]]
                            [t (apply-transform transform v)])
-                         (:loop-fn block))
+                         loop-fn)
             value (within (:value block) 0.0 1.0)
             position (get-function-value loop-fn value vector-interpolate)
             transform (make-transform position rotation)]
@@ -2369,7 +2363,7 @@
     (let [adjust-line (:adjust-line world)
           mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point adjust-line mouse-line)
-          grain-size 0.2
+          grain-size 0.1
           d (* grain-size (round (/ d grain-size)))
           scale (:original-scale world)
           center (:original-center world)
@@ -2599,10 +2593,8 @@
                 world)]
     (-> world
         (compute-transforms :parts)
-        ;; (create-weld-groups)
-        ;; (compute-transforms :weld-groups)
-        (assoc-in [:snap-specs] (get-snap-specs world))
-        )))
+        (create-weld-groups)
+        (compute-transforms :weld-groups))))
 
 (defn draw-command! [command]
   (fill-rect! :black 75 603 150 25)
@@ -2645,8 +2637,7 @@
                        (:parts world))]
     (spit filename {:ground-children ground-children
                     :parts parts
-                    :wave-editor (:wave-editor world)})
-    (println! "saved to" filename)))
+                    :wave-editor (:wave-editor world)})))
 
 (defn load-machine [world filename]
   (let [{:keys [ground-children parts wave-editor]} (read-string (slurp filename))
@@ -2660,7 +2651,109 @@
         (assoc-in [:ground-children] ground-children)
         (assoc-in [:parts] parts)
         (assoc-in [:wave-editor] wave-editor)
-        (compute-transforms :parts))))
+        (compute-transforms :parts)
+        (create-weld-groups)
+        (compute-transforms :weld-groups))))
+
+;;-------------------------------------------------------------------------------;;
+;; weld optimization
+
+(defn get-limited-tree [parts root-name all-root-names]
+  (let [root (get-in parts [root-name])
+        children (filter (fn [name]
+                           (not (in? name all-root-names)))
+                         (keys (get-in root [:children])))
+        descendents (map #(get-limited-tree parts % all-root-names) children)]
+    (vec (apply concat [root-name] descendents))))
+
+(defn segregate-parts [world]
+  (let [roots (concat (keys (:ground-children world))
+                      (keys (get-in world [:wave-editor :functions])))]
+    (vec (map (fn [root]
+                (get-limited-tree (:parts world) root roots))
+              roots))))
+
+(defn bake-mesh [mesh transform scale color-name]
+  (let [vertices (map (fn [v]
+                        (let [sv (map (fn [a b]
+                                        (* a b)) v scale)]
+                          (apply-transform transform sv)))
+                      (vec (partition 3 (:vertices mesh))))
+        color (let [color (get-color color-name)
+                    r (/ (get-red color) 255.0)
+                    g (/ (get-green color) 255.0)
+                    b (/ (get-blue color) 255.0)]
+                [r g b 1.0])]
+    {:vertices (vec (flatten vertices))
+     :colors (vec (flatten (repeat (count vertices) color)))}))
+
+(defn bake-part [info part]
+  (let [model (get-in info [(:type part) :model])
+        transform (if (= (:type part) :track)
+                    (get-tail-transform part)
+                    (:transform part))]
+    (bake-mesh model transform (:scale part) (:color part))))
+
+(defn create-mesh-from-parts [parts names info]
+  (let [baked-parts (map (fn [name]
+                           (bake-part info (get-in parts [name])))
+                         names)
+        {:keys [vertices colors]} (reduce (fn [a b]
+                                            (merge-with (comp vec concat) a b))
+                                          baked-parts)
+        root (get-in parts [(first names)])
+        root-transform (:transform root)
+        inverse-transform (get-inverse-transform root-transform)
+        vertices (vec (flatten (map #(apply-transform inverse-transform %)
+                               (partition 3 vertices))))]
+    {:vertices (into-array Double/TYPE (map double vertices))
+     :vertices-buffer (get-float-buffer vertices)
+     :normals-buffer (get-float-buffer (into [] (compute-normals vertices)))
+     :colors-buffer (get-float-buffer colors)
+     :transform root-transform
+     :draw-fn draw-colored-mesh!
+     :scale [1 1 1]
+     :program :colored}))
+
+(defn is-child-group? [parts parent-names child-names]
+  (some (fn [parent-name]
+          (let [children (get-in parts [parent-name :children])]
+            (in? (first child-names) (keys children))))
+        parent-names))
+
+(defn get-group-children [parts group groups]
+  (map-map (fn [other-group]
+             (if (is-child-group? parts group other-group)
+               (let [parent (get-in parts [(first group)])
+                     child (get-in parts [(first other-group)])
+                     child-transform (:transform child)
+                     parent-transform (:transform parent)
+                     relative-transform (remove-transform child-transform
+                                                          parent-transform)]
+                 {(first other-group) relative-transform})))
+           groups))
+
+(defn reset-part-values [world]
+  (let [parts (map-map (fn [[name part]]
+                         {name (assoc-in part [:value] 0.0)})
+                       (:parts world))]
+    (assoc-in world [:parts] parts)))
+
+(declare compute-transforms)
+
+(defn create-weld-groups [world]
+  (let [groups (segregate-parts world)
+        parts (:parts (compute-transforms (reset-part-values world) :parts))
+        info (:info world)
+        weld-groups (map-map (fn [names]
+                               (let [mesh (create-mesh-from-parts parts names info)
+                                     children (get-group-children parts names groups)
+                                     mesh (assoc-in mesh [:children] children)]
+                                 {(first names) mesh}))
+                           groups)]
+    (-> world
+        (assoc-in [:weld-groups] weld-groups)
+        (compute-transforms :weld-groups))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; bindings
@@ -2724,16 +2817,38 @@
                      (add-graph w (:x e) (:y e)))
          }
 
-    "C-x s" {:key-fn (fn [w]
-                       (save-machine! w (:text-input w))
-                       (println! "machine saved")
-                       w)
-             }
+    "C-x s 1" {:key-fn (fn [w]
+                         (save-machine! w "resources/1.clj")
+                         (println! "machine 1 saved")
+                         w)
+               }
 
-    "C-x l" {:key-fn (fn [w]
-                       (println! "load machine")
-                       (load-machine w (:text-input w)))
-             }
+    "C-x l 1" {:key-fn (fn [w]
+                         (println! "machine 1 loaded")
+                         (load-machine w "resources/1.clj"))
+               }
+
+    "C-x s 2" {:key-fn (fn [w]
+                         (save-machine! w "resources/2.clj")
+                         (println! "machine 2 saved")
+                         w)
+               }
+
+    "C-x l 2" {:key-fn (fn [w]
+                         (println! "machine 2 loaded")
+                         (load-machine w "resources/2.clj"))
+               }
+
+    "C-x s 3" {:key-fn (fn [w]
+                         (save-machine! w "resources/3.clj")
+                         (println! "machine 3 saved")
+                         w)
+               }
+
+    "C-x l 3" {:key-fn (fn [w]
+                         (println! "machine 3 loaded")
+                         (load-machine w "resources/3.clj"))
+               }
 
     "m" {:key-fn (fn [w]
                    (println! "slide part")
@@ -2828,12 +2943,13 @@
   (set-thing! [:command] "")
   (create-bindings!)
 
-  (set-thing! [:text-input] "resources/simple.clj")
+  (set-thing! [:text-input] "resources/complex.clj")
 
-  (set-thing! [:use-weld-groups] false)
+  (set-thing! [:use-weld-groups] true)
   )
 (reset-world!)
 )
+;; (update-thing! [:use-weld-groups] not)
 
 (defn update-world [world elapsed]
   (if (:paused world)
@@ -2862,20 +2978,13 @@
       (draw-mesh! world group))
     (doseq [part (vals (:parts world))]
       (draw-part! world part)))
-
-  ;; (let [mesh (:test-mesh world)
-  ;;       mesh (update-in (:test-mesh world) [:transform]
-  ;;                              (fn [t]
-  ;;                                (let [offset (make-transform [1 0 0] [1 0 0 0])]
-  ;;                                  (combine-transforms offset t))))
-  ;;       ]
-  ;;   (draw-mesh! world mesh)
-  ;;   )
   
   (draw-spheres! world)
 
   (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
-  ;; (draw-mesh! world (:cursor world))
+  (if (inserting? world)
+    (draw-mesh! world (:cursor world)))
+  (draw-debug-meshes!)
   )
 
 (do
@@ -2955,143 +3064,6 @@
                 :else
                 (if (:paused world)
                   (command-mouse-released world event)
-                  world))]
+                  world))]b
     (draw-2d! world)
-    world))
-
-;;-------------------------------------------------------------------------------;;
-
-;; (set-thing! [:text-input] "resources/complex.clj")
-
-;; (do
-;; 1
-
-;; (defn get-limited-tree [parts root-name all-root-names]
-;;   (let [root (get-in parts [root-name])
-;;         children (filter (fn [name]
-;;                            (not (in? name all-root-names)))
-;;                          (keys (get-in root [:children])))
-;;         descendents (map #(get-limited-tree parts % all-root-names) children)]
-;;     (vec (apply concat [root-name] descendents))))
-
-;; (defn segregate-parts [world]
-;;   (let [roots (concat (keys (:ground-children world))
-;;                       (keys (get-in world [:wave-editor :functions])))]
-;;     (vec (map (fn [root]
-;;                 (get-limited-tree (:parts world) root roots))
-;;               roots))))
-
-;; (defn bake-mesh [mesh transform scale color-name]
-;;   (let [vertices (map (fn [v]
-;;                         (let [sv (map (fn [a b]
-;;                                         (* a b)) v scale)]
-;;                           (apply-transform transform sv)))
-;;                       (vec (partition 3 (:vertices mesh))))
-;;         color (let [color (get-color color-name)
-;;                     r (/ (get-red color) 255.0)
-;;                     g (/ (get-green color) 255.0)
-;;                     b (/ (get-blue color) 255.0)]
-;;                 [r g b 1.0])]
-;;     {:vertices (vec (flatten vertices))
-;;      :colors (vec (flatten (repeat (count vertices) color)))}))
-
-;; (defn bake-part [info part]
-;;   (let [model (get-in info [(:type part) :model])
-;;         transform (if (= (:type part) :track)
-;;                     (get-tail-transform part)
-;;                     (:transform part))]
-;;     (bake-mesh model transform (:scale part) :purple ;; (:color part)
-;;                )))
-
-;; (defn create-mesh-from-parts [parts names info]
-;;   (let [baked-parts (map (fn [name]
-;;                            (bake-part info (get-in parts [name])))
-;;                          names)
-;;         {:keys [vertices colors]} (reduce (fn [a b]
-;;                                             (merge-with (comp vec concat) a b))
-;;                                           baked-parts)
-;;         root (get-in parts [(first names)])
-;;         root-transform (:transform root)
-;;         inverse-transform (get-inverse-transform root-transform)
-;;         vertices (vec (flatten (map #(apply-transform inverse-transform %)
-;;                                (partition 3 vertices))))]
-;;     {:vertices (into-array Double/TYPE (map double vertices))
-;;      :vertices-buffer (get-float-buffer vertices)
-;;      :normals-buffer (get-float-buffer (into [] (compute-normals vertices)))
-;;      :colors-buffer (get-float-buffer colors)
-;;      :transform root-transform
-;;      :draw-fn draw-colored-mesh!
-;;      :scale [1 1 1]
-;;      :program :colored}))
-
-;; ;;#########################
-
-;; (defn is-child-group? [parts parent-names child-names]
-;;   (some (fn [parent-name]
-;;           (let [children (get-in parts [parent-name :children])]
-;;             (in? (first child-names) (keys children))))
-;;         parent-names))
-
-;; (defn get-group-children [parts group groups]
-;;   (map-map (fn [other-group]
-;;              (if (is-child-group? parts group other-group)
-;;                (let [parent (get-in parts [(first group)])
-;;                      child (get-in parts [(first other-group)])
-;;                      child-transform (:transform child)
-;;                      parent-transform (:transform parent)
-;;                      relative-transform (remove-transform child-transform
-;;                                                           parent-transform)]
-;;                  {(first other-group) relative-transform})))
-;;            groups))
-
-;; (defn reset-part-values [world]
-;;   (let [parts (map-map (fn [[name part]]
-;;                          {name (assoc-in part [:value] 0.0)})
-;;                        (:parts world))]
-;;     (assoc-in world [:parts] parts)))
-
-;; (declare compute-transforms)
-
-;; (defn create-weld-groups [world]
-;;   (let [groups (segregate-parts world)
-;;         parts (:parts (compute-transforms (reset-part-values world) :parts))
-;;         info (:info world)
-;;         weld-groups (map-map (fn [names]
-;;                                (let [mesh (create-mesh-from-parts parts names info)
-;;                                      children (get-group-children parts names groups)
-;;                                      mesh (assoc-in mesh [:children] children)]
-;;                                  {(first names) mesh}))
-;;                            groups)]
-;;     (println! "weld groups created")
-;;     (assoc-in world [:weld-groups] weld-groups)
-;;     ))
-
-;; (clear-output!)
-;; (let [world @world]
-;;   (update-thing! [] create-weld-groups)
-;;   (update-thing! [] #(compute-transforms % :weld-groups))
-;;   )
-;; )
-
-;; (reset-world!)
-
-;; (update-thing! [:use-weld-groups] not)
-
-;; (set-thing! [:wave-editor :functions (get-part-with-color @world :yellow)]
-;;             [[0 0] [0.5 1] [1 0]])
-
-;; (println! (keys (:weld-groups @world)))
-
-
-;; :wagon3057
-;; (clear-output!)
-;; (println! (get-thing! [:parts :wagon3057 :loop-fn]))
-
-;; (set-thing! [:parts :wagon3057 :loop-fn] [[0.0 [0.0  0.0 0.0]]
-;;                                           [0.5 [0.0 -1.0 0.0]]
-;;                                           [1.0 [0.0 -2.0 0.0]]])
-
-;; (do
-;;   (set-thing! [:parts :wagon3057 :value] 1)
-;;   (update-thing! [] #(compute-transforms % :parts)))
-
+    (assoc-in world [:snap-specs] (get-snap-specs world))))

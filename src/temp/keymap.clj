@@ -7,16 +7,16 @@
              GLFW/GLFW_KEY_MINUS                   nil
              GLFW/GLFW_KEY_PERIOD                  "."
              GLFW/GLFW_KEY_SLASH                   nil
-             GLFW/GLFW_KEY_0                       nil
-             GLFW/GLFW_KEY_1                       nil
-             GLFW/GLFW_KEY_2                       nil
-             GLFW/GLFW_KEY_3                       nil
-             GLFW/GLFW_KEY_4                       nil
-             GLFW/GLFW_KEY_5                       nil
-             GLFW/GLFW_KEY_6                       nil
-             GLFW/GLFW_KEY_7                       nil
-             GLFW/GLFW_KEY_8                       nil
-             GLFW/GLFW_KEY_9                       nil
+             GLFW/GLFW_KEY_0                       "0"
+             GLFW/GLFW_KEY_1                       "1"
+             GLFW/GLFW_KEY_2                       "2"
+             GLFW/GLFW_KEY_3                       "3"
+             GLFW/GLFW_KEY_4                       "4"
+             GLFW/GLFW_KEY_5                       "5"
+             GLFW/GLFW_KEY_6                       "6"
+             GLFW/GLFW_KEY_7                       "7"
+             GLFW/GLFW_KEY_8                       "8"
+             GLFW/GLFW_KEY_9                       "9"
              GLFW/GLFW_KEY_SEMICOLON               nil
              GLFW/GLFW_KEY_EQUAL                   nil
              GLFW/GLFW_KEY_A                       "a"

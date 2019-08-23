@@ -1,0 +1,1 @@
+{:ground-children {:block9906 {:position [0.25 0.25 0.25], :rotation [0.0 1.0 0.0 0.0]}}, :parts {:block9906 {:type :block, :color :red, :value 0.0, :scale [0.5 0.5 0.5], :children nil}}, :wave-editor {:x 343, :y 540, :w 685, :h 150, :functions {}}}
