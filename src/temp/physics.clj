@@ -46,6 +46,9 @@
 (defn add-body-to-planet [planet body]
   (.addRigidBody planet body 1 1))
 
+(defn remove-body [planet body]
+  (.removeRigidBody planet body))
+
 (defn create-ground! [planet]
   (add-body-to-planet planet (create-static-plane [0 1 0] 0))
   (add-body-to-planet planet (create-static-plane [1 0 0] -6))

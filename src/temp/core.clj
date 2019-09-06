@@ -1564,20 +1564,6 @@
         transform (combine-transforms relative-transform parent-transform)]
     (assoc-in world [:parts part-name :transform] transform)))
 
-(defn create-sphere [world position]
-  (let [body (create-sphere-body
-              (:sphere-radius world) 1.0
-              (make-transform position [1 0 0 0]))]
-    (add-body-to-planet (:planet world) body)
-    (update-in world [:spheres] (partial cons body))))
-
-(defn draw-spheres! [world]
-  (let [mesh (:sphere-mesh world)]
-    (doseq [body (:spheres world)]
-      (let [transform (get-body-transform body)
-            mesh (assoc-in mesh [:transform] transform)]
-        (draw-mesh! world mesh)))))
-
 (defn update-move-plane [world]
   (assoc-in world [:move-plane]
             (get-camera-plane world (get-in world [:camera :pivot]))))
@@ -1711,16 +1697,6 @@
     (first (sort-by (fn [spec]
                       (distance (:position spec) eye)) close-points))))
 
-;; (defn get-closest-snap-point [world x y snap-specs]
-;;   (let [line (unproject-point world [x y])
-;;         sorted-specs (sort-by (fn [spec]
-;;                                 (point-line-distance (:position spec) line))
-;;                               snap-specs)
-;;         d (point-line-distance (:position (first sorted-specs)) line)]
-;;     (if (< d 0.2)
-;;       (first sorted-specs)
-;;       nil)))
-
 ;;-------------------------------------------------------------------------------;;
 ;; collision
 
@@ -1797,6 +1773,16 @@
 
 (defn get-part-at [world px py]
   (:part-name (get-part-collision world px py)))
+
+(defn get-collision-normal [world collision]
+  (let [{:keys [part-name point index]} collision
+        part (get-in world [:parts part-name])
+        vertices (get-in world [:info :block :model :vertices])
+        triangles (partition 3 (partition 3 vertices))
+        [a b c] (nth triangles index)
+        v1 (vector-subtract b a)
+        v2 (vector-subtract c a)]
+    (vector-cross-product v1 v2)))
 
 ;;-------------------------------------------------------------------------------;;
 ;; track loop
@@ -2068,7 +2054,9 @@
 
 (defn add-graph [world x y]
   (if-let [part-name (get-part-at world x y)]
-    (assoc-in world [:wave-editor :functions part-name] [[0 0] [1 0]])
+    (if (nil? (get-in world [:wave-editor :functions part-name]))
+      (assoc-in world [:wave-editor :functions part-name] [[0 0] [1 0]])
+      (dissoc-in world [:wave-editor :functions part-name]))
     world))
 
 (defn editor-mouse-pressed [world event]
@@ -2285,16 +2273,37 @@
       :else
       (dissoc-in world [:parts parent-name :children child-name]))))
 
+(defn get-sphere-at [world x y]
+  (let [line (unproject-point world [x y])
+        radius (:sphere-radius world)
+        spheres (filter (fn [sphere]
+                          (let [transform (get-body-transform sphere)
+                                position (get-transform-position transform)]
+                            (< (point-line-distance position line) radius)))
+                        (:spheres world))
+        eye (get-in world [:camera :eye])]
+    (first (sort-by (fn [sphere]
+                      (let [transform (get-body-transform sphere)
+                            position (get-transform-position transform)]
+                        (distance position eye)))
+                    spheres))))
+
+(defn delete-sphere [world sphere]
+  (remove-body (:planet world) sphere)
+  (update-in world [:spheres]
+             (fn [spheres]
+               (remove #(= % sphere) spheres))))
 ;;---
 
 (defn delete-part [world x y]
-  (if-let [part-name (get-part-at world x y)]
-    (-> world
-        (detach-child part-name)
-        (dissoc-in [:wave-editor :functions part-name])
-        (dissoc-in [:parts part-name]))
-    world
-    ))
+  (if-let [sphere (get-sphere-at world x y)]
+    (delete-sphere world sphere)
+    (if-let [part-name (get-part-at world x y)]
+      (-> world
+          (detach-child part-name)
+          (dissoc-in [:wave-editor :functions part-name])
+          (dissoc-in [:parts part-name]))
+      world)))
 
 ;;-------------------------------------------------------------------------------;;
 ;; scale mode
@@ -2527,133 +2536,85 @@
     world))
 
 ;;-------------------------------------------------------------------------------;;
-;; commands
+;; regular physics
 
-(defn get-key [control-pressed code]
-  (if-let [name (get-in keymap [code])]
-    (if control-pressed
-      (str "C-" name)
-      name)
-    nil))
+(defn create-sphere [world position]
+  (let [body (create-sphere-body
+              (:sphere-radius world) 1.0
+              (make-transform position [1 0 0 0]))]
+    (add-body-to-planet (:planet world) body)
+    (update-in world [:spheres] (partial cons body))))
 
-(defn execute-command [world]
-  (if-let [binding (get (:bindings world) (:command world))]
-    (let [world (-> world
-                    (assoc-in [:binding] binding)
-                    (assoc-in [:end-of-command] true))]
-      (if-let [key-fn (:key-fn binding)]
-        (key-fn world)
-        world))
-    world))
+(defn is-physical-part? [[name part]]
+  (and
+   (in? (:type part) [:block :wagon])
+   (= (:color part) :yellow)))
 
-(defn key-pressed [world event]
-  (if (in? (:code event) [341 345])
-    (assoc-in world [:control-pressed] true)
-    (if-let [key (get-key (:control-pressed world) (:code event))]
-      (if (= key "C-g")
-        (assoc-in world [:command] "")
-        (-> world
-            (update-in [:command] (fn [c]
-                                    (if (or (empty? c)
-                                            (:end-of-command world))
-                                      key
-                                      (str c " " key))))
-            (assoc-in [:end-of-command] false)
-            (execute-command)))
-      world)))
+(defn compute-kinematic-body [part-name parts groups]
+  (let [part (get-in parts [part-name])
+        position (get-transform-position (:transform part))
+        rotation (get-transform-rotation (:transform part))
+        scale (:scale part)
+        body (create-kinematic-body position rotation scale)
+        root-name (first (find-if #(in? part-name %) groups))
+        root (get-in parts [root-name])
+        part-transform (:transform part)
+        root-transform (:transform root)
+        relative-transform (remove-transform part-transform
+                                             root-transform)]
+    {:body body
+     :transform relative-transform
+     :root root-name}))
 
-(defn key-released [world event]
-  (draw-2d! world)
-  
-  (if (in? (:code event) [341 345])
-    (assoc-in world [:control-pressed] false)
-    world))
+(defn compute-kinematic-bodies [parts groups]
+  (let [physical-part-names (map first (filter is-physical-part? parts))]
+    (map #(compute-kinematic-body % parts groups)
+         physical-part-names)))
 
-;;---
+(defn remove-all-bodies [world]
+  (doseq [{:keys [body]} (:bodies world)]
+    (remove-body (:planet world) body))
+  (assoc-in world [:bodies] []))
 
-(defn command-mouse-pressed [world event]
-  (if-let [binding (:binding world)]
-    (if-let [press-fn (:press-fn binding)]
-      (press-fn world event)
-      world)
-    world))
+(defn create-kinematic-bodies [world parts groups]
+  (let [world (remove-all-bodies world)
+        kinematic-bodies (compute-kinematic-bodies parts groups)]
+    (doseq [{:keys [body]} kinematic-bodies]
+      (add-body-to-planet (:planet world) body))
+    (assoc-in world [:bodies] kinematic-bodies)))
 
-(defn command-mouse-moved [world event]
-  (if-let [binding (:binding world)]
-    (if-let [move-fn (:move-fn binding)]
-      (move-fn world event)
-      world)
-    world))
-
-(defn command-mouse-released [world event]
-  (let [world (if-let [binding (:binding world)]
-                (if-let [release-fn (:release-fn binding)]
-                  (release-fn world event)
-                  world)
-                world)]
-    (-> world
-        (compute-transforms :parts)
-        (create-weld-groups)
-        (compute-transforms :weld-groups))))
-
-(defn draw-command! [command]
-  (fill-rect! :black 75 603 150 25)
-  (draw-text! :green command 10 605 14))
-
-;;-------------------------------------------------------------------------------;;
-;; load/save machine
-
-(defn get-simple-transform [transform]
-  {:position (get-transform-position transform)
-   :rotation (get-transform-rotation transform)})   
-
-(defn get-simple-part [part]
-  (let [children (map-map (fn [[name transform]]
-                            {name (get-simple-transform transform)})
-                          (:children part))]
-    (-> part
-        (dissoc-in [:transform])
-        (assoc-in [:children] children))))
-
-(defn get-complex-transform [transform]
-  (make-transform (:position transform) (:rotation transform)))
-
-(defn get-complex-part [part]
-  (let [children (map-map (fn [[name transform]]
-                            {name (get-complex-transform transform)})
-                          (:children part))]
-    (-> part
-        (assoc-in [:transform] (make-transform [0 0 0] [1 0 0 0]))
-        (assoc-in [:children] children))))
+(defn recompute-body-transforms! [world]
+  (doseq [b (:bodies world)]
+    (let [body (:body b)
+          parent (get-in world [:weld-groups (:root b)])
+          relative-transform (:transform b)
+          parent-transform (:transform parent)
+          transform (combine-transforms relative-transform
+                                        parent-transform)]
+      (set-body-transform body transform))))
 
 ;;---
 
-(defn save-machine! [world filename]
-  (let [ground-children (map-map (fn [[name transform]]
-                                   {name (get-simple-transform transform)})
-                                 (:ground-children world))
-        parts (map-map (fn [[name part]]
-                         {name (get-simple-part part)})
-                       (:parts world))]
-    (spit filename {:ground-children ground-children
-                    :parts parts
-                    :wave-editor (:wave-editor world)})))
+(defn insert-sphere [world x y]
+  (if-let [collision (get-part-collision world x y)]
+    (let [normal (get-collision-normal world collision)
+          offset (vector-multiply (vector-normalize normal)
+                                  (:sphere-radius world))
+          position (vector-add (:point collision) offset)]
+      (create-sphere world position))
+    (let [line (unproject-point world [x y])
+          ground-plane [[0 0 0] [1 0 0] [0 0 1]]
+          offset [0 (:sphere-radius world) 0]
+          point (line-plane-intersection line ground-plane)
+          position (vector-add point offset)]
+      (create-sphere world position))))
 
-(defn load-machine [world filename]
-  (let [{:keys [ground-children parts wave-editor]} (read-string (slurp filename))
-        ground-children (map-map (fn [[name transform]]
-                                   {name (get-complex-transform transform)})
-                                 ground-children)
-        parts (map-map (fn [[name part]]
-                         {name (get-complex-part part)})
-                       parts)]
-    (-> world
-        (assoc-in [:ground-children] ground-children)
-        (assoc-in [:parts] parts)
-        (assoc-in [:wave-editor] wave-editor)
-        (compute-transforms :parts)
-        (create-weld-groups)
-        (compute-transforms :weld-groups))))
+(defn draw-spheres! [world]
+  (let [mesh (:sphere-mesh world)]
+    (doseq [body (:spheres world)]
+      (let [transform (get-body-transform body)
+            mesh (assoc-in mesh [:transform] transform)]
+        (draw-mesh! world mesh)))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; weld optimization
@@ -2750,10 +2711,138 @@
                                      children (get-group-children parts names groups)
                                      mesh (assoc-in mesh [:children] children)]
                                  {(first names) mesh}))
-                           groups)]
+                             groups)]        
     (-> world
+        (create-kinematic-bodies parts groups)
         (assoc-in [:weld-groups] weld-groups)
         (compute-transforms :weld-groups))))
+
+;;-------------------------------------------------------------------------------;;
+;; commands
+
+(defn get-key [control-pressed code]
+  (if-let [name (get-in keymap [code])]
+    (if control-pressed
+      (str "C-" name)
+      name)
+    nil))
+
+(defn execute-command [world]
+  (if-let [binding (get (:bindings world) (:command world))]
+    (let [world (-> world
+                    (assoc-in [:binding] binding)
+                    (assoc-in [:end-of-command] true))]
+      (if-let [key-fn (:key-fn binding)]
+        (key-fn world)
+        world))
+    world))
+
+(defn key-pressed [world event]
+  (if (in? (:code event) [341 345])
+    (assoc-in world [:control-pressed] true)
+    (if-let [key (get-key (:control-pressed world) (:code event))]
+      (if (= key "C-g")
+        (assoc-in world [:command] "")
+        (-> world
+            (update-in [:command] (fn [c]
+                                    (if (or (empty? c)
+                                            (:end-of-command world))
+                                      key
+                                      (str c " " key))))
+            (assoc-in [:end-of-command] false)
+            (execute-command)))
+      world)))
+
+(defn key-released [world event]
+  (draw-2d! world)
+  
+  (if (in? (:code event) [341 345])
+    (assoc-in world [:control-pressed] false)
+    world))
+
+;;---
+
+(defn command-mouse-pressed [world event]
+  (if-let [binding (:binding world)]
+    (if-let [press-fn (:press-fn binding)]
+      (press-fn world event)
+      world)
+    world))
+
+(defn command-mouse-moved [world event]
+  (if-let [binding (:binding world)]
+    (if-let [move-fn (:move-fn binding)]
+      (move-fn world event)
+      world)
+    world))
+
+(defn command-mouse-released [world event]
+  (let [world (if-let [binding (:binding world)]
+                (if-let [release-fn (:release-fn binding)]
+                  (release-fn world event)
+                  world)
+                world)]
+    (-> world
+        (compute-transforms :parts)
+        (create-weld-groups))))
+
+(defn draw-command! [command]
+  (fill-rect! :black 75 603 150 25)
+  (draw-text! :green command 10 605 14))
+
+;;-------------------------------------------------------------------------------;;
+;; load/save machine
+
+(defn get-simple-transform [transform]
+  {:position (get-transform-position transform)
+   :rotation (get-transform-rotation transform)})   
+
+(defn get-simple-part [part]
+  (let [children (map-map (fn [[name transform]]
+                            {name (get-simple-transform transform)})
+                          (:children part))]
+    (-> part
+        (dissoc-in [:transform])
+        (assoc-in [:children] children))))
+
+(defn get-complex-transform [transform]
+  (make-transform (:position transform) (:rotation transform)))
+
+(defn get-complex-part [part]
+  (let [children (map-map (fn [[name transform]]
+                            {name (get-complex-transform transform)})
+                          (:children part))]
+    (-> part
+        (assoc-in [:transform] (make-transform [0 0 0] [1 0 0 0]))
+        (assoc-in [:children] children))))
+
+;;---
+
+(defn save-machine! [world filename]
+  (let [ground-children (map-map (fn [[name transform]]
+                                   {name (get-simple-transform transform)})
+                                 (:ground-children world))
+        parts (map-map (fn [[name part]]
+                         {name (get-simple-part part)})
+                       (:parts world))]
+    (spit filename {:ground-children ground-children
+                    :parts parts
+                    :wave-editor (:wave-editor world)})))
+
+(defn load-machine [world filename]
+  (let [{:keys [ground-children parts wave-editor]} (read-string (slurp filename))
+        ground-children (map-map (fn [[name transform]]
+                                   {name (get-complex-transform transform)})
+                                 ground-children)
+        parts (map-map (fn [[name part]]
+                         {name (get-complex-part part)})
+                       parts)]
+    (-> world
+        (assoc-in [:ground-children] ground-children)
+        (assoc-in [:parts] parts)
+        (assoc-in [:wave-editor] wave-editor)
+        (compute-transforms :parts)
+        (create-weld-groups))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; bindings
@@ -2784,6 +2873,15 @@
          :press-fn (fn [w e]
                      (insert-wagon w :yellow (:x e) (:y e)))
          }
+
+    "p" {:key-fn (fn [w]
+                   (println! "insert physical sphere")
+                   w)
+         
+         :press-fn (fn [w e]
+                     (insert-sphere w (:x e) (:y e)))
+         }
+    
 
     "." {:key-fn (fn [w]
                    (println! "center view")
@@ -2867,6 +2965,11 @@
          :move-fn scale-mode-moved
          :release-fn scale-mode-released
          }
+
+    "C-x r" {:key-fn (fn [w]
+                       (reset-world!)
+                       w)
+         }
     }))
 
 ;;-------------------------------------------------------------------------------;;
@@ -2902,11 +3005,13 @@
 
   (set-thing! [:planet] (create-planet!))
   (create-ground! (:planet @world))
-  (set-thing! [:sphere-radius] 0.4)
+  (set-thing! [:sphere-radius] 0.2)
 
   (let [r (:sphere-radius @world)]
     (set-thing! [:sphere-mesh] (create-sphere-mesh [0 0 0] [1 0 0 0]
                                                    [r r r] :blue)))
+
+  (set-thing! [:spheres] [])
 
   (set-thing! [:meshes :ground] (create-cube-mesh
                                  [0 -0.25 0] [1 0 0 0] [12 0.5 12]
@@ -2926,8 +3031,6 @@
   (set-thing! [:last-time] 0.0)
   (set-thing! [:paused] true)
 
-  (set-thing! [:spheres] [])
-
   (create-menus!)
 
   (set-thing! [:snap-specs] (get-snap-specs @world))
@@ -2943,28 +3046,26 @@
   (set-thing! [:command] "")
   (create-bindings!)
 
-  (set-thing! [:text-input] "resources/complex.clj")
-
   (set-thing! [:use-weld-groups] true)
   )
 (reset-world!)
 )
-;; (update-thing! [:use-weld-groups] not)
 
 (defn update-world [world elapsed]
   (if (:paused world)
     world
-    (do
+    (let [world (-> world
+                    (update-in [:time] (fn [v]
+                                         (if (:paused world)
+                                           v
+                                           (mod (+ v 0.005) 1))))
+                    (run-waves)
+                    (compute-transforms (if (:use-weld-groups world)
+                                          :weld-groups
+                                          :parts)))]
+      (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)
-      (-> world
-          (update-in [:time] (fn [v]
-                               (if (:paused world)
-                                 v
-                                 (mod (+ v 0.005) 1))))
-          (run-waves)
-          (compute-transforms (if (:use-weld-groups world)
-                                :weld-groups
-                                :parts))))))
+      world)))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -3064,6 +3165,6 @@
                 :else
                 (if (:paused world)
                   (command-mouse-released world event)
-                  world))]b
+                  world))]
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
