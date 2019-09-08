@@ -1503,7 +1503,7 @@
   {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                     [0.12 0.12 0.12] :white) ;;; ##### 0.12??
            :points [[0.5 0 0] [-0.5 0 0]
-                    [0 0.5 0]
+                    [0 0.5 0] [0 -0.5 0]
                     [0 0 0.5] [0 0 -0.5]]
            :offset 0.25
            }
@@ -1572,7 +1572,7 @@
 
 (defn inserting? [world]
   (and (:paused world)
-       (in? (:command world) ["b" "t"])))
+       (in? (:command world) ["b" "t" "z"])))
 
 (defn move-cursor [world event]
   (if (inserting? world)
@@ -1661,6 +1661,12 @@
         ;;                         :part :ground})
         ;;                      (create-combinations (range 12) (range 12))))
         grid-specs [{:position [0.25 0 0.25]
+                     :rotation [1 0 0 0]
+                     :part :ground}
+                    {:position [0.75 0 0.25]
+                     :rotation [1 0 0 0]
+                     :part :ground}
+                    {:position [1.25 0 0.25]
                      :rotation [1 0 0 0]
                      :part :ground}
                     ]
@@ -2205,12 +2211,144 @@
   )
 
 ;;-------------------------------------------------------------------------------;;
+;; cables
+
+;; (do
+;; 1
+
+(defn mesh-to-from [mesh start end]
+  (let [v (vector-subtract end start)
+        length (vector-length v)]
+    (if (float-equals? length 0.0)
+      (set-mesh-position mesh [-1000 0 0])
+      (let [position (vector-multiply (vector-add end start) 0.5)
+            rotation [1 0 0 0]]
+        (-> mesh
+            (assoc-in [:transform] (make-transform position rotation))
+            (point-mesh-towards v)
+            (assoc-in [:scale 1] length))))))
+
+(defn draw-segment! [world start end color]
+  (let [mesh (-> (:cable-mesh world)
+                 (set-mesh-color color)
+                 (mesh-to-from start end))]
+    (draw-mesh! world mesh)))
+
+(defn actualize-points [world points]
+  (map (fn [p]
+         (if (map? p)
+           (let [{:keys [position part]} p]
+             (if (= part :ground)
+               position
+               (let [root (get-in world [:weld-groups part])
+                     transform (:transform root)]
+                 (apply-transform transform position))))
+           p))
+       points))
+
+(defn draw-cable! [world [name cable]]
+  (let [points (actualize-points world (:points cable))
+        points (if (= name (:new-cable world))
+                 (conj (vec points) (get-mesh-position (:cursor world)))
+                 points)
+        ]
+
+    ;; (println! (:points cable))
+    ;; (draw-mesh! world (set-mesh-position (:anchor-mesh world) (first points)))
+    ;; (if (not (= name (:new-cable world)))
+    ;;   (draw-mesh! world (set-mesh-position (:anchor-mesh world) (last points))))
+
+    ;; (doseq [i (range 1 (dec (count points)))]
+    ;;   (let [point (nth points i)]
+    ;;     (draw-mesh! world (set-mesh-position (:pulley-mesh world) point))))
+
+    (dotimes [i (dec (count points))]
+      (draw-segment! world
+                     (nth points i)
+                     (nth points (inc i))
+                     (:color cable)))
+    )
+  )
+
+(defn compute-cable-length [world cable-name]
+  ;; (let [cable (get-in world [:cables cable-name])
+  ;;       points (actualize-points world (:points cable))]
+  ;;   (reduce + (map (fn [a b]
+  ;;                    (vector-length (vector-subtract a b)))
+  ;;                  points (rest points))))
+  7
+  )
+
+(defn terminate-cable [world]
+  (if (:new-cable world)
+    (let [cable-name (:new-cable world)
+          length (compute-cable-length world cable-name)]
+      (println! "finished cable")
+      (-> world
+          (dissoc-in [:new-cable])
+          (assoc-in [:cables cable-name :length] length)))
+    world))
+
+(defn get-group-root [world part-name]
+  (first (find-if (fn [[name group]]
+                    (in? part-name (:parts group)))
+                  (:weld-groups world))))
+
+(defn get-relative-point [world snap-spec]
+  (if (= (:part snap-spec) :ground)
+    snap-spec
+    (let [root-name (get-group-root world (:part snap-spec))
+          transform (get-in world [:weld-groups root-name :transform])
+          inverse-transform (get-inverse-transform transform)
+          point (apply-transform inverse-transform (:position snap-spec))]
+      {:position point
+       :part root-name})))
+
+(defn cable-mode-pressed [world event]
+  (if (:cursor-snapped world)
+    (let [x (:x event)
+          y (:y event)
+          snap-spec (get-closest-snap-point world x y (:snap-specs world))
+          point (get-relative-point world snap-spec)]
+      (if-let [new-cable (:new-cable world)]
+        (update-in world [:cables new-cable :points] #(conj % point))
+        (let [name (gen-keyword :cable)]
+          (-> world
+              (assoc-in [:cables name] {:points [point]
+                                        :color :white})
+              (assoc-in [:new-cable] name)))))
+    (terminate-cable world)))
+
+(defn segment-collision? [mesh start end line]
+  (let [mesh (mesh-to-from mesh start end)
+        transform (:transform mesh)]
+    (get-mesh-collision mesh transform (:scale mesh) line)))
+                      
+(defn cable-collision? [world cable line]
+  (let [points (actualize-points world (:points cable))]
+    (some (fn [[a b]]
+            (segment-collision? (:cable-mesh world)
+                                a b line))
+          (map vector points (rest points)))))
+
+(defn get-cable-at [world x y]
+  (let [line (unproject-point world [x y])]
+    (first (find-if (fn [[name cable]]
+                      (cable-collision? world cable line))
+                    (:cables world)))))
+
+;; (create-bindings!)
+;; )
+
+;;-------------------------------------------------------------------------------;;
 ;; color mode
 
 (defn set-color [world x y]
-  (if-let [part-name (get-part-at world x y)]
-    (assoc-in world [:parts part-name :color] (:current-color world))
-    world))
+  (if-let [cable-name (get-cable-at world x y)]
+    (assoc-in world [:cables cable-name :color] (:current-color world))
+    (if-let [part-name (get-part-at world x y)]
+      (assoc-in world [:parts part-name :color] (:current-color world))
+      world)))
 
 ;;-------------------------------------------------------------------------------;;
 ;; insert mode
@@ -2295,15 +2433,17 @@
                (remove #(= % sphere) spheres))))
 ;;---
 
-(defn delete-part [world x y]
-  (if-let [sphere (get-sphere-at world x y)]
-    (delete-sphere world sphere)
-    (if-let [part-name (get-part-at world x y)]
-      (-> world
-          (detach-child part-name)
-          (dissoc-in [:wave-editor :functions part-name])
-          (dissoc-in [:parts part-name]))
-      world)))
+(defn delete-element [world x y]
+  (if-let [cable-name (get-cable-at world x y)]
+    (dissoc-in world [:cables cable-name])
+    (if-let [sphere (get-sphere-at world x y)]
+      (delete-sphere world sphere)
+      (if-let [part-name (get-part-at world x y)]
+        (-> world
+            (detach-child part-name)
+            (dissoc-in [:wave-editor :functions part-name])
+            (dissoc-in [:parts part-name]))
+        world))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; scale mode
@@ -2707,11 +2847,12 @@
         parts (:parts (compute-transforms (reset-part-values world) :parts))
         info (:info world)
         weld-groups (map-map (fn [names]
-                               (let [mesh (create-mesh-from-parts parts names info)
-                                     children (get-group-children parts names groups)
-                                     mesh (assoc-in mesh [:children] children)]
+                               (let [children (get-group-children parts names groups)
+                                     mesh (-> (create-mesh-from-parts parts names info)
+                                              (assoc-in [:children] children)
+                                              (assoc-in [:parts] names))]
                                  {(first names) mesh}))
-                             groups)]        
+                             groups)]
     (-> world
         (create-kinematic-bodies parts groups)
         (assoc-in [:weld-groups] weld-groups)
@@ -2896,7 +3037,7 @@
                    w)
          
          :press-fn (fn [w e]
-                     (delete-part w (:x e) (:y e)))
+                     (delete-element w (:x e) (:y e)))
          }
 
     "c" {:key-fn (fn [w]
@@ -2964,6 +3105,13 @@
          :press-fn scale-mode-pressed
          :move-fn scale-mode-moved
          :release-fn scale-mode-released
+         }
+
+    "z" {:key-fn (fn [w]
+                   (println! "create cable")
+                   w)
+         
+         :press-fn cable-mode-pressed
          }
 
     "C-x r" {:key-fn (fn [w]
@@ -3047,6 +3195,11 @@
   (create-bindings!)
 
   (set-thing! [:use-weld-groups] true)
+
+  (set-thing! [:cable-mesh] (create-cube-mesh [0 0 0] [1 0 0 0]
+                                              [0.03 1 0.03] :blue))
+  (set-thing! [:new-cable] nil)
+  (set-thing! [:cables] {})
   )
 (reset-world!)
 )
@@ -3081,6 +3234,9 @@
       (draw-part! world part)))
   
   (draw-spheres! world)
+
+  (doseq [cable (:cables world)]
+    (draw-cable! world cable))
 
   (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
   (if (inserting? world)
@@ -3168,3 +3324,13 @@
                   world))]
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
+
+;; (reset-world!)
+
+;; (do
+;; 1
+
+;; (clear-output!)
+;; (let [world @world
+;;       ]
+;;   ))
