@@ -206,10 +206,10 @@
 
 (def out (atom nil))
 
-;; error with changing buffer #############################################
 (defn gl-println [& forms]
   (binding [*out* @out]
-    (apply println forms)))
+    (apply clojure.core/println forms))
+  )
 
 (defn check-shader [shader]
   (let [status (GL20/glGetShaderi shader GL20/GL_COMPILE_STATUS)]
@@ -550,11 +550,9 @@
   (let [rotation (new Quat4f)]
     (quaternion->axis-angle (.getRotation transform rotation))))
 
-(declare println!)
-
 (defn print-transform [transform]
-  (println! [(get-transform-position transform)
-             (get-transform-rotation transform)]))
+  (println [(get-transform-position transform)
+            (get-transform-rotation transform)]))
 
 (defn get-transform-matrix [transform]
   (let [matrix (into-array Float/TYPE (range 16))]
@@ -1315,7 +1313,7 @@
       (draw-text! :green (nth last-lines i)
                   15 (+ (* i 15) (- window-height 80)) 14))))
 
-(defn println! [& args]
+(defn println [& args]
   (apply gl-println args)
   (let [line (apply print-str (conj (into [] args) "\n"))
         truncated-output (apply str (take-last 1024 @output))]
@@ -1904,7 +1902,7 @@
       (let [rotation (get-transform-rotation transform)
             loop-fn (if (= key :weld-groups)
                       (compute-translated-loop-fn (:loop-fn block))
-                      (:loop-fn block))            
+                      (:loop-fn block))
             loop-fn (map (fn [[t v]]
                            [t (apply-transform transform v)])
                          loop-fn)
@@ -2030,14 +2028,23 @@
         v1 (second (second pair))]
     (interpolator v0 v1 s)))
 
+(defn neutral-function? [function]
+  (and
+   (= (count function) 2)
+   (vector= (first function) [0 0])
+   (vector= (second function) [1 0])))
+
 (defn run-wave [world name]
-  (let [function (get-in world [:wave-editor :functions name])
-        part (get-in world [:parts name])
-        linear-interpolator (fn [a b t]
-                              (+ (* a (- 1.0 t)) (* b t)))
-        new-value (float (get-function-value
-                          function (:time world) linear-interpolator))]
-    (assoc-in world [:parts name :value] new-value)))
+  (let [function (get-in world [:wave-editor :functions name])]
+    (if (neutral-function? function)
+      world
+      (let [part (get-in world [:parts name])
+            linear-interpolator (fn [a b t]
+                                  (+ (* a (- 1.0 t)) (* b t)))
+            new-value (float (get-function-value
+                              function (:time world)
+                              linear-interpolator))]
+        (assoc-in world [:parts name :value] new-value)))))
 
 (defn get-function-at [wave-editor t v]
   :track4741)
@@ -2081,7 +2088,6 @@
               (let [function (get-in world [:wave-editor
                                             :functions function-name])]
                 ;;############################################################
-                (println! function)
                 world
                 )
               world)
@@ -2253,7 +2259,6 @@
                  points)
         ]
 
-    ;; (println! (:points cable))
     ;; (draw-mesh! world (set-mesh-position (:anchor-mesh world) (first points)))
     ;; (if (not (= name (:new-cable world)))
     ;;   (draw-mesh! world (set-mesh-position (:anchor-mesh world) (last points))))
@@ -2271,28 +2276,23 @@
   )
 
 (defn compute-cable-length [world cable-name]
-  ;; (let [cable (get-in world [:cables cable-name])
-  ;;       points (actualize-points world (:points cable))]
-  ;;   (reduce + (map (fn [a b]
-  ;;                    (vector-length (vector-subtract a b)))
-  ;;                  points (rest points))))
-  7
-  )
+  (let [cable (get-in world [:cables cable-name])
+        points (actualize-points world (:points cable))]
+    (reduce + (map (fn [a b]
+                     (vector-length (vector-subtract a b)))
+                   points (rest points)))))
 
 (defn terminate-cable [world]
   (if (:new-cable world)
     (let [cable-name (:new-cable world)
           length (compute-cable-length world cable-name)]
-      (println! "finished cable")
+      (println "finished cable")
       (-> world
           (dissoc-in [:new-cable])
           (assoc-in [:cables cable-name :length] length)))
     world))
 
-(defn get-group-root [world part-name]
-  (first (find-if (fn [[name group]]
-                    (in? part-name (:parts group)))
-                  (:weld-groups world))))
+(declare get-group-root)
 
 (defn get-relative-point [world snap-spec]
   (if (= (:part snap-spec) :ground)
@@ -2323,7 +2323,7 @@
   (let [mesh (mesh-to-from mesh start end)
         transform (:transform mesh)]
     (get-mesh-collision mesh transform (:scale mesh) line)))
-                      
+
 (defn cable-collision? [world cable line]
   (let [points (actualize-points world (:points cable))]
     (some (fn [[a b]]
@@ -2336,6 +2336,47 @@
     (first (find-if (fn [[name cable]]
                       (cable-collision? world cable line))
                     (:cables world)))))
+
+(defn get-free-dof [world cable-name]
+  (let [cable (get-in world [:cables cable-name])
+        part-names (map :part (:points cable))
+        functions (get-in world [:wave-editor :functions])]
+    (find-if (fn [part-name]
+               (neutral-function?
+                (get-in functions [part-name])))
+             part-names)))
+
+(defn enforce-cable-length [world cable-name]
+  (let [cable (get-in world [:cables cable-name])
+        part-name (get-free-dof world cable-name)
+        part (get-in world [:parts part-name])
+        value (:value part)
+        epsilon 0.01
+        v1 (+ value epsilon)
+        v2 (- value epsilon)
+        l1 (-> world
+               (assoc-in [:parts part-name :value] v1)
+               (compute-transforms :weld-groups) ;;############
+               (compute-cable-length cable-name))
+        l2 (-> world
+               (assoc-in [:parts part-name :value] v2)
+               (compute-transforms :weld-groups) ;;############
+               (compute-cable-length cable-name))
+        dl 0.001
+        new-value (if (< (abs (- l2 l1)) dl)
+                    value
+                    (let [m (float (/ (- v2 v1) (- l2 l1)))
+                          b (- v1 (* m l1))]
+                      (+ (* m (:length cable)) b)))]
+    (-> world
+        (assoc-in [:parts part-name :value] new-value)
+        (compute-transforms :weld-groups))))
+
+(defn enforce-cable-lengths [world]
+  (reduce (fn [w cable-name]
+            (enforce-cable-length w cable-name))
+          world
+          (keys (:cables world))))
 
 ;; (create-bindings!)
 ;; )
@@ -2519,7 +2560,7 @@
           normal (:normal world)
           l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
           increase-vector (map * (:normal world) [l l l])]
-      (println! "scale:" (round (/ l grain-size)))
+      (println "scale:" (round (/ l grain-size)))
       (-> world
           (set-block-size block-name scale center increase-vector)
           (assoc-in [:increase-vector] increase-vector)))
@@ -2568,7 +2609,7 @@
           center (:original-center world)
           normal (second adjust-line)
           l (within (+ (apply max scale) d) grain-size 10)]
-      (println! "scale:" (round (/ l grain-size)))
+      (println "scale:" (round (/ l grain-size)))
       (-> world
           (set-track-size track-name scale center l)
           (assoc-in [:track-length] l)
@@ -2842,6 +2883,11 @@
 
 (declare compute-transforms)
 
+(defn get-group-root [world part-name]
+  (first (find-if (fn [[name group]]
+                    (in? part-name (:parts group)))
+                  (:weld-groups world))))
+
 (defn create-weld-groups [world]
   (let [groups (segregate-parts world)
         parts (:parts (compute-transforms (reset-part-values world) :parts))
@@ -2896,7 +2942,7 @@
 
 (defn key-released [world event]
   (draw-2d! world)
-  
+
   (if (in? (:code event) [341 345])
     (assoc-in world [:control-pressed] false)
     world))
@@ -2928,15 +2974,16 @@
         (create-weld-groups))))
 
 (defn draw-command! [command]
-  (fill-rect! :black 75 603 150 25)
-  (draw-text! :green command 10 605 14))
+  (fill-rect! :black 155 13 150 25)
+  (draw-text! :green command 88 17 14)
+  )
 
 ;;-------------------------------------------------------------------------------;;
 ;; load/save machine
 
 (defn get-simple-transform [transform]
   {:position (get-transform-position transform)
-   :rotation (get-transform-rotation transform)})   
+   :rotation (get-transform-rotation transform)})
 
 (defn get-simple-part [part]
   (let [children (map-map (fn [[name transform]]
@@ -2986,138 +3033,171 @@
         (create-weld-groups))))
 
 ;;-------------------------------------------------------------------------------;;
+
+;; (do
+;; 1
+
+;; (defn get-cable-endpoint [world event]
+;;   (println "here")
+;;   )
+
+(defn move-cable-mode-pressed [world event]
+  ;; (get-cable-endpoint world event)
+  world)
+
+(defn move-cable-mode-moved [world event]
+   world)
+
+(defn move-cable-mode-released [world event]
+  world)
+
+;; (create-bindings!)
+;; (let [world @world]
+;;   (println (:cables world))
+;;   ))
+
+;;-------------------------------------------------------------------------------;;
 ;; bindings
 
 (defn create-bindings! []
   (set-thing!
    [:bindings]
    {"b" {:key-fn (fn [w]
-                   (println! "insert block")
+                   (println "insert block")
                    w)
-         
+
          :press-fn (fn [w e]
                      (insert-part w :block :white (:x e) (:y e)))
          }
 
     "t" {:key-fn (fn [w]
-                   (println! "insert track")
+                   (println "insert track")
                    w)
-         
+
          :press-fn (fn [w e]
                      (insert-part w :track :red (:x e) (:y e)))
          }
 
     "w" {:key-fn (fn [w]
-                   (println! "insert wagon")
+                   (println "insert wagon")
                    w)
-         
+
          :press-fn (fn [w e]
                      (insert-wagon w :yellow (:x e) (:y e)))
          }
 
     "p" {:key-fn (fn [w]
-                   (println! "insert physical sphere")
+                   (println "insert physical sphere")
                    w)
-         
+
          :press-fn (fn [w e]
                      (insert-sphere w (:x e) (:y e)))
          }
-    
+
 
     "." {:key-fn (fn [w]
-                   (println! "center view")
+                   (println "center view")
                    w)
-         
+
          :press-fn (fn [w e]
                      (set-pivot w (:x e) (:y e)))
          }
 
     "d" {:key-fn (fn [w]
-                   (println! "delete")
+                   (println "delete")
                    w)
-         
+
          :press-fn (fn [w e]
                      (delete-element w (:x e) (:y e)))
          }
 
     "c" {:key-fn (fn [w]
-                   (println! "set color")
+                   (println "set color")
                    w)
-         
+
          :press-fn (fn [w e]
                      (set-color w (:x e) (:y e)))
          }
 
     "g" {:key-fn (fn [w]
-                   (println! "add graph")
+                   (println "add graph")
                    w)
-         
+
          :press-fn (fn [w e]
                      (add-graph w (:x e) (:y e)))
          }
 
     "C-x s 1" {:key-fn (fn [w]
                          (save-machine! w "resources/1.clj")
-                         (println! "machine 1 saved")
+                         (println "machine 1 saved")
                          w)
                }
 
     "C-x l 1" {:key-fn (fn [w]
-                         (println! "machine 1 loaded")
+                         (println "machine 1 loaded")
                          (load-machine w "resources/1.clj"))
                }
 
     "C-x s 2" {:key-fn (fn [w]
                          (save-machine! w "resources/2.clj")
-                         (println! "machine 2 saved")
+                         (println "machine 2 saved")
                          w)
                }
 
     "C-x l 2" {:key-fn (fn [w]
-                         (println! "machine 2 loaded")
+                         (println "machine 2 loaded")
                          (load-machine w "resources/2.clj"))
                }
 
     "C-x s 3" {:key-fn (fn [w]
                          (save-machine! w "resources/3.clj")
-                         (println! "machine 3 saved")
+                         (println "machine 3 saved")
                          w)
                }
 
     "C-x l 3" {:key-fn (fn [w]
-                         (println! "machine 3 loaded")
+                         (println "machine 3 loaded")
                          (load-machine w "resources/3.clj"))
                }
 
     "m" {:key-fn (fn [w]
-                   (println! "slide part")
+                   (println "slide part")
                    w)
-         
+
          :press-fn move-mode-pressed
          :move-fn move-mode-moved
          :release-fn move-mode-released
          }
 
     "s" {:key-fn (fn [w]
-                   (println! "scale part")
+                   (println "scale part")
                    w)
-         
+
          :press-fn scale-mode-pressed
          :move-fn scale-mode-moved
          :release-fn scale-mode-released
          }
 
     "z" {:key-fn (fn [w]
-                   (println! "create cable")
+                   (println "create cable")
                    w)
-         
+
          :press-fn cable-mode-pressed
          }
 
     "C-x r" {:key-fn (fn [w]
                        (reset-world!)
                        w)
-         }
+             }
+
+    "C-x z" {:key-fn (fn [w]
+                       (println "move cable endpoints")
+                       w)
+
+             :press-fn move-cable-mode-pressed
+             :move-fn move-cable-mode-moved
+             :release-fn move-cable-mode-released
+             }
     }))
 
 ;;-------------------------------------------------------------------------------;;
@@ -3215,7 +3295,9 @@
                     (run-waves)
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
-                                          :parts)))]
+                                          :parts))
+                    (enforce-cable-lengths)
+                    )]
       (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)
       world)))
@@ -3232,7 +3314,7 @@
       (draw-mesh! world group))
     (doseq [part (vals (:parts world))]
       (draw-part! world part)))
-  
+
   (draw-spheres! world)
 
   (doseq [cable (:cables world)]
@@ -3249,10 +3331,10 @@
 
 (defn draw-2d! [world]
   (draw-command! (:command world))
-  
+
   (if (:show-editor world)
     (draw-wave-editor! world))
-  
+
   (doseq [menu (vals (:menus world))]
     (draw-image! (:image menu) (:x menu) (:y menu)))
 
@@ -3324,13 +3406,3 @@
                   world))]
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
-
-;; (reset-world!)
-
-;; (do
-;; 1
-
-;; (clear-output!)
-;; (let [world @world
-;;       ]
-;;   ))
