@@ -1499,32 +1499,41 @@
 
 (defn create-info []
   {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                    [0.12 0.12 0.12] :white) ;;; ##### 0.12??
+                                    [1 1 1] :white)
            :points [[0.5 0 0] [-0.5 0 0]
                     [0 0.5 0] [0 -0.5 0]
                     [0 0 0.5] [0 0 -0.5]]
            :offset 0.25
+           :scale [0.5 0.5 0.5]
            }
 
    :track {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                    [0.12 0.12 0.12] :white)
+                                    [1 1 1] :white)
            :points [[0.2 0 0] [-0.2 0 0]
                     [0 0.2 0]
                     [0 0 0.2] [0 0 -0.2]
                     ]
            :offset 1
+           :scale [0.1 1 0.1]
            }
+
+   :chip {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                   [1 1 1] :white)
+           :points []
+          :offset 0.05
+          :scale [0.3 0.1 0.3]
+          }
    })
 
-(defn create-part [type color]
-  (let [scale (if (= type :block)
-                [0.5 0.5 0.5]
-                [0.1 1 0.1])]
-    {:type type
-     :color color
-     :transform (make-transform [0 0.5 0] [0 1 0 0])
-     :value 0.0
-     :scale scale}))
+(defn create-part [type color info]
+  (let [part {:type type
+              :color color
+              :value 0
+              :transform (make-transform [0 0.5 0] [0 1 0 0])
+              :scale (get-in info [type :scale])}]
+    (if (= type :chip)
+      (assoc-in part [:time] 0.0)
+      part)))
 
 (defn get-part-with-color [world color]
   (first (find-if (fn [[name part]]
@@ -1569,8 +1578,8 @@
 (declare get-closest-snap-point)
 
 (defn inserting? [world]
-  (and (:paused world)
-       (in? (:command world) ["b" "t" "z"])))
+  ;; (and (:paused world)
+  (in? (:command world) ["b" "t" "z" "i"]))
 
 (defn move-cursor [world event]
   (if (inserting? world)
@@ -1590,12 +1599,6 @@
           (assoc-in [:cursor-snapped] snapped)))
     world))
 
-(defn draw-color-indicator! [world]
-  (let [{:keys [x y w h]} (get-in world [:menus :colors
-                                         :regions (:current-color world)])]
-    (dotimes [i 3]
-      (draw-rect! :black x y (- w i 1) (- h i 1)))))
-
 (declare get-part-at)
 
 (defn set-pivot [world x y]
@@ -1605,6 +1608,31 @@
                     ground-plane [[0 0 0] [1 0 0] [0 0 1]]]
                 (line-plane-intersection line ground-plane)))]
     (compute-camera (assoc-in world [:camera :pivot] pos))))
+
+(defn get-function-value [function t interpolator]
+  (let [pairs (map vector function (rest function))
+        pair (find-if (fn [[[t0 & _] [t1 & _]]]
+                        (<= t0 t t1))
+                      pairs)
+        t0 (first (first pair))
+        t1 (first (second pair))
+        s (map-between-ranges t t0 t1 0 1)
+        v0 (second (first pair))
+        v1 (second (second pair))]
+    (interpolator v0 v1 s)))
+
+(defn create-image [filename x y w h]
+  (let [document (read-xml filename)
+        image (if (= w -1)
+                (parse-svg-from-map-with-height document h)
+                (parse-svg-from-map-with-width document w))
+        menu {:x x
+              :y y
+              :w (get-image-width image)
+              :h (get-image-height image)
+              :image image}
+        regions (get-absolute-svg-regions document menu)]
+    (assoc-in menu [:regions] regions)))
 
 ;;-------------------------------------------------------------------------------;;
 ;; draw parts
@@ -1877,7 +1905,6 @@
 ;; mechanical tree
 
 (declare compute-subtree-transforms)
-(declare get-function-value)
 
 (defn compute-children-transforms [world part-name transform key]
   (reduce (fn [w [child-name relative-transform]]
@@ -1929,6 +1956,7 @@
 (defn compute-subtree-transforms [world name transform key]
   (case (get-in world [:parts name :type])
     :block (block-compute-subtree-transforms world name transform key)
+    :chip (block-compute-subtree-transforms world name transform key)
     :track (track-compute-subtree-transforms world name transform key)
     world))
 
@@ -1941,7 +1969,57 @@
           (:ground-children world)))
 
 ;;-------------------------------------------------------------------------------;;
-;; wave editor
+;; graph mode
+
+(defn neutral-function? [function]
+  (and
+   (= (count function) 2)
+   (vector= (first function) [0 0])
+   (vector= (second function) [1 0])))
+
+(do
+1
+
+(defn chip-change-part [world part-name]
+  (let [chip-name (:selected-chip world)
+        chip (get-in world [:parts chip-name])]
+    (if (in? part-name (keys (:functions chip)))
+      (dissoc-in world [:parts chip-name :functions part-name])
+      (if (or (nil? part-name)
+              (= part-name chip-name))
+        world
+        (assoc-in world [:parts chip-name :functions part-name]
+                  [[0 0] [1 1]])))))
+
+(defn select-chip [world part-name]
+  (let [part (get-in world [:parts part-name])]
+    (if (= (:type part) :chip)
+      (-> world
+          (assoc-in [:selected-chip] part-name)
+          (assoc-in [:parts part-name :color] :red))
+      world)))
+
+(defn unselect-chip [world]
+  (if-let [selected (:selected-chip world)]
+    (assoc-in world [:parts selected :color] :gray)
+    world))
+
+(defn graph-mode-pressed [world event]
+  (let [x (:x event)
+        y (:y event)]
+    (if (inside-box? (:wave-editor world) x y)
+      (do
+        (println "edit graph")
+        world
+        )
+      (let [part-name (get-part-at world x y)
+            part (get-in world [:parts part-name])]
+        (if-let [selected (:selected-chip world)]
+          (chip-change-part world part-name)
+          (select-chip world part-name))))))
+
+(defn graph-mode-moved [world event] world)
+(defn graph-mode-released [world event] world)
 
 (defn global->editor-coordinates [wave-editor [t v]]
   (let [{:keys [x y w h]} wave-editor
@@ -1954,104 +2032,8 @@
     [(map-between-ranges t 0 1 (+ x1 7) (- x2 7))
      (map-between-ranges v 0 1 (- y2 7) (+ y1 7))]))
 
-(defn editor-coordinates->global [wave-editor [px py]]
-  (let [{:keys [x y w h]} wave-editor
-        hw (/ w 2)
-        hh (/ h 2)
-        x1 (- x hw)
-        x2 (+ x hw)
-        y1 (- y hh)
-        y2 (+ y hh)]
-    [(within (map-between-ranges px (+ x1 7) (- x2 7) 0 1) 0 1)
-     (within (map-between-ranges py (- y2 7) (+ y1 7) 0 1) 0 1)]))
-
-(defn get-function-point-at [wave-editor t v]
-  (let [named-points (mapcat (fn [[name points]]
-                               (map (fn [point index]
-                                      [name index point])
-                                    points (range (count points))))
-                             (:functions wave-editor))
-        named-point (find-if (fn [[name index point]]
-                               (< (distance point [t v]) 0.05))
-                             named-points)]
-    (if (nil? named-point)
-      nil
-      (vec (take 2 named-point)))))
-
-(defn point-between-points? [p p1 p2]
-  (let [v (vector-subtract p2 p1)
-        line [p1 v]
-        l (vector-length v)]
-    (and
-     (< (point-line-distance p line) 0.04)
-     (< (distance p p1) l)
-     (< (distance p p2) l))))
-
-(defn add-function-point [wave-editor t v]
-  (let [functions (:functions wave-editor)
-        named-points (mapcat (fn [[name points]]
-                               (map (fn [point index]
-                                      [name index point])
-                                    (butlast points) (range (count points))))
-                             functions)
-        [name index _] (find-if (fn [[name index point-before]]
-                                  (let [function (get-in functions [name])
-                                        point-after (nth function (inc index))]
-                                    (point-between-points? [t v]
-                                                           point-before
-                                                           point-after)))
-                                named-points)]
-
-    (if (not-nil? name)
-      (update-in wave-editor [:functions name]
-                 (fn [function]
-                   (vector-insert function [t v] (inc index))))
-      wave-editor)))
-
-(defn remove-function-point [wave-editor point]
-  (if-let [[name index] point]
-    (let [function (get-in wave-editor [:functions name])]
-      (if (< 0 index (dec (count function)))
-        (update-in wave-editor [:functions name] #(vector-remove % index))
-        wave-editor))
-    wave-editor))
-
-(defn get-function-value [function t interpolator] ;;############################################
-  (let [pairs (map vector function (rest function))
-        pair (find-if (fn [[[t0 & _] [t1 & _]]]
-                        (<= t0 t t1))
-                      pairs)
-        t0 (first (first pair))
-        t1 (first (second pair))
-        s (map-between-ranges t t0 t1 0 1)
-        v0 (second (first pair))
-        v1 (second (second pair))]
-    (interpolator v0 v1 s)))
-
-(defn neutral-function? [function]
-  (and
-   (= (count function) 2)
-   (vector= (first function) [0 0])
-   (vector= (second function) [1 0])))
-
-(defn run-wave [world name]
-  (let [function (get-in world [:wave-editor :functions name])]
-    (if (neutral-function? function)
-      world
-      (let [part (get-in world [:parts name])
-            linear-interpolator (fn [a b t]
-                                  (+ (* a (- 1.0 t)) (* b t)))
-            new-value (float (get-function-value
-                              function (:time world)
-                              linear-interpolator))]
-        (assoc-in world [:parts name :value] new-value)))))
-
-(defn get-function-at [wave-editor t v]
-  :track4741)
-
-(defn draw-function! [wave-editor function-name color]
-  (let [{:keys [x y w h]} wave-editor
-        function (get-in wave-editor [:functions function-name])]
+(defn draw-function! [wave-editor function color]
+  (let [{:keys [x y w h]} wave-editor]
     (doseq [i (range 1 (count function))]
       (let [[x1 y1] (global->editor-coordinates
                      wave-editor (nth function (dec i)))
@@ -2063,164 +2045,92 @@
         (if (= i 1)
           (fill-circle! color x1 y1 7))))))
 
-;;---
-
-(defn add-graph [world x y]
-  (if-let [part-name (get-part-at world x y)]
-    (if (nil? (get-in world [:wave-editor :functions part-name]))
-      (assoc-in world [:wave-editor :functions part-name] [[0 0] [1 0]])
-      (dissoc-in world [:wave-editor :functions part-name]))
-    world))
-
-(defn editor-mouse-pressed [world event]
-  (let [x (:x event)
-        y (:y event)
-        [t v] (editor-coordinates->global (:wave-editor world) [x y])
-        moving-point (get-function-point-at (:wave-editor world) t v)]
-    (if (= (:button event) :right)
-      (update-in world [:wave-editor] #(remove-function-point % moving-point))
-      (let [elapsed (- (get-current-time) (:last-time world))
-            world (assoc-in world [:last-time] (get-current-time))]
-        (if (< elapsed 200)
-          (update-in world [:wave-editor] #(add-function-point % t v))
-          (if (nil? moving-point)
-            (if-let [function-name (get-function-at (:wave-editor world) t v)]
-              (let [function (get-in world [:wave-editor
-                                            :functions function-name])]
-                ;;############################################################
-                world
-                )
-              world)
-            (-> world
-                (assoc-in [:moving-function-point] moving-point)
-                (assoc-in [:editor-last-point] [x y]))))))))
-
-(defn editor-mouse-moved [world event]
-  (reset! redraw-flag true)
-  (let [x (:x event)
-        y (:y event)
-        coords (editor-coordinates->global (:wave-editor world) [x y])]
-    (if-let [[function-name index] (:moving-function-point world)]
-      (let [function (get-in world [:wave-editor :functions function-name])
-            coords (cond
-                     (= index 0)
-                     (assoc-in coords [0] 0.0)
-
-                     (= index (dec (count function)))
-                     (assoc-in coords [0] 1.0)
-
-                     :else
-                     coords)]
-        (assoc-in world [:wave-editor :functions function-name index] coords))
-      ;; (-> world
-      ;;     (assoc-in [:time] (first coords))
-      ;;     (run-waves)
-      ;;     (compute-transforms))
-      world
-      )))
-
-(defn editor-mouse-released [world event]
-  (-> world
-      (dissoc-in [:editor-last-point])
-      (dissoc-in [:moving-function-point])))
-
-(defn draw-wave-editor! [world]
+(defn graph-draw-window! [world]
   (let [wave-editor (:wave-editor world)
         {:keys [x y w h]} wave-editor]
     (fill-rect! :black x y w h)
     (draw-rect! :dark-gray x y (- w 14) (- h 14))
 
-    (doseq [function-name (keys (get-in wave-editor [:functions]))]
-      (let [color (get-in world [:parts function-name :color])]
-        (draw-function! (:wave-editor world) function-name color)))
+    (if-let [chip-name (:selected-chip world)]
+      (let [chip (get-in world [:parts chip-name])]
+        (doseq [function-name (keys (:functions chip))]
+          (let [color (get-in world [:parts function-name :color])
+                function (get-in chip [:functions function-name])]
+            (draw-function! (:wave-editor world) function color))))
+      (let [hw (* w 0.5)
+            hh (* h 0.5)
+            o (- 7)
+            x1 (- x hw o)
+            x2 (+ x hw o)
+            y1 (- y hh o)
+            y2 (+ y hh o)]
+        (draw-line! :dark-gray x1 y1 x2 y2)
+        (draw-line! :dark-gray x1 y2 x2 y1)))))
 
-    (let [hw (/ w 2)
-          hh (/ h 2)
-          x1 (- x hw -7)
-          x2 (+ x hw -7)
-          y1 (- y hh -7)
-          y2 (+ y hh -7)
-
-          lx (map-between-ranges (:time world) 0 1 x1 x2)]
-      (draw-line! :purple lx y1 lx y2)
+(defn run-wave [world part-name function time]
+  (let [part (get-in world [:parts part-name])
+        linear-interpolator (fn [a b t]
+                              (+ (* a (- 1.0 t)) (* b t)))
+        old-value (:value part)
+        new-value (float (get-function-value
+                          function time linear-interpolator))
+        world (assoc-in world [:parts part-name :value] new-value)
+        ]
+    (if (= (:type part) :chip)
+      (if (and
+           (> new-value 0.5)
+           (< old-value 0.5))
+        (assoc-in world [:parts part-name :time] 0.0)
+        world)
+      world
       )))
 
-(defn run-waves [world]
-  (reduce (fn [w name]
-            (run-wave w name))
-          world
-          (keys (get-in world [:wave-editor :functions]))))
+(defn run-chip [world chip-name dt]
+  (let [chip (get-in world [:parts chip-name])]
+    (if (nil? (:time chip))
+      world
+      (let [time (within (+ (:time chip) dt) 0.0 1.0)
+            world (reduce (fn [w [name function]]
+                            (run-wave w name function time))
+                          world
+                          (:functions chip))
+            time (if (>= time 1.0)
+                   nil
+                   time)]
+        (assoc-in world [:parts chip-name :time] time)))))
 
-;;-------------------------------------------------------------------------------;;
-;; menus
+(defn run-chips [world elapsed]
+  (if (not (:paused world))
+    (let [dt (float (/ elapsed 1000))
+          chip-names (filter (fn [name]
+                               (= (get-in world [:parts name :type])
+                                  :chip))
+                             (keys (:parts world)))]
+      (reduce (fn [w chip-name]
+                (run-chip w chip-name dt))
+              world
+              chip-names))
+    world))
 
-(defn create-menu [filename x y w h]
-  (let [document (read-xml filename)
-        image (if (= w -1)
-                (parse-svg-from-map-with-height document h)
-                (parse-svg-from-map-with-width document w))
-        menu {:x x
-              :y y
-              :w (get-image-width image)
-              :h (get-image-height image)
-              :image image}
-        regions (get-absolute-svg-regions document menu)]
-    (assoc-in menu [:regions] regions)))
+;; (clear-output!)
+;; (let [world @world
+;;       ]
+;;   (create-bindings!)
+;;   )
+)
 
-(defn get-button-at [menus x y]
-  (let [buttons (mapcat (fn [[name menu]]
-                          (map (fn [region]
-                                 [name (first region) (second region)])
-                               (:regions menu)))
-                        menus)
-        button (find-if (fn [[menu-name button-name box]]
-                          (inside-box? box x y))
-                        buttons)]
-    (if (nil? button)
-      nil
-      (vec (take 2 button)))))
+;; (println (keys (:parts @world)))
 
-;;---
+;; (do
+;; (set-thing! [:parts :chip12232 :time] 0.0)
+;; ;; (set-thing! [:parts :chip12570 :time] 0.0)
+;; )
 
-(defn menu-pressed [world event]
-  (let [{:keys [x y]} event
-        [menu-name button-name] (get-button-at (:menus world) x y)]
-    (cond
-      (= menu-name :colors)
-      (assoc-in world [:current-color] button-name)
-
-      (= menu-name :actions)
-      (cond
-        (= button-name :playpause)
-        (update-in world [:paused] not)
-
-        (= button-name :delete) ;;########################################
-        (let [world (update-in world [:show-editor] not)]
-          (reset! redraw-flag true)
-          world)
-
-        :else world)
-
-      :else world)))
-
-(defn create-menus! []
-  (set-thing! [:menus :tools]
-              (create-menu "resources/tools.svg" 40 153 80 -1))
-  (set-thing! [:menus :actions]
-              (create-menu "resources/actions.svg" (- 685 40) 152 80 -1))
-  (set-thing! [:menus :colors]
-              (create-menu "resources/colors.svg" 480 20 -1 40))
-
-  (let [w (get-thing! [:menus :actions :regions :playpause :w])]
-    (set-thing! [:pause-image]
-                (parse-svg-with-width "resources/pause.svg" (inc w))))
-  )
+;; (set-thing! [:parts :chip12232 :functions :chip12570]
+;;             [[0 0] [0.9 0.5] [1 1]])
 
 ;;-------------------------------------------------------------------------------;;
 ;; cables
-
-;; (do
-;; 1
 
 (defn mesh-to-from [mesh start end]
   (let [v (vector-subtract end start)
@@ -2338,13 +2248,15 @@
                     (:cables world)))))
 
 (defn get-free-dof [world cable-name]
-  (let [cable (get-in world [:cables cable-name])
-        part-names (map :part (:points cable))
-        functions (get-in world [:wave-editor :functions])]
-    (find-if (fn [part-name]
-               (neutral-function?
-                (get-in functions [part-name])))
-             part-names)))
+  ;; (let [cable (get-in world [:cables cable-name])
+  ;;       part-names (map :part (:points cable))
+  ;;       functions (get-in world [:wave-editor :functions])]
+  ;;   (find-if (fn [part-name]
+  ;;              (neutral-function?
+  ;;               (get-in functions [part-name])))
+  ;;            part-names))
+  nil
+  )
 
 (defn enforce-cable-length [world cable-name]
   (let [cable (get-in world [:cables cable-name])
@@ -2378,18 +2290,37 @@
           world
           (keys (:cables world))))
 
-;; (create-bindings!)
-;; )
-
 ;;-------------------------------------------------------------------------------;;
 ;; color mode
 
-(defn set-color [world x y]
+(defn set-object-color [world x y]
   (if-let [cable-name (get-cable-at world x y)]
     (assoc-in world [:cables cable-name :color] (:current-color world))
     (if-let [part-name (get-part-at world x y)]
       (assoc-in world [:parts part-name :color] (:current-color world))
       world)))
+
+(defn get-region-at [image x y]
+  (first (find-if (fn [[name box]]
+                    (inside-box? box x y))
+                  (:regions image))))
+
+(defn color-pressed [world event]
+  (let [x (:x event)
+        y (:y event)]
+    (if-let [color-name (get-region-at (:color-palette world) x y)]
+      (assoc-in world [:current-color] color-name)
+      (set-object-color world x y))))
+
+(defn draw-color-window! [world]
+  (let [{:keys [image x y]} (:color-palette world)]
+    (draw-image! image x y))
+
+  (let [color-box (get-in world [:color-palette
+                                 :regions (:current-color world)])
+        {:keys [x y w h]} color-box]
+    (dotimes [i 3]
+      (draw-rect! :black x y (- w i 1) (- h i 1)))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; insert mode
@@ -2410,7 +2341,7 @@
 
 (defn insert-part [world type color x y]
   (if-let [spec (get-closest-snap-point world x y (:snap-specs world))]
-    (let [part (create-part type color)
+    (let [part (create-part type color (:info world))
           name (gen-keyword type)
           offset (get-in world [:info (:type part) :offset])
           parent-name (:part spec)
@@ -2422,11 +2353,14 @@
           (create-relative-transform name parent-name)))
     world))
 
+(defn insert-chip [world x y]
+  (insert-part world :chip :gray x y))
+
 (defn insert-wagon [world color x y]
   (let [part-name (get-part-at world x y)]
     (if (and (not-nil? part-name)
              (= (get-in world [:parts part-name :type]) :track))
-      (let [part (create-part :block color)
+      (let [part (create-part :block color (:info world))
             name (gen-keyword :wagon)
             transform (get-in world [:parts part-name :transform])]
         (-> world
@@ -2493,9 +2427,9 @@
                       original-center increase]
   (let [block (get-in world [:parts block-name])
         new-scale (map (fn [a b]
-                     (if (zero? b)
-                       a
-                       (abs b)))
+                         (if (zero? b)
+                           a
+                           (abs b)))
                        original-scale increase)
         scale-change (vector-subtract new-scale original-scale)
         value (if (some neg? increase)
@@ -2614,7 +2548,7 @@
           (set-track-size track-name scale center l)
           (assoc-in [:track-length] l)
           ))
-      world))
+    world))
 
 (defn scale-track-released [world event]
   (if-let [track-name (:adjusted-track world)]
@@ -2847,7 +2781,7 @@
         root-transform (:transform root)
         inverse-transform (get-inverse-transform root-transform)
         vertices (vec (flatten (map #(apply-transform inverse-transform %)
-                               (partition 3 vertices))))]
+                                    (partition 3 vertices))))]
     {:vertices (into-array Double/TYPE (map double vertices))
      :vertices-buffer (get-float-buffer vertices)
      :normals-buffer (get-float-buffer (into [] (compute-normals vertices)))
@@ -2973,10 +2907,19 @@
         (compute-transforms :parts)
         (create-weld-groups))))
 
-(defn draw-command! [command]
-  (fill-rect! :black 155 13 150 25)
-  (draw-text! :green command 88 17 14)
+(do
+1
+
+(defn draw-command! [world]
+  (fill-rect! :black 80 13 150 25)
+  (draw-text! :green (:command world) 15 17 14)
+
+  (if-let [binding (:binding world)]
+    (if-let [draw-fn (:draw-fn binding)]
+      (draw-fn world)
+      ))
   )
+(reset! redraw-flag true))
 
 ;;-------------------------------------------------------------------------------;;
 ;; load/save machine
@@ -3014,8 +2957,7 @@
                          {name (get-simple-part part)})
                        (:parts world))]
     (spit filename {:ground-children ground-children
-                    :parts parts
-                    :wave-editor (:wave-editor world)})))
+                    :parts parts})))
 
 (defn load-machine [world filename]
   (let [{:keys [ground-children parts wave-editor]} (read-string (slurp filename))
@@ -3028,7 +2970,6 @@
     (-> world
         (assoc-in [:ground-children] ground-children)
         (assoc-in [:parts] parts)
-        (assoc-in [:wave-editor] wave-editor)
         (compute-transforms :parts)
         (create-weld-groups))))
 
@@ -3046,7 +2987,7 @@
   world)
 
 (defn move-cable-mode-moved [world event]
-   world)
+  world)
 
 (defn move-cable-mode-released [world event]
   world)
@@ -3086,6 +3027,14 @@
                      (insert-wagon w :yellow (:x e) (:y e)))
          }
 
+    "i" {:key-fn (fn [w]
+                   (println "insert chip")
+                   w)
+
+         :press-fn (fn [w e]
+                     (insert-chip w (:x e) (:y e)))
+         }
+
     "p" {:key-fn (fn [w]
                    (println "insert physical sphere")
                    w)
@@ -3115,16 +3064,20 @@
                    (println "set color")
                    w)
 
-         :press-fn (fn [w e]
-                     (set-color w (:x e) (:y e)))
+         :press-fn color-pressed
+         :draw-fn draw-color-window!
          }
 
     "g" {:key-fn (fn [w]
-                   (println "add graph")
-                   w)
+                   (println "show chip graph")
+                   (-> w
+                       (unselect-chip)
+                       (dissoc-in [:selected-chip])))
 
-         :press-fn (fn [w e]
-                     (add-graph w (:x e) (:y e)))
+         :press-fn graph-mode-pressed
+         :move-fn graph-mode-moved
+         :release-fn graph-mode-released
+         :draw-fn graph-draw-window!
          }
 
     "C-x s 1" {:key-fn (fn [w]
@@ -3186,8 +3139,14 @@
          }
 
     "C-x r" {:key-fn (fn [w]
+                       (println "reset world")
                        (reset-world!)
                        w)
+             }
+
+    "C-x p" {:key-fn (fn [w]
+                       (println "paused = " (not (:paused w)))
+                       (update-in w [:paused] not))
              }
 
     "C-x z" {:key-fn (fn [w]
@@ -3255,11 +3214,8 @@
                               :h 150
                               :functions {}})
 
-  (set-thing! [:time] 0.0)
   (set-thing! [:last-time] 0.0)
   (set-thing! [:paused] true)
-
-  (create-menus!)
 
   (set-thing! [:snap-specs] (get-snap-specs @world))
   (update-thing! [] update-move-plane)
@@ -3269,38 +3225,37 @@
 
   (set-thing! [:current-color] :red)
 
-  (set-thing! [:show-editor] false)
-
   (set-thing! [:command] "")
   (create-bindings!)
 
-  (set-thing! [:use-weld-groups] true)
+  (set-thing! [:use-weld-groups] false)
 
   (set-thing! [:cable-mesh] (create-cube-mesh [0 0 0] [1 0 0 0]
                                               [0.03 1 0.03] :blue))
   (set-thing! [:new-cable] nil)
   (set-thing! [:cables] {})
+
+  (set-thing! [:color-palette]
+              (create-image "resources/colors.svg" 150 590 -1 40))
+
+  ;; (set-thing! [:binding] (get-in @world [:bindings "c"]))
   )
 (reset-world!)
 )
 
 (defn update-world [world elapsed]
-  (if (:paused world)
-    world
-    (let [world (-> world
-                    (update-in [:time] (fn [v]
-                                         (if (:paused world)
-                                           v
-                                           (mod (+ v 0.005) 1))))
-                    (run-waves)
-                    (compute-transforms (if (:use-weld-groups world)
-                                          :weld-groups
-                                          :parts))
-                    (enforce-cable-lengths)
-                    )]
-      (recompute-body-transforms! world)
-      (step-simulation! (:planet world) elapsed)
-      world)))
+  ;; (if (:paused world)
+  ;;   world
+  (let [world (-> world
+                  (run-chips elapsed)
+                  (compute-transforms (if (:use-weld-groups world)
+                                        :weld-groups
+                                        :parts))
+                  ;; (enforce-cable-lengths)
+                  )]
+    ;; (recompute-body-transforms! world)
+    ;; (step-simulation! (:planet world) elapsed)
+    world))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -3330,47 +3285,26 @@
 1
 
 (defn draw-2d! [world]
-  (draw-command! (:command world))
+  (clear!)
 
-  (if (:show-editor world)
-    (draw-wave-editor! world))
-
-  (doseq [menu (vals (:menus world))]
-    (draw-image! (:image menu) (:x menu) (:y menu)))
-
-  (draw-color-indicator! world)
-
-  (when (not (:paused world))
-    (let [{:keys [x y w h]} (get-in world [:menus :actions :regions :playpause])]
-      (draw-image! (:pause-image world) x y)))
+  (if (:paused world) ;;#################################
+    (draw-text! :white "paused" 600 20 20))
+  gg
+  (draw-command! world)
+  (draw-output!)
   )
 (reset! redraw-flag true))
 
 (defn mouse-pressed [world event]
   (let [x (:x event)
-        y (:y event)
-        tools (get-in world [:menus :tools])
-        actions (get-in world [:menus :actions])
-        colors (get-in world [:menus :colors])
-        wave-editor (:wave-editor world)]
+        y (:y event)]
     (cond
-      (and (inside-box? wave-editor x y)
-           (:show-editor world))
-      (editor-mouse-pressed world event)
-
-      (or
-       (inside-box? tools x y)
-       (inside-box? actions x y)
-       (inside-box? colors x y))
-      (menu-pressed world event)
-
       (in? (:button event) [:middle :right])
-      (assoc-in world [:last-point] [(:x event) (:y event)])
+      (assoc-in world [:last-point] [x y])
 
       :else
-      (if (:paused world)
-        (command-mouse-pressed world event)
-        world))))
+      (command-mouse-pressed world event)
+      )))
 
 (defn mouse-moved [world event]
   (cond
@@ -3380,29 +3314,39 @@
       (= (:button event) :middle) (mouse-pan world event)
       :else world)
 
-    (not-nil? (:editor-last-point world))
-    (editor-mouse-moved world event)
-
     :else
-    (if (:paused world)
       (-> world
           (move-cursor event)
-          (command-mouse-moved event))
-      world)))
+          (command-mouse-moved event))))
 
 (defn mouse-released [world event]
   (let [world (cond
-                (not-nil? (:editor-last-point world))
-                (editor-mouse-released world event)
-
                 (not-nil? (:last-point world))
                 (-> world
                     (dissoc-in [:last-point])
                     (update-move-plane))
 
                 :else
-                (if (:paused world)
-                  (command-mouse-released world event)
-                  world))]
+                (command-mouse-released world event)
+                )]
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
+
+;; (set-thing! [:wave-editor :functions (get-part-with-color @world :red)]
+;;             [[0 1] [1 0]])
+
+;; (set-thing! [:use-weld-groups] true)
+
+;; (println (keys (:parts @world)))
+
+;; (set-thing! [:selected-chip] :chip8771)
+
+;; (set-thing! [:parts :chip8771 :functions
+;;             ] {})
+;; (set-thing! [:parts :chip8771 :functions
+;;              (get-part-with-color @world :yellow)]
+;;             [[0 0] [1 1]])
+
+;; (println (keys (:parts @world)))
+
+;; (set-thing! [:parts :chip10771 :time] 0.0)
