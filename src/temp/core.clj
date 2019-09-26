@@ -1578,7 +1578,6 @@
 (declare get-closest-snap-point)
 
 (defn inserting? [world]
-  ;; (and (:paused world)
   (in? (:command world) ["b" "t" "z" "i"]))
 
 (defn move-cursor [world event]
@@ -1977,9 +1976,6 @@
    (vector= (first function) [0 0])
    (vector= (second function) [1 0])))
 
-(do
-1
-
 (defn chip-change-part [world part-name]
   (let [chip-name (:selected-chip world)
         chip (get-in world [:parts chip-name])]
@@ -2045,6 +2041,21 @@
         (if (= i 1)
           (fill-circle! color x1 y1 7))))))
 
+(defn draw-square-function! [wave-editor function color]
+  (let [{:keys [x y w h]} wave-editor]
+    (doseq [i (range 1 (count function))]
+      (let [p1 (nth function (dec i))
+            p2 (nth function i)
+            h1 (second p1)
+            h2 (second p2)
+            [x1 y1] (global->editor-coordinates wave-editor p1)
+            [x2 y2] (global->editor-coordinates wave-editor p2)]
+        (draw-line! color x1 y1 x2 y1)
+        (fill-circle! color x2 y2 7)
+        (draw-line! :gray x2 y1 x2 y2)
+        (if (= i 1)
+          (fill-circle! color x1 y1 7))))))
+
 (defn graph-draw-window! [world]
   (let [wave-editor (:wave-editor world)
         {:keys [x y w h]} wave-editor]
@@ -2055,8 +2066,11 @@
       (let [chip (get-in world [:parts chip-name])]
         (doseq [function-name (keys (:functions chip))]
           (let [color (get-in world [:parts function-name :color])
+                type (get-in world [:parts function-name :type])
                 function (get-in chip [:functions function-name])]
-            (draw-function! (:wave-editor world) function color))))
+            (if (= type :chip)
+              (draw-square-function! (:wave-editor world) function color)
+              (draw-function! (:wave-editor world) function color)))))
       (let [hw (* w 0.5)
             hh (* h 0.5)
             o (- 7)
@@ -2067,31 +2081,39 @@
         (draw-line! :dark-gray x1 y1 x2 y2)
         (draw-line! :dark-gray x1 y2 x2 y1)))))
 
-(defn run-wave [world part-name function time]
+(defn one-transition? [function start-time end-time]
+  (let [pairs (map vector function (rest function))
+        p1 (find-if (fn [[[t0 & _] [t1 & _]]]
+                        (<= t0 start-time t1))
+                    pairs)
+        p2 (find-if (fn [[[t0 & _] [t1 & _]]]
+                        (<= t0 end-time t1))
+                      pairs)
+        [[_ y0] [_ y1]] p1
+        [[_ y2] [_ _]] p2]
+    (vector= [y0 y1 y2] [0 1 1])))
+
+(defn run-wave [world part-name function old-time time]
   (let [part (get-in world [:parts part-name])
         linear-interpolator (fn [a b t]
                               (+ (* a (- 1.0 t)) (* b t)))
-        old-value (:value part)
         new-value (float (get-function-value
                           function time linear-interpolator))
-        world (assoc-in world [:parts part-name :value] new-value)
-        ]
+        world (assoc-in world [:parts part-name :value] new-value)]
     (if (= (:type part) :chip)
-      (if (and
-           (> new-value 0.5)
-           (< old-value 0.5))
+      (if (one-transition? function old-time time)
         (assoc-in world [:parts part-name :time] 0.0)
         world)
-      world
-      )))
+      world)))
 
 (defn run-chip [world chip-name dt]
   (let [chip (get-in world [:parts chip-name])]
     (if (nil? (:time chip))
       world
-      (let [time (within (+ (:time chip) dt) 0.0 1.0)
+      (let [old-time (:time chip)
+            time (within (+ old-time dt) 0.0 1.0)
             world (reduce (fn [w [name function]]
-                            (run-wave w name function time))
+                            (run-wave w name function old-time time))
                           world
                           (:functions chip))
             time (if (>= time 1.0)
@@ -2111,23 +2133,6 @@
               world
               chip-names))
     world))
-
-;; (clear-output!)
-;; (let [world @world
-;;       ]
-;;   (create-bindings!)
-;;   )
-)
-
-;; (println (keys (:parts @world)))
-
-;; (do
-;; (set-thing! [:parts :chip12232 :time] 0.0)
-;; ;; (set-thing! [:parts :chip12570 :time] 0.0)
-;; )
-
-;; (set-thing! [:parts :chip12232 :functions :chip12570]
-;;             [[0 0] [0.9 0.5] [1 1]])
 
 ;;-------------------------------------------------------------------------------;;
 ;; cables
@@ -3244,8 +3249,6 @@
 )
 
 (defn update-world [world elapsed]
-  ;; (if (:paused world)
-  ;;   world
   (let [world (-> world
                   (run-chips elapsed)
                   (compute-transforms (if (:use-weld-groups world)
@@ -3289,7 +3292,7 @@
 
   (if (:paused world) ;;#################################
     (draw-text! :white "paused" 600 20 20))
-  gg
+
   (draw-command! world)
   (draw-output!)
   )
@@ -3331,22 +3334,3 @@
                 )]
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
-
-;; (set-thing! [:wave-editor :functions (get-part-with-color @world :red)]
-;;             [[0 1] [1 0]])
-
-;; (set-thing! [:use-weld-groups] true)
-
-;; (println (keys (:parts @world)))
-
-;; (set-thing! [:selected-chip] :chip8771)
-
-;; (set-thing! [:parts :chip8771 :functions
-;;             ] {})
-;; (set-thing! [:parts :chip8771 :functions
-;;              (get-part-with-color @world :yellow)]
-;;             [[0 0] [1 1]])
-
-;; (println (keys (:parts @world)))
-
-;; (set-thing! [:parts :chip10771 :time] 0.0)
