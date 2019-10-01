@@ -1972,6 +1972,41 @@
           world
           (:ground-children world)))
 
+;;----------------------------------------------------------------------;;
+;; modes
+
+(defn change-mode [world new-mode]
+  (println "entering" new-mode "mode") 
+  (let [exit-fun (or (get-function (:mode world) :exited) identity)
+        enter-fun (or (get-function new-mode :entered) identity)
+        world (-> world
+                  (exit-fun)
+                  (assoc-in [:mode] new-mode)
+                  (enter-fun))]
+    (draw-2d! world)
+    world))
+
+(defn get-function [mode function]
+  (resolve (symbol (str "temp.core/"
+                        (subs (str mode) 1)
+                        "-mode-"
+                        (subs (str function) 1)))))
+
+(defn mode-mouse-pressed [world event]
+  (if-let [fun (get-function (:mode world) :pressed)]
+    (fun world event)
+    world))
+
+(defn mode-mouse-moved [world event]
+  (if-let [fun (get-function (:mode world) :moved)]
+    (fun world event)
+    world))
+
+(defn mode-mouse-released [world event]
+  (if-let [fun (get-function (:mode world) :released)]
+    (fun world event)
+    world))
+
 ;;-------------------------------------------------------------------------------;;
 ;; insert mode
 
@@ -2018,6 +2053,8 @@
             (set-wagon-loop name part-name)
             (compute-transforms :parts)))
       world)))
+
+(declare create-sphere)
 
 (defn insert-sphere [world x y]
   (if-let [collision (get-part-collision world x y)]
@@ -2066,27 +2103,11 @@
       :else
       (dissoc-in world [:parts parent-name :children child-name]))))
 
-;; (defn get-sphere-at [world x y]
-;;   (let [line (unproject-point world [x y])
-;;         radius (:sphere-radius world)
-;;         spheres (filter (fn [sphere]
-;;                           (let [transform (get-body-transform sphere)
-;;                                 position (get-transform-position transform)]
-;;                             (< (point-line-distance position line) radius)))
-;;                         (:spheres world))
-;;         eye (get-in world [:camera :eye])]
-;;     (first (sort-by (fn [sphere]
-;;                       (let [transform (get-body-transform sphere)
-;;                             position (get-transform-position transform)]
-;;                         (distance position eye)))
-;;                     spheres))))
+;;---
 
-;; (defn delete-sphere [world sphere]
-;;   (remove-body (:planet world) sphere)
-;;   (update-in world [:spheres]
-;;              (fn [spheres]
-;;                (remove #(= % sphere) spheres))))
-;; ;;---
+(declare get-sphere-at)
+(declare delete-sphere)
+(declare get-cable-at)
 
 (defn delete-mode-pressed [world event]
   (let [x (:x event)
@@ -2361,6 +2382,12 @@
 ;;-------------------------------------------------------------------------------;;
 ;; graph mode
 
+(defn graph-mode-entered [world]
+  (assoc-in world [:graph-subcommand] :move))
+
+(defn graph-mode-exited [world]
+  (dissoc-in world [:selected-chip]))
+
 (defn run-selected-chip [world]
   (if-let [selected-chip (:selected-chip world)]
     (assoc-in world [:parts selected-chip :time] 0.0)
@@ -2372,31 +2399,7 @@
    (vector= (first function) [0 0])
    (vector= (second function) [1 0])))
 
-(defn chip-change-part [world part-name]
-  (let [chip-name (:selected-chip world)
-        chip (get-in world [:parts chip-name])]
-    (if (in? part-name (keys (:functions chip)))
-      (dissoc-in world [:parts chip-name :functions part-name])
-      (if (or (nil? part-name)
-              (= part-name chip-name))
-        world
-        (assoc-in world [:parts chip-name :functions part-name]
-                  [[0 0] [1 1]])))))
-
-(defn select-chip [world part-name]
-  (let [part (get-in world [:parts part-name])]
-    (if (= (:type part) :chip)
-      (-> world
-          (assoc-in [:selected-chip] part-name)
-          (assoc-in [:parts part-name :color] :red))
-      world)))
-
-(defn unselect-chip [world]
-  (if-let [selected (:selected-chip world)]
-    (assoc-in world [:parts selected :color] :gray)
-    world))
-
-(defn global->editor-coordinates [wave-editor [t v]]
+(defn editor-coordinates->global [wave-editor [t v]]
   (let [{:keys [x y w h]} wave-editor
         hw (/ w 2)
         hh (/ h 2)
@@ -2407,12 +2410,23 @@
     [(map-between-ranges t 0 1 (+ x1 7) (- x2 7))
      (map-between-ranges v 0 1 (- y2 7) (+ y1 7))]))
 
+(defn global->editor-coordinates [wave-editor [px py]]
+  (let [{:keys [x y w h]} wave-editor
+        hw (/ w 2)
+        hh (/ h 2)
+        x1 (- x hw)
+        x2 (+ x hw)
+        y1 (- y hh)
+        y2 (+ y hh)]
+    [(within (map-between-ranges px (+ x1 7) (- x2 7) 0 1) 0 1)
+     (within (map-between-ranges py (- y2 7) (+ y1 7) 0 1) 0 1)]))
+
 (defn draw-function! [wave-editor function color]
   (let [{:keys [x y w h]} wave-editor]
     (doseq [i (range 1 (count function))]
-      (let [[x1 y1] (global->editor-coordinates
+      (let [[x1 y1] (editor-coordinates->global
                      wave-editor (nth function (dec i)))
-            [x2 y2] (global->editor-coordinates
+            [x2 y2] (editor-coordinates->global
                      wave-editor (nth function i))]
         (draw-line! color x1 y1 x2 y2)
         (fill-circle! color x2 y2 7)
@@ -2427,8 +2441,8 @@
             p2 (nth function i)
             h1 (second p1)
             h2 (second p2)
-            [x1 y1] (global->editor-coordinates wave-editor p1)
-            [x2 y2] (global->editor-coordinates wave-editor p2)]
+            [x1 y1] (editor-coordinates->global wave-editor p1)
+            [x2 y2] (editor-coordinates->global wave-editor p2)]
         (draw-line! color x1 y1 x2 y1)
         (fill-circle! color x2 y2 7)
         (draw-line! :gray x2 y1 x2 y2)
@@ -2436,7 +2450,7 @@
           (fill-circle! color x1 y1 7))))))
 
 (defn graph-mode-draw [world]
-  (letb [wave-editor (:wave-editor world)
+  (let [wave-editor (:wave-editor world)
         {:keys [x y w h]} wave-editor]
     (fill-rect! :black x y w h)
     (draw-rect! :dark-gray x y (- w 14) (- h 14))
@@ -2516,35 +2530,188 @@
 (do
 1
 
+(defn select-chip [world x y]
+  (if (inside-box? (:wave-editor world) x y)
+    world
+    (if-let [part-name (get-part-at world x y)]
+      (let [part (get-in world [:parts part-name])]
+        (if (= (:type part) :chip)
+          (assoc-in world [:selected-chip] part-name)
+          world))
+      world)))
+
+(defn chip-change-part [world x y]
+  (if-let [part-name (get-part-at world x y)]
+    (let [chip-name (:selected-chip world)
+          chip (get-in world [:parts chip-name])]
+      (if (in? part-name (keys (:functions chip)))
+        (dissoc-in world [:parts chip-name :functions part-name])
+        (if (or (nil? part-name)
+                (= part-name chip-name))
+          world
+          (assoc-in world [:parts chip-name :functions part-name]
+                    [[0 0] [1 1]]))))
+    world))
+
+(defn get-node-at [functions t v]
+  (let [named-points (mapcat (fn [[name points]]
+                               (map (fn [point index]
+                                      [name index point])
+                                    points (range (count points))))
+                             functions)
+        named-point (find-if (fn [[name index point]]
+                               (< (distance point [t v]) 0.1))
+                             named-points)]
+    (if (nil? named-point)
+      nil
+      (vec (take 2 named-point)))))
+
+(defn set-node-value [world which x y]
+  ;;########################################################
+  (println "set value" which)
+  world
+  )
+
+(defn point-between-points? [p p1 p2]
+  (let [v (vector-subtract p2 p1)
+        line [p1 (vector-normalize v)]
+        l (vector-length v)]
+    (and
+     (< (point-line-distance p line) 0.04)
+     (< (distance p p1) l)
+     (< (distance p p2) l))))
+
+(defn function-collision [function t v]
+  (let [segments (map vector function (rest function))
+        point [t v]]
+    (some (fn [[a b]]a
+            (point-between-points? [t v] a b))
+          segments)))
+
+(defn square-function-collision [function t v]
+  (let [segments (map vector function (rest function))
+        corners (map (fn [[[_ y1] [x2 _]]]
+                       [x2 y1])
+                     segments)
+        new-function (butlast (interleave function
+                                          (conj (vec corners)
+                                                nil)))]
+    (function-collision new-function t v)))
+
+(defn get-function-at [functions t v parts]
+  (first (find-if (fn [[name function]]
+                    (if (= (get-in parts [name :type]) :chip)
+                      (square-function-collision function t v)
+                      (function-collision function t v)))
+                  functions)))
+
+(defn normalize-function [function square?]
+  (let [function (vec (sort-by first function))
+        n (dec (count function))
+        function (if square?
+                   (vec (map (fn [[t v]]
+                               [t (round (float v))])
+                             function))
+                   function)]
+    (-> function
+        (assoc-in [0 0] 0)
+        (assoc-in [n 0] 1))))
+
+(defn add-node [world x y]
+  (let [wave-editor (:wave-editor world)
+        chip-name (:selected-chip world)
+        chip (get-in world [:parts chip-name])
+        functions (:functions chip)
+        [t v] (global->editor-coordinates wave-editor [x y])]
+    (if-let [function-name (get-function-at functions t v (:parts world))]
+      (let [type (get-in world [:parts function-name :type])]
+        (update-in world [:parts chip-name :functions function-name]
+                   (fn [function]
+                     (-> function
+                         (conj [t v])
+                         (normalize-function (= type :chip))))))
+      world)))
+
+(defn delete-node [world x y]
+  (let [wave-editor (:wave-editor world)
+        [t v] (global->editor-coordinates wave-editor [x y])
+        chip-name (:selected-chip world)
+        chip (get-in world [:parts chip-name])
+        functions (:functions chip)]
+    (if-let [[function-name index] (get-node-at functions t v)]
+      (let [function (get-in functions [function-name])]
+        (if (or
+             (= index 0)
+             (= index (dec (count function))))
+          world
+          (update-in world [:parts chip-name :functions function-name]
+                     #(vector-remove % index))))
+      world)))
+
+(defn move-node-pressed [world x y]
+  (let [wave-editor (:wave-editor world)
+        [t v] (global->editor-coordinates wave-editor [x y])
+        chip-name (:selected-chip world)
+        chip (get-in world [:parts chip-name])
+        functions (:functions chip)]
+    (if-let [node (get-node-at functions t v)]
+      (assoc-in world [:moving-node] node)
+      world)))
+
 (defn graph-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
-    ;; (if (inside-box? (:wave-editor world) x y)
-    ;;   (do
-    ;;     (println "edit graph")
-    ;;     world
-    ;;     )
-    ;;   (let [part-name (get-part-at world x y)
-    ;;         part (get-in world [:parts part-name])]
-    ;;     (if-let [selected (:selected-chip world)]
-    ;;       (chip-change-part world part-name)
-    ;;       (select-chip world part-name))))
-
-    (println "selecting chip = " (:selecting-chip world))
-    (println "subcommand = " (:graph-subcommand world))
-    (println "-------")
-    
-    world
-    ))
+  (if-let [selected-chip (:selected-chip world)]
+    (if (inside-box? (:wave-editor world) x y)
+      (let [world (case (:graph-subcommand world)
+                    :set-x (set-node-value world :x x y)
+                    :set-y (set-node-value world :y x y)
+                    :add (add-node world x y)
+                    :delete (delete-node world x y)
+                    :move (move-node-pressed world x y)
+                    world)]
+        (assoc-in world [:graph-subcommand] :move))
+      (chip-change-part world x y))
+    (select-chip world x y))))
 
 (defn graph-mode-moved [world event]
-  world)
+  (if-let [[function-name index] (:moving-node world)]
+    (let [x (:x event)
+          y (:y event)
+          wave-editor (:wave-editor world)
+          coords (global->editor-coordinates wave-editor [x y])
+          chip-name (:selected-chip world)
+          chip (get-in world [:parts chip-name])
+          new-function (-> (get-in chip [:functions function-name])
+                           (assoc-in [index] coords))
+          world (assoc-in world [:parts chip-name
+                                 :functions function-name]
+                          new-function)]
+      (draw-2d! world)
+      world)
+    world))
 
 (defn graph-mode-released [world event]
-  world)
-)
+  (if-let [[function-name _] (:moving-node world)]
+    (let [type (get-in world [:parts function-name :type])]
+      (-> world
+          (update-in [:parts (:selected-chip world)
+                      :functions function-name]
+                     (fn [function]
+                       (normalize-function function (= type :chip))))
+          (dissoc-in [:moving-node])))
+    world))
+  
 
-;;-------------------------------------------------------------------------------;;
+)
+;;----------------------------------------------------------------------;;
+;; cable mode
+
+(defn get-cable-at [world x y]
+  ;;################################
+  )
+
+;;----------------------------------------------------------------------;;
 ;; regular physics
 
 (defn create-sphere [world position]
@@ -2553,6 +2720,27 @@
               (make-transform position [1 0 0 0]))]
     (add-body-to-planet (:planet world) body)
     (update-in world [:spheres] (partial cons body))))
+
+(defn delete-sphere [world sphere]
+  (remove-body (:planet world) sphere)
+  (update-in world [:spheres]
+             (fn [spheres]
+               (remove #(= % sphere) spheres))))
+
+(defn get-sphere-at [world x y]
+  (let [line (unproject-point world [x y])
+        radius (:sphere-radius world)
+        spheres (filter (fn [sphere]
+                          (let [transform (get-body-transform sphere)
+                                position (get-transform-position transform)]
+                            (< (point-line-distance position line) radius)))
+                        (:spheres world))
+        eye (get-in world [:camera :eye])]
+    (first (sort-by (fn [sphere]
+                      (let [transform (get-body-transform sphere)
+                            position (get-transform-position transform)]
+                        (distance position eye)))
+                    spheres))))
 
 (defn is-physical-part? [[name part]]
   (and
@@ -2755,12 +2943,8 @@
    "C-x m" #(change-mode % :move)
 
    "C-x g" #(change-mode % :graph)
-   ":graph c" (fn [w]
-                (assoc-in w [:selecting-chip] true))
-   ":graph p" (fn [w]
-                (assoc-in w [:selecting-chip] false))
    ":graph m" (fn [w]
-                (assoc-in w [:graph-subcommand] :edit))
+                (assoc-in w [:graph-subcommand] :move))
    ":graph x" (fn [w]
                 (assoc-in w [:graph-subcommand] :set-x))
    ":graph y" (fn [w]
@@ -2965,36 +3149,6 @@
 ;;   ))
 
 ;;----------------------------------------------------------------------;;
-;; modes
-
-(defn change-mode [world new-mode]
-  (println "entering" new-mode "mode") 
-  (let [world (assoc-in world [:mode] new-mode)]
-    (draw-2d! world)
-    world))
-
-(defn get-function [mode function]
-  (resolve (symbol (str "temp.core/"
-                        (subs (str mode) 1)
-                        "-mode-"
-                        (subs (str function) 1)))))
-
-(defn mode-mouse-pressed [world event]
-  (if-let [fun (get-function (:mode world) :pressed)]
-    (fun world event)
-    world))
-
-(defn mode-mouse-moved [world event]
-  (if-let [fun (get-function (:mode world) :moved)]
-    (fun world event)
-    world))
-
-(defn mode-mouse-released [world event]
-  (if-let [fun (get-function (:mode world) :released)]
-    (fun world event)
-    world))
-
-;;----------------------------------------------------------------------;;
 
 (do
 1
@@ -3049,7 +3203,7 @@
                               :h 150
                               })
 
-  (set-thing! [:paused] true)
+  (set-thing! [:paused] false)
 
   (set-thing! [:snap-specs] (get-snap-specs @world))
   (update-thing! [] update-move-plane)
@@ -3166,4 +3320,9 @@
     (draw-2d! world)
     (assoc-in world [:snap-specs] (get-snap-specs world))))
 
-;; (update-thing! [] #(change-mode % :color))
+(set-thing! [:parts :chip8444 :functions :block8443]
+            [[0 0] [0.5 1] [0.7 1] [1 0]])
+
+(set-thing! [] (load-machine @world "resources/functions.clj"))
+
+
