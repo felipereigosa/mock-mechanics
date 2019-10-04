@@ -133,7 +133,9 @@
   (Integer/parseInt string))
 
 (defn parse-float [string]
-  (Float/parseFloat string))
+  (try
+    (Float/parseFloat string)
+    (catch Exception e nil)))
 
 (defn collection-difference [a b]
   (into [] (difference (into #{} a) b)))

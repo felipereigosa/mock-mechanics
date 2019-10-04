@@ -49,7 +49,7 @@
              GLFW/GLFW_KEY_BACKSLASH               nil
              GLFW/GLFW_KEY_RIGHT_BRACKET           nil
              GLFW/GLFW_KEY_ESCAPE                  "esc"
-             GLFW/GLFW_KEY_ENTER                   nil
+             GLFW/GLFW_KEY_ENTER                   :enter
              GLFW/GLFW_KEY_TAB                     nil
              GLFW/GLFW_KEY_BACKSPACE               nil
              GLFW/GLFW_KEY_INSERT                  nil
