@@ -3,7 +3,7 @@
 
 (def keymap {GLFW/GLFW_KEY_SPACE                   nil
              GLFW/GLFW_KEY_APOSTROPHE              nil
-             GLFW/GLFW_KEY_COMMA                   nil
+             GLFW/GLFW_KEY_COMMA                   ","
              GLFW/GLFW_KEY_MINUS                   nil
              GLFW/GLFW_KEY_PERIOD                  "."
              GLFW/GLFW_KEY_SLASH                   nil

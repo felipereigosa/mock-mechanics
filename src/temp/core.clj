@@ -1662,6 +1662,11 @@
       (assoc-in [:input-callback] callback)
       (assoc-in [:text-input] true)))
 
+(defn get-parts-with-type [parts type]
+  (map first (filter (fn [[name part]]
+                       (= (:type part) type))
+                     parts)))
+
 ;;-------------------------------------------------------------------------------;;
 ;; draw parts
 
@@ -2074,8 +2079,7 @@
             (assoc-in [:parts name :transform] transform)
             (assoc-in [:parts part-name :children name]
                       (make-transform [0 0 0] [1 0 0 0]))
-            (set-wagon-loop name part-name)
-            (compute-transforms :parts)))
+            (set-wagon-loop name part-name)))
       world)))
 
 (declare create-sphere)
@@ -2133,6 +2137,18 @@
 (declare delete-sphere)
 (declare get-cable-at)
 
+(defn get-connected-chips [world part-name]
+  (let [chips (get-parts-with-type (:parts world) :chip)]
+    (vec (filter (fn [chip-name]
+                   (let [parts (map first
+                                    (get-in world [:parts chip-name
+                                                   :functions]))]
+                     (in? part-name parts)))
+                 chips))))
+
+(defn remove-from-chip [world chip-name part-name]
+  (dissoc-in world [:parts chip-name :functions part-name]))
+
 (defn delete-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
@@ -2141,9 +2157,13 @@
     (if-let [sphere (get-sphere-at world x y)]
       (delete-sphere world sphere)
       (if-let [part-name (get-part-at world x y)]
-        (-> world
-            (detach-child part-name)
-            (dissoc-in [:parts part-name]))
+        (let [connected-chips (get-connected-chips world part-name)
+              world (reduce #(remove-from-chip %1 %2 part-name)
+                            world connected-chips)]
+          (-> world
+              (detach-child part-name)
+              (dissoc-in [:parts part-name])
+              ))
         world))))
 
 ;;----------------------------------------------------------------------;;
@@ -2389,6 +2409,7 @@
 ;;-------------------------------------------------------------------------------;;
 ;; graph mode
 
+
 (defn graph-mode-entered [world]
   (assoc-in world [:graph-subcommand] :move))
 
@@ -2397,14 +2418,8 @@
     (assoc-in world [:parts selected-chip :time] 0.0)
     world))
 
-(defn neutral-function? [function]
-  (and
-   (= (count function) 2)
-   (vector= (first function) [0 0])
-   (vector= (second function) [1 0])))
-
-(defn editor-coordinates->global [wave-editor [t v]]
-  (let [{:keys [x y w h]} wave-editor
+(defn local->global [graph-box [t v]]
+  (let [{:keys [x y w h]} graph-box
         hw (/ w 2)
         hh (/ h 2)
         x1 (- x hw)
@@ -2414,8 +2429,8 @@
     [(map-between-ranges t 0 1 (+ x1 7) (- x2 7))
      (map-between-ranges v 0 1 (- y2 7) (+ y1 7))]))
 
-(defn global->editor-coordinates [wave-editor [px py]]
-  (let [{:keys [x y w h]} wave-editor
+(defn global->local [graph-box [px py]]
+  (let [{:keys [x y w h]} graph-box
         hw (/ w 2)
         hh (/ h 2)
         x1 (- x hw)
@@ -2425,28 +2440,28 @@
     [(within (map-between-ranges px (+ x1 7) (- x2 7) 0 1) 0 1)
      (within (map-between-ranges py (- y2 7) (+ y1 7) 0 1) 0 1)]))
 
-(defn draw-function! [wave-editor function color]
-  (let [{:keys [x y w h]} wave-editor]
+(defn draw-function! [graph-box function color]
+  (let [{:keys [x y w h]} graph-box]
     (doseq [i (range 1 (count function))]
-      (let [[x1 y1] (editor-coordinates->global
-                     wave-editor (nth function (dec i)))
-            [x2 y2] (editor-coordinates->global
-                     wave-editor (nth function i))]
+      (let [[x1 y1] (local->global
+                     graph-box (nth function (dec i)))
+            [x2 y2] (local->global
+                     graph-box (nth function i))]
         (draw-line! color x1 y1 x2 y2)
         (fill-circle! color x2 y2 7)
 
         (if (= i 1)
           (fill-circle! color x1 y1 7))))))
 
-(defn draw-square-function! [wave-editor function color]
-  (let [{:keys [x y w h]} wave-editor]
+(defn draw-square-function! [graph-box function color]
+  (let [{:keys [x y w h]} graph-box]
     (doseq [i (range 1 (count function))]
       (let [p1 (nth function (dec i))
             p2 (nth function i)
             h1 (second p1)
             h2 (second p2)
-            [x1 y1] (editor-coordinates->global wave-editor p1)
-            [x2 y2] (editor-coordinates->global wave-editor p2)]
+            [x1 y1] (local->global graph-box p1)
+            [x2 y2] (local->global graph-box p2)]
         (draw-line! color x1 y1 x2 y1)
         (fill-circle! color x2 y2 7)
         (draw-line! :gray x2 y1 x2 y2)
@@ -2454,8 +2469,8 @@
           (fill-circle! color x1 y1 7))))))
 
 (defn graph-mode-draw [world]
-  (let [wave-editor (:wave-editor world)
-        {:keys [x y w h]} wave-editor]
+  (let [graph-box (:graph-box world)
+        {:keys [x y w h]} graph-box]
     (fill-rect! :black x y w h)
     (draw-rect! :dark-gray x y (- w 14) (- h 14))
 
@@ -2466,8 +2481,8 @@
                 type (get-in world [:parts function-name :type])
                 function (get-in chip [:functions function-name])]
             (if (= type :chip)
-              (draw-square-function! (:wave-editor world) function color)
-              (draw-function! (:wave-editor world) function color)))))
+              (draw-square-function! (:graph-box world) function color)
+              (draw-function! (:graph-box world) function color)))))
       (let [hw (* w 0.5)
             hh (* h 0.5)
             o (- 7)
@@ -2488,7 +2503,8 @@
                       pairs)
         [[_ y0] [_ y1]] p1
         [[_ y2] [_ _]] p2]
-    (vector= [y0 y1 y2] [0 1 1])))
+    (or (vector= [y0 y1 end-time] [0 1 1])
+        (vector= [y0 y1 y2] [0 1 1]))))
 
 (defn run-wave [world part-name function old-time time]
   (let [part (get-in world [:parts part-name])
@@ -2516,23 +2532,22 @@
             time (if (>= time 1.0)
                    nil
                    time)]
+        ;; (assoc-in [:selected-mesh :transform] (:transform part))
         (assoc-in world [:parts chip-name :time] time)))))
 
 (defn run-chips [world elapsed]
-  (if (not (:paused world))
-    (let [dt (float (/ elapsed 1000))
-          chip-names (filter (fn [name]
-                               (= (get-in world [:parts name :type])
-                                  :chip))
-                             (keys (:parts world)))]
-      (reduce (fn [w chip-name]
-                (run-chip w chip-name dt))
-              world
-              chip-names))
-    world))
+  (let [dt (float (/ elapsed 1000))
+        chip-names (filter (fn [name]
+                             (= (get-in world [:parts name :type])
+                                :chip))
+                           (keys (:parts world)))]
+    (reduce (fn [w chip-name]
+              (run-chip w chip-name dt))
+            world
+            chip-names)))
 
 (defn select-chip [world x y]
-  (if (inside-box? (:wave-editor world) x y)
+  (if (inside-box? (:graph-box world) x y)
     world
     (if-let [part-name (get-part-at world x y)]
       (let [part (get-in world [:parts part-name])]
@@ -2569,7 +2584,23 @@
       nil
       (vec (take 2 named-point)))))
 
-(defn set-node-callback [world node which text]
+(defn normalize-function [function square?]
+  (let [function (sort-by first function)
+        function (vec (map (fn [[t v]]
+                             [(within t 0 1)
+                              (within v 0 1)])
+                           function))                              
+        n (dec (count function))
+        function (if square?
+                   (vec (map (fn [[t v]]
+                               [t (round (float v))])
+                             function))
+                   function)]
+    (-> function
+        (assoc-in [0 0] 0)
+        (assoc-in [n 0] 1))))
+
+(defn set-node-value-callback [world node which text]
   (if-let [value (parse-float text)]
     (let [[function-name node-index] node
           coord-index (if (= which :x) 0 1)
@@ -2584,14 +2615,35 @@
       (println "Invalid value")
       world)))
 
-(defn set-node-value [world which x y]
-  (let [wave-editor (:wave-editor world)
+(defn set-node-values-callback [world node text]
+  (let [values (map parse-float (split text #","))]
+    (if (or (not (= (count values) 2))
+            (some nil? values))
+      (do
+        (println "Invalid format")
+        world)
+      (let [[x y] values
+            [function-name node-index] node
+            type (get-in world [:parts function-name :type])]
+        (update-in world [:parts (:selected-chip world)
+                          :functions function-name]
+                   (fn [function]
+                     (-> function
+                         (assoc-in [node-index 0] x)
+                         (assoc-in [node-index 1] y)
+                         (normalize-function (= type :chip)))))))))
+
+(defn set-node [world which x y]
+  (let [graph-box (:graph-box world)
         chip-name (:selected-chip world)
         chip (get-in world [:parts chip-name])
         functions (:functions chip)
-        [t v] (global->editor-coordinates wave-editor [x y])]
+        [t v] (global->local graph-box [x y])]
     (if-let [node (get-node-at functions t v)]
-      (read-input world #(set-node-callback %1 node which %2)))))
+      (if (= which :both)
+        (read-input world #(set-node-values-callback %1 node %2))
+        (read-input world #(set-node-value-callback %1 node which %2)))
+      world)))
 
 (defn point-between-points? [p p1 p2]
   (let [v (vector-subtract p2 p1)
@@ -2605,7 +2657,7 @@
 (defn function-collision [function t v]
   (let [segments (map vector function (rest function))
         point [t v]]
-    (some (fn [[a b]]a
+    (some (fn [[a b]]
             (point-between-points? [t v] a b))
           segments)))
 
@@ -2626,28 +2678,12 @@
                       (function-collision function t v)))
                   functions)))
 
-(defn normalize-function [function square?]
-  (let [function (sort-by first function)
-        function (vec (map (fn [[t v]]
-                             [(within t 0 1)
-                              (within v 0 1)])
-                           function))                              
-        n (dec (count function))
-        function (if square?
-                   (vec (map (fn [[t v]]
-                               [t (round (float v))])
-                             function))
-                   function)]
-    (-> function
-        (assoc-in [0 0] 0)
-        (assoc-in [n 0] 1))))
-
 (defn add-node [world x y]
-  (let [wave-editor (:wave-editor world)
+  (let [graph-box (:graph-box world)
         chip-name (:selected-chip world)
         chip (get-in world [:parts chip-name])
         functions (:functions chip)
-        [t v] (global->editor-coordinates wave-editor [x y])]
+        [t v] (global->local graph-box [x y])]
     (if-let [function-name (get-function-at functions t v (:parts world))]
       (let [type (get-in world [:parts function-name :type])]
         (update-in world [:parts chip-name :functions function-name]
@@ -2658,8 +2694,8 @@
       world)))
 
 (defn delete-node [world x y]
-  (let [wave-editor (:wave-editor world)
-        [t v] (global->editor-coordinates wave-editor [x y])
+  (let [graph-box (:graph-box world)
+        [t v] (global->local graph-box [x y])
         chip-name (:selected-chip world)
         chip (get-in world [:parts chip-name])
         functions (:functions chip)]
@@ -2674,8 +2710,8 @@
       world)))
 
 (defn move-node-pressed [world x y]
-  (let [wave-editor (:wave-editor world)
-        [t v] (global->editor-coordinates wave-editor [x y])
+  (let [graph-box (:graph-box world)
+        [t v] (global->local graph-box [x y])
         chip-name (:selected-chip world)
         chip (get-in world [:parts chip-name])
         functions (:functions chip)]
@@ -2687,10 +2723,11 @@
   (let [x (:x event)
         y (:y event)]
   (if-let [selected-chip (:selected-chip world)]
-    (if (inside-box? (:wave-editor world) x y)
+    (if (inside-box? (:graph-box world) x y)
       (let [world (case (:graph-subcommand world)
-                    :set-x (set-node-value world :x x y)
-                    :set-y (set-node-value world :y x y)
+                    :set-x (set-node world :x x y)
+                    :set-y (set-node world :y x y)
+                    :set-both (set-node world :both x y)
                     :add (add-node world x y)
                     :delete (delete-node world x y)
                     :move (move-node-pressed world x y)
@@ -2703,8 +2740,8 @@
   (if-let [[function-name index] (:moving-node world)]
     (let [x (:x event)
           y (:y event)
-          wave-editor (:wave-editor world)
-          coords (global->editor-coordinates wave-editor [x y])
+          graph-box (:graph-box world)
+          coords (global->local graph-box [x y])
           chip-name (:selected-chip world)
           chip (get-in world [:parts chip-name])
           new-function (-> (get-in chip [:functions function-name])
@@ -2847,8 +2884,12 @@
     (vec (apply concat [root-name] descendents))))
 
 (defn segregate-parts [world]
-  (let [roots (concat (keys (:ground-children world))
-                      (keys (get-in world [:wave-editor :functions])))]
+  (let [chip-names (get-parts-with-type (:parts world) :chip)
+        driven-parts (apply concat (map (fn [chip-name]
+                                          (let [chip (get-in world [:parts chip-name])]
+                                            (keys (:functions chip))))
+                                        chip-names))
+        roots (concat (keys (:ground-children world)) driven-parts)]
     (vec (map (fn [root]
                 (get-limited-tree (:parts world) root roots))
               roots))))
@@ -2919,13 +2960,6 @@
                        (:parts world))]
     (assoc-in world [:parts] parts)))
 
-(declare compute-transforms)
-
-(defn get-group-root [world part-name]
-  (first (find-if (fn [[name group]]
-                    (in? part-name (:parts group)))
-                  (:weld-groups world))))
-
 (defn create-weld-groups [world]
   (let [groups (segregate-parts world)
         parts (:parts (compute-transforms (reset-part-values world) :parts))
@@ -2981,7 +3015,7 @@
                     :parts parts})))
 
 (defn load-machine [world filename]
-  (let [{:keys [ground-children parts wave-editor]} (read-string (slurp filename))
+  (let [{:keys [ground-children parts graph-box]} (read-string (slurp filename))
         ground-children (map-map (fn [[name transform]]
                                    {name (get-complex-transform transform)})
                                  ground-children)
@@ -3003,9 +3037,6 @@
 
 ;;-------------------------------------------------------------------------------;;
 ;; commands
-
-(do
-1
 
 (defn edit-mode-draw [world]
   (let [{:keys [image x y]} (:color-palette world)]
@@ -3041,12 +3072,11 @@
     :scale (scale-mode-released world event)
     world))
 
+(do
+1
+
 (defn get-bindings []
-  {"C-x p" (fn [w]
-             (println "paused = " (not (:paused w)))
-             (update-in w [:paused] not))
-   
-   "C-x i" (fn [w]
+  {"C-x i" (fn [w]
              (-> w
                  (change-mode :insert)
                  (assoc-in [:insert-type] :block)))
@@ -3081,6 +3111,8 @@
                 (assoc-in w [:graph-subcommand] :set-x))
    ":graph y" (fn [w]
                 (assoc-in w [:graph-subcommand] :set-y))
+   ":graph z" (fn [w]
+                (assoc-in w [:graph-subcommand] :set-both))
    ":graph a" (fn [w]
                 (assoc-in w [:graph-subcommand] :add))
    ":graph d" (fn [w]
@@ -3241,13 +3273,11 @@
 
   (set-thing! [:ground-children] {})
 
-  (set-thing! [:wave-editor] {:x 343
+  (set-thing! [:graph-box] {:x 343
                               :y 540
                               :w 685
                               :h 150
                               })
-
-  (set-thing! [:paused] false)
 
   (set-thing! [:snap-specs] (get-snap-specs @world))
   (update-thing! [] update-move-plane)
@@ -3260,7 +3290,7 @@
   (set-thing! [:command] "")
   (set-thing! [:bindings] (get-bindings))
 
-  (set-thing! [:use-weld-groups] false)
+  (set-thing! [:use-weld-groups] true)
 
   (set-thing! [:cable-mesh] (create-cube-mesh [0 0 0] [1 0 0 0]
                                               [0.03 1 0.03] :blue))
@@ -3270,7 +3300,7 @@
   (set-thing! [:color-palette]
               (create-image "resources/colors.svg" 150 590 -1 40))
 
-  (set-thing! [:mode] :insert)
+  (set-thing! [:mode] :idle)
 
   (set-thing! [:selected-mesh]
               (create-wireframe-cube [0 0.52 0] [1 0 0 0]
@@ -3326,9 +3356,6 @@
 (defn draw-2d! [world]
   (clear!)
 
-  (if (:paused world) ;;#################################
-    (draw-text! :white "paused" 600 20 20))
-
   (draw-text-box! world)
 
   (if-let [fun (get-function (:mode world) :draw)]
@@ -3357,9 +3384,9 @@
       :else world)
 
     :else
-      (-> world
-          (move-cursor event)
-          (mode-mouse-moved event))))
+    (-> world
+        (move-cursor event)
+        (mode-mouse-moved event))))
 
 (defn mouse-released [world event]
   (let [world (cond
@@ -3371,8 +3398,23 @@
                 :else
                 (mode-mouse-released world event))]
     (draw-2d! world)
-    (assoc-in world [:snap-specs] (get-snap-specs world))))
+    (-> world
+        (assoc-in [:snap-specs] (get-snap-specs world))
+        (create-weld-groups)
+        (compute-transforms :parts))))
 
-;; (set-thing! [] (load-machine @world "resources/mixer.clj"))
 
+;; (do
+;; 1
+
+;; (clear-output!)
+;; (let [world @world
+;;       ]
+
+;;   (update-thing! [] create-weld-groups)
+;;   ))
+
+;; (update-thing! [:use-weld-groups] not)
+
+;; (println (:use-weld-groups @world))
 
