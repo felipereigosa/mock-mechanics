@@ -49,7 +49,7 @@
 (load "physics")
 (load "keymap")
 
-(defn create-world! [])
+(defn create-world [])
 (defn draw-world! [world])
 (defn update-world [world elapsed] world)
 (defn key-pressed [world event] world)
@@ -145,8 +145,9 @@
 
 (defn loop! [window]
   (try
-    (create-world!)
+    (swap! world (fn [w] (create-world)))
     (catch Exception e))
+  
   (while true
     (GL11/glClear (bit-or GL11/GL_COLOR_BUFFER_BIT
                           GL11/GL_DEPTH_BUFFER_BIT))
@@ -1458,11 +1459,31 @@
   (window-init!)
   (reset! out *out*))
 
+(defn create-gl-world []
+  (GL11/glEnable GL11/GL_SCISSOR_TEST)
+  (GL11/glClearColor 0 0.5 0.8 0)
+  (GL11/glEnable GL11/GL_CULL_FACE)
+  (GL11/glCullFace GL11/GL_BACK)
+  (-> {}
+      (assoc-in [:programs :basic] (create-program "basic"))
+      (assoc-in [:programs :flat] (create-program "flat"))
+      (assoc-in [:programs :textured] (create-program "textured"))
+      (assoc-in [:programs :ortho] (create-program "ortho"))
+      (assoc-in [:programs :colored] (create-program "colored"))
+      (assoc-in [:projection-matrix] (get-perspective-matrix
+                                      10 (/ window-width window-height) 3 1000))
+      (#(create-camera % [0 0 1] 40 25 -35))
+      (assoc-in [:camera :pivot] [0 0 0])
+      (compute-camera)
+      (#(create-grid-mesh % 24 0.5))
+      (assoc-in [:output] (create-ortho-mesh))))
+
 (defn reset-world! []
   (gl-thread
-   (do
-     (create-world!)
-     (redraw!))))
+   (try
+     (swap! world (fn [w] (create-world)))
+     (redraw!)
+     (catch Exception e))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; debug shapes
@@ -2010,6 +2031,14 @@
                         "-mode-"
                         (subs (str function) 1)))))
 
+(declare create-weld-groups)
+
+(defn prepare-tree [world]
+  (-> world
+      (compute-transforms :parts)
+      (#(assoc-in % [:snap-specs] (get-snap-specs %)))
+      (create-weld-groups)))
+
 (defn change-mode [world new-mode]
   (println "entering" new-mode "mode") 
   (let [exit-fun (or (get-function (:mode world) :exited) identity)
@@ -2017,7 +2046,8 @@
         world (-> world
                   (exit-fun)
                   (assoc-in [:mode] new-mode)
-                  (enter-fun))]
+                  (enter-fun)
+                  (prepare-tree))]
     (draw-2d! world)
     world))
 
@@ -2201,20 +2231,6 @@
         (assoc-in [:parts block-name :scale] (map abs new-scale))
         (assoc-in [:parts block-name :transform] new-transform))))
 
-(defn set-track-size [world track-name original-scale original-center height]
-  (let [track (get-in world [:parts track-name])
-        new-scale (assoc original-scale 1 height)
-        scale-change (vector-subtract new-scale original-scale)
-        part-rotation (get-transform-rotation (:transform track))
-        rotation-transform (make-transform [0 0 0] part-rotation)
-        new-center (->> scale-change
-                        (apply-transform rotation-transform)
-                        (vector-add original-center))
-        new-transform (make-transform new-center part-rotation)]
-    (-> world
-        (assoc-in [:parts track-name :scale] new-scale)
-        (assoc-in [:parts track-name :transform] new-transform))))
-
 (defn scale-block-pressed [world event]
   (let [x (:x event)
         y (:y event)]
@@ -2231,7 +2247,7 @@
             scale (:scale part)
             center (get-transform-position (:transform part))]
         (-> world
-            (assoc-in [:adjusted-block] part-name)
+            (assoc-in [:edited-part] part-name)
             (assoc-in [:adjust-line] [point (vector-normalize v)])
             (assoc-in [:original-scale] scale)
             (assoc-in [:original-center] center)
@@ -2239,7 +2255,7 @@
       world)))
 
 (defn scale-block-moved [world event]
-  (if-let [block-name (:adjusted-block world)]
+  (if-let [block-name (:edited-part world)]
     (let [adjust-line (:adjust-line world)
           mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point adjust-line mouse-line)
@@ -2253,11 +2269,12 @@
       (println "scale:" (round (/ l grain-size)))
       (-> world
           (set-block-size block-name scale center increase-vector)
-          (assoc-in [:increase-vector] increase-vector)))
+          (assoc-in [:increase-vector] increase-vector)
+          ))
     world))
 
 (defn scale-block-released [world event]
-  (if-let [block-name (:adjusted-block world)]
+  (if-let [block-name (:edited-part world)]
     (let [parent-name (get-parent-part world block-name)
           scale (:original-scale world)
           increase-vector (:increase-vector world)
@@ -2268,8 +2285,22 @@
       (-> world
           (set-block-size block-name scale center increase-vector)
           (create-relative-transform block-name parent-name)
-          (dissoc-in [:adjusted-block])))
+          (dissoc-in [:edited-part])))
     world))
+
+(defn set-track-size [world track-name original-scale original-center height]
+  (let [track (get-in world [:parts track-name])
+        new-scale (assoc original-scale 1 height)
+        scale-change (vector-subtract new-scale original-scale)
+        part-rotation (get-transform-rotation (:transform track))
+        rotation-transform (make-transform [0 0 0] part-rotation)
+        new-center (->> scale-change
+                        (apply-transform rotation-transform)
+                        (vector-add original-center))
+        new-transform (make-transform new-center part-rotation)]
+    (-> world
+        (assoc-in [:parts track-name :scale] new-scale)
+        (assoc-in [:parts track-name :transform] new-transform))))
 
 (defn scale-track-pressed [world event]
   (let [x (:x event)
@@ -2282,14 +2313,14 @@
             rotation-transform (get-rotation-component transform)
             v (apply-transform rotation-transform [0 1 0])]
         (-> world
-            (assoc-in [:adjusted-track] part-name)
+            (assoc-in [:edited-part] part-name)
             (assoc-in [:adjust-line] [point (vector-normalize v)])
             (assoc-in [:original-scale] scale)
             (assoc-in [:original-center] center)))
       world)))
 
 (defn scale-track-moved [world event]
-  (if-let [track-name (:adjusted-track world)]
+  (if-let [track-name (:edited-part world)]
     (let [adjust-line (:adjust-line world)
           mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point adjust-line mouse-line)
@@ -2307,7 +2338,7 @@
     world))
 
 (defn scale-track-released [world event]
-  (if-let [track-name (:adjusted-track world)]
+  (if-let [track-name (:edited-part world)]
     (let [parent-name (get-parent-part world track-name)
           scale (:original-scale world)
           world (-> world
@@ -2318,7 +2349,7 @@
       (-> world
           (set-track-size track-name scale center track-length)
           (create-relative-transform track-name parent-name)
-          (dissoc-in [:adjusted-track])))
+          (dissoc-in [:edited-part])))
     world))
 
 ;;---
@@ -2361,14 +2392,14 @@
             part-position (get-part-position world part-name)
             offset (vector-subtract part-position point)]
         (-> world
-            (assoc-in [:moving-part] part-name)
+            (assoc-in [:edited-part] part-name)
             (assoc-in [:plane] plane)
             (assoc-in [:offset] offset)
             (assoc-in [:original-position] part-position)))
       world)))
 
 (defn move-mode-moved [world event]
-  (if-let [part-name (:moving-part world)]
+  (if-let [part-name (:edited-part world)]
     (let [line (unproject-point world [(:x event) (:y event)])
           touch-point (line-plane-intersection line (:plane world))
           position (vector-add touch-point (:offset world))
@@ -2393,7 +2424,7 @@
     world))
 
 (defn move-mode-released [world event]
-  (if-let [part-name (:moving-part world)]
+  (if-let [part-name (:edited-part world)]
     (let [parent-name (get-parent-part world part-name)
           world (set-value-0-transform world part-name)
           part (get-in world [:parts part-name])
@@ -2403,12 +2434,11 @@
       (-> world
           (assoc-in [:parts part-name :transform] transform)
           (create-relative-transform part-name parent-name)
-          (dissoc-in [:moving-part])))
+          (dissoc-in [:edited-part])))
     world))
 
 ;;-------------------------------------------------------------------------------;;
 ;; graph mode
-
 
 (defn graph-mode-entered [world]
   (assoc-in world [:graph-subcommand] :move))
@@ -3033,7 +3063,7 @@
   world)
 
 (defn load-machine-callback [world text]
-  (load-machine world (str "resources/" text ".clj")))
+  (load-machine (create-world) (str "resources/" text ".clj")))
 
 ;;-------------------------------------------------------------------------------;;
 ;; commands
@@ -3126,8 +3156,7 @@
 
    "C-x r" (fn [w]
              (println "reset world")
-             (reset-world!)
-             w)
+             (create-world))
 
    "C-x s" #(read-input % save-machine-callback)
    "C-x l" #(read-input % load-machine-callback)
@@ -3201,125 +3230,55 @@
     (assoc-in world [:control-pressed] false)
     world))
 
-;;-------------------------------------------------------------------------------;;
-
-;; (do
-;; 1
-
-;; (defn get-cable-endpoint [world event]
-;;   (println "here")
-;;   )
-
-;; (defn move-cable-mode-pressed [world event]
-;;   ;; (get-cable-endpoint world event)
-;;   world)
-
-;; (defn move-cable-mode-moved [world event]
-;;   world)
-
-;; (defn move-cable-mode-released [world event]
-;;   world)
-
-;; (let [world @world]
-;;   (println (:cables world))
-;;   ))
-
 ;;----------------------------------------------------------------------;;
 
 (do
 1
 
-(defn create-world! []
-  (set-thing! [] {})
-  (set-thing! [:programs :basic] (create-program "basic"))
-  (set-thing! [:programs :flat] (create-program "flat"))
-  (set-thing! [:programs :textured] (create-program "textured"))
-  (set-thing! [:programs :ortho] (create-program "ortho"))
-  (set-thing! [:programs :colored] (create-program "colored"))
+(defn create-world []
+  (let [world (create-gl-world)]
+    (create-debug-meshes!)
+    (clear-output!)
 
-  (GL11/glEnable GL11/GL_SCISSOR_TEST)
-  (GL11/glClearColor 0 0.5 0.8 0)
-  (GL11/glEnable GL11/GL_CULL_FACE)
-  (GL11/glCullFace GL11/GL_BACK)
-
-  (set-thing! [:projection-matrix] (get-perspective-matrix
-                                    10 (/ window-width window-height) 3 1000))
-
-  (update-thing! [] (slots create-camera _ [0 0 1] 40 25 -35))
-  (set-thing! [:camera :pivot] [0 0 0])
-  (update-thing! [] compute-camera)
-  (update-thing! [] #(create-grid-mesh % 24 0.5))
-  (set-thing! [:output] (create-ortho-mesh))
-  (create-debug-meshes!)
-  (clear-output!)
-
-  ;;-------------------------------------------------;;
-
-  (set-thing! [:planet] (create-planet!))
-  (create-ground! (:planet @world))
-  (set-thing! [:sphere-radius] 0.2)
-
-  (let [r (:sphere-radius @world)]
-    (set-thing! [:sphere-mesh] (create-sphere-mesh [0 0 0] [1 0 0 0]
-                                                   [r r r] :blue)))
-
-  (set-thing! [:spheres] [])
-
-  (set-thing! [:meshes :ground] (create-cube-mesh
+    (-> world
+        (assoc-in [:meshes :ground] (create-cube-mesh
                                  [0 -0.25 0] [1 0 0 0] [12 0.5 12]
                                  (make-color 40 40 40)))
+        (assoc-in [:info] (create-info))
+        (assoc-in [:ground-children] {})
+        (assoc-in [:graph-box] {:x 343 :y 540 :w 685 :h 150})
+        (#(assoc-in % [:snap-specs] (get-snap-specs %)))
+        (update-move-plane)
+        (assoc-in [:cursor] (create-cone-mesh [0 -5 0] [1 0 0 0]
+                                              [0.05 0.1 0.05] :black))
 
-  (set-thing! [:info] (create-info))
-
-  (set-thing! [:ground-children] {})
-
-  (set-thing! [:graph-box] {:x 343
-                              :y 540
-                              :w 685
-                              :h 150
-                              })
-
-  (set-thing! [:snap-specs] (get-snap-specs @world))
-  (update-thing! [] update-move-plane)
-
-  (set-thing! [:cursor]
-              (create-cone-mesh [0 -5 0] [1 0 0 0] [0.05 0.1 0.05] :black))
-
-  (set-thing! [:current-color] :red)
-
-  (set-thing! [:command] "")
-  (set-thing! [:bindings] (get-bindings))
-
-  (set-thing! [:use-weld-groups] true)
-
-  (set-thing! [:cable-mesh] (create-cube-mesh [0 0 0] [1 0 0 0]
-                                              [0.03 1 0.03] :blue))
-  (set-thing! [:new-cable] nil)
-  (set-thing! [:cables] {})
-
-  (set-thing! [:color-palette]
-              (create-image "resources/colors.svg" 150 590 -1 40))
-
-  (set-thing! [:mode] :idle)
-
-  (set-thing! [:selected-mesh]
-              (create-wireframe-cube [0 0.52 0] [1 0 0 0]
-                                     [0.3001 0.1001 0.3001] :white))
-  )
+        (assoc-in [:command] "")
+        (assoc-in [:mode] :idle)
+        (assoc-in [:bindings] (get-bindings))
+        (assoc-in [:current-color] :red)
+        (assoc-in [:color-palette]
+                  (create-image "resources/colors.svg" 150 590 -1 40))
+        (assoc-in [:selected-mesh]
+                  (create-wireframe-cube [0 0.52 0] [1 0 0 0]
+                                         [0.3001 0.1001 0.3001] :white))
+        (assoc-in [:use-weld-groups] true)
+    )))
 (reset-world!)
 )
 
 (defn update-world [world elapsed]
-  (let [world (-> world
-                  (run-chips elapsed)
-                  (compute-transforms (if (:use-weld-groups world)
-                                        :weld-groups
-                                        :parts))
-                  ;; (enforce-cable-lengths)
-                  )]
-    ;; (recompute-body-transforms! world)
-    ;; (step-simulation! (:planet world) elapsed)
-    world))
+  (if (in? (:mode world) [:insert :edit])
+    world
+    (let [world (-> world
+                    (run-chips elapsed)
+                    (compute-transforms (if (:use-weld-groups world)
+                                          :weld-groups
+                                          :parts))
+                    ;; (enforce-cable-lengths)
+                    )]
+      ;; (recompute-body-transforms! world)
+      ;; (step-simulation! (:planet world) elapsed)
+      world)))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -3398,23 +3357,4 @@
                 :else
                 (mode-mouse-released world event))]
     (draw-2d! world)
-    (-> world
-        (assoc-in [:snap-specs] (get-snap-specs world))
-        (create-weld-groups)
-        (compute-transforms :parts))))
-
-
-;; (do
-;; 1
-
-;; (clear-output!)
-;; (let [world @world
-;;       ]
-
-;;   (update-thing! [] create-weld-groups)
-;;   ))
-
-;; (update-thing! [:use-weld-groups] not)
-
-;; (println (:use-weld-groups @world))
-
+    (prepare-tree world)))
