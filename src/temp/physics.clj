@@ -18,7 +18,7 @@
 (import com.bulletphysics.dynamics.constraintsolver.Generic6DofConstraint)
 (import com.bulletphysics.collision.dispatch.CollisionFlags)
 
-(defn create-planet! []
+(defn create-planet []
   (let [collision-configuration (new DefaultCollisionConfiguration)
         dispatcher (new CollisionDispatcher collision-configuration)
         gravity (new Vector3f 0 -1 0)
@@ -49,13 +49,13 @@
 (defn remove-body [planet body]
   (.removeRigidBody planet body))
 
-(defn create-ground! [planet]
+(defn create-ground [planet]
   (add-body-to-planet planet (create-static-plane [0 1 0] 0))
   (add-body-to-planet planet (create-static-plane [1 0 0] -6))
   (add-body-to-planet planet (create-static-plane [-1 0 0] -6))
   (add-body-to-planet planet (create-static-plane [0 0 1] -6))
   (add-body-to-planet planet (create-static-plane [0 0 -1] -6))
-  )
+  planet)
 
 (defn create-body [shape mass transform]
   (let [motion-state (new DefaultMotionState transform)
