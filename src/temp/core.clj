@@ -1719,6 +1719,9 @@
                        (= (:type part) type))
                      parts)))
 
+(defn print-parts! []
+  (println (keys (:parts @world))))
+
 ;;-------------------------------------------------------------------------------;;
 ;; draw parts
 
@@ -2189,34 +2192,18 @@
 ;;-------------------------------------------------------------------------------;;
 ;; delete mode
 
-(defn detach-child [world child-name]
-  (let [parent-name (get-parent-part world child-name)]
-    (cond
-      (= parent-name :ground)
-      (dissoc-in world [:ground-children child-name])
-
-      (nil? parent-name) world
-
-      :else
-      (dissoc-in world [:parts parent-name :children child-name]))))
-
 ;;---
 
 (declare get-sphere-at)
 (declare delete-sphere)
 (declare get-cable-at)
 
-(defn get-connected-chips [world part-name]
-  (let [chips (get-parts-with-type (:parts world) :chip)]
-    (vec (filter (fn [chip-name]
-                   (let [parts (map first
-                                    (get-in world [:parts chip-name
-                                                   :functions]))]
-                     (in? part-name parts)))
-                 chips))))
-
-(defn remove-from-chip [world chip-name part-name]
-  (dissoc-in world [:parts chip-name :functions part-name]))
+(defn forget-part [world parent-name part-name]
+  (-> world
+      (dissoc-in [:parts parent-name :children part-name])
+      (dissoc-in [:parts parent-name :inputs part-name])
+      (dissoc-in [:parts parent-name :outputs part-name])
+      (dissoc-in [:parts parent-name :functions part-name])))
 
 (defn delete-mode-pressed [world event]
   (let [x (:x event)
@@ -2226,13 +2213,10 @@
     (if-let [sphere (get-sphere-at world x y)]
       (delete-sphere world sphere)
       (if-let [part-name (get-part-at world x y)]
-        (let [connected-chips (get-connected-chips world part-name)
-              world (reduce #(remove-from-chip %1 %2 part-name)
-                            world connected-chips)]
-          (-> world
-              (detach-child part-name)
-              (dissoc-in [:parts part-name])
-              ))
+        (let [world (reduce #(forget-part %1 %2 part-name)
+                            world
+                            (keys (:parts world)))]
+          (dissoc-in world [:parts part-name]))
         world))))
 
 ;;----------------------------------------------------------------------;;
@@ -2788,14 +2772,22 @@
 ;; cpu mode
 
 (defn load-script [world]
-  (println "load script")
-  world)
-
-(println (keys (:parts @world)))
+  (if-let [selected-cpu (:selected-cpu world)]
+    (read-input world (fn [w text]
+                        (let [filename (str "resources/" text ".clj")]
+                          (if (file-exists? filename)
+                            (assoc-in w [:parts selected-cpu :root-filename] text)
+                            (do
+                              (println "invalid filename:" text)
+                              w)))))
+    (do
+      (println "select a cpu")
+      world)))
 
 (defn run-script! [w cpu-name pin-name]
   (let [cpu (get-in w [:parts cpu-name])
-        filename (str "resources/" (:root-filename cpu) ".clj")
+        root (or (:root-filename cpu) "default")
+        filename (str "resources/" root ".clj")
         code (read-string (slurp filename))]
     (.start
      (new Thread
@@ -2811,7 +2803,6 @@
 (defn run-selected-cpu [world]
   (if-let [selected-cpu (:selected-cpu world)]
     (do
-      (println "run cpu" selected-cpu)
       (run-script! world selected-cpu nil)
       world)
     world))
@@ -2831,13 +2822,13 @@
         (dotimes [i (count (:outputs cpu))]
           (let [part-name (first (nth (vec (:outputs cpu)) i))
                 color (get-in world [:parts part-name :color])]
-            (draw-rect! color (+ middle 20 (* i 30)) 520 20 20)))
+            (fill-rect! color (+ middle 20 (* i 30)) 520 20 20)
+            (draw-rect! :gray (+ middle 20 (* i 30)) 520 20 20)))
         (dotimes [i (count (:inputs cpu))]
           (let [part-name (first (nth (vec (:inputs cpu)) i))
-                color :yellow ;; (get-in world [:parts part-name :color])
-                ]
-            (draw-rect! color (+ 27 (* i 30)) 520 20 20)))
-        )
+                color (get-in world [:parts part-name :color])]
+            (fill-rect! color (+ 27 (* i 30)) 520 20 20)
+            (draw-rect! :gray (+ 27 (* i 30)) 520 20 20))))
       (let [hw (* w 0.5)
             hh (* h 0.5)
             o (- 7)
@@ -2978,7 +2969,9 @@
            (get-parts-with-type parts :block)))
 
 (defn set-probe-value [world probe-name]
-  (let [probe (get-in world [:weld-groups probe-name])
+  (let [probe (if (:use-weld-groups world)
+                (get-in world [:weld-groups probe-name])
+                (get-in world [:parts probe-name]))                
         position (get-transform-position (:transform probe))
         value (if (inside-any-block? (:parts world) position)
                 1
@@ -3112,6 +3105,9 @@
 ;;-------------------------------------------------------------------------------;;
 ;; weld optimization
 
+(do
+1
+  
 (defn get-limited-tree [parts root-name all-root-names]
   (let [root (get-in parts [root-name])
         children (filter (fn [name]
@@ -3122,12 +3118,27 @@
 
 (defn segregate-parts [world]
   (let [chip-names (get-parts-with-type (:parts world) :chip)
-        driven-parts (apply concat (map (fn [chip-name]
-                                          (let [chip (get-in world [:parts chip-name])]
-                                            (keys (:functions chip))))
-                                        chip-names))
-        probes (get-parts-with-type (:parts world) :probe)
-        roots (concat (keys (:ground-children world)) driven-parts probes)]
+        ground-children (keys (:ground-children world))
+        chip-children (apply concat (map (fn [chip-name]
+                                           (let [chip (get-in world [:parts chip-name])]
+                                             (keys (:functions chip))))
+                                         chip-names))
+        cpu-names (get-parts-with-type (:parts world) :cpu)
+        cpu-children (apply concat (map (fn [cpu-name]
+                                          (let [cpu (get-in world [:parts cpu-name])]
+                                            (concat (keys (:inputs cpu))
+                                                    (keys (:outputs cpu)))))
+                                        cpu-names))
+        roots (concat chip-children
+                      cpu-children)
+
+        roots (filter (fn [name]
+                        (let [part (get-in world [:parts name])]
+                          (not (in? (:type part) [:chip :button]))))
+                      roots)
+
+        roots (concat ground-children roots)
+        roots (into [] (into #{} roots))]
     (vec (map (fn [root]
                 (get-limited-tree (:parts world) root roots))
               roots))))
@@ -3214,7 +3225,16 @@
     (-> world
         (create-kinematic-bodies parts groups)
         (assoc-in [:weld-groups] weld-groups)
-        (compute-transforms :weld-groups))))
+        (compute-transforms :weld-groups))
+    ))
+
+;;#######################################################
+(clear-output!)
+(let [world @world]
+
+  (create-weld-groups world)
+  nil
+  ))
 
 ;;-------------------------------------------------------------------------------;;
 ;; load/save machine
@@ -3462,7 +3482,7 @@
         r 0.2
         ]
     (create-debug-meshes!)
-    (clear-output!)
+    ;; (clear-output!)
 
     (-> world
         (assoc-in [:meshes :ground] (create-cube-mesh
@@ -3501,6 +3521,7 @@
 )
 
 (defn update-world [world elapsed]
+  ;; (println (get-in world [:parts :probe7995 :value]))
   (if (in? (:mode world) [:insert :edit])
     world
     (let [world (-> world
@@ -3599,3 +3620,9 @@
                 (mode-mouse-released world event))]
     (draw-2d! world)
     (prepare-tree world)))
+
+(set-thing! [:use-weld-groups] false)
+(set-thing! [:parts :cpu8000 :root-filename] "script")
+(print-parts!)
+(clear-output!)
+

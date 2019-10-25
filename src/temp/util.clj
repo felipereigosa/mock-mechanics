@@ -206,3 +206,6 @@
 
 (defn map-map [func m]
   (apply merge (map func m)))
+
+(defn file-exists? [filename]
+  (.exists (clojure.java.io/file filename)))

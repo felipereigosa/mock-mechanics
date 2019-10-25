@@ -2,26 +2,51 @@
 (let [world @temp.core/world
       set-thing! temp.core/set-thing!
       println temp.core/println
-      within temp.core/within
-      track-name :track7405]
-
+      within temp.core/within]
   (fn [pin-name]
-    (let [value (get-in world [:parts pin-name :value])]
-      (when (or (nil? value) (= value 1))
-        (dotimes [i 101]
-          (set-thing! [:parts track-name :value]
-                      (within (/ i 101.0) 0 1))
-          (temp.core/sleep 20))
-        ))))
+    (when (= pin-name :button7998)
+      (let [button-value (get-in world [:parts pin-name :value])
+            probe-value (get-in world [:parts :probe7995 :value])]
+        (when (or (nil? button-value) (= button-value 1))
+          (if (= probe-value 0)
+            (set-thing! [:parts :chip7997 :time] 0.0)
+            (set-thing! [:parts :chip7996 :time] 0.0)
+            ))))))
 
-;; (let [track ...
-;;       ]
-;;   (fn [pin-name]
-;;     (let [value (:value track)]
-;;       (when (or (nil? value) (= value 1))
-;;         (dotimes [i 101]
-;;           (set-value track (within (/ i 101.0) 0 1))
-;;           (sleep 20))))))
-      
+;; (let [probe (input 0)
+;;       button (input 1)
+;;       hide-chip (output 0)
+;;       show-chip (output 1)
+;;       ]  
+;;   (fn [part]
+;;     (println (:color probe))
+;;     ;; (when (and (= part button)
+;;     ;;            (= (get-value part) 1))
+;;     ;;   (if (= (get-value probe) 0)
+;;     ;;     (run hide-chip)
+;;     ;;     (run show-chip)))
+;;     ))
 
+;; (do
+;;   ;; (require '[temp.core :as t :refer :all])
 
+;;   ;; (let [probe :probe7995 ;; in0
+;;   ;;       chip :chip7997   ;; out0
+;;   ;;       ]
+    
+;;     ;; (letfn [;; (get-part [part-name]
+;;     ;;         ;;   (get-in @world [:parts part-name]))
+;;     ;;         ;; (run-chip [chip-name]
+;;     ;;         ;;   (set-thing! [:parts chip-name :time] 0.0))
+;;     ;;         ]
+;;       (fn [pin-name]
+;;         ;; (println (:color (get-part pin-name)))
+
+;;         ;; (run-chip chip)
+;;         (println pin-name)
+;;         ;; (set-thing! [:parts :chip7997 :time] 0.0)
+;;         ))
+
+;; (fn [pin-name]
+;;   ;; (set-thing! [:parts :chip7996 :time] 0.0)
+;;   )
