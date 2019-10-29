@@ -2784,11 +2784,90 @@
       (println "select a cpu")
       world)))
 
+(do
+1
+
+;; ;; (defmacro script [inputs outputs function]
+;; ;;   (println s"here")
+;; ;;   `(+ 1 2)
+;; ;;   )
+
+(defn map-bindings [names values]
+  (flatten (vec (apply merge (map (fn [a b]
+                                    (if (= a '_)
+                                      nil
+                                      {a b}))
+                                  names values)))))
+
+;; (clear-output!)
+;; (let [inputs [:button7998 :probe7995]
+;;       outputs [:chip7996 :chip7997]
+
+;;       code (read-string "(script
+;;  [button probe]
+;;  [out-chip in-chip]
+
+;;  (fn [part-name]
+;;    (println \"button is \" button)
+;;    ))")
+
+;;       input-names (nth code 1)
+;;       output-names (nth code 2)
+;;       function (nth code 3)
+;;       input-bindings (map-bindings input-names inputs)
+;;       output-bindings (map-bindings output-names outputs)
+
+;;       helpers '[get-value (fn [name]
+;;                             (get-in @world [:parts name :value]))
+;;                 run-chip (fn [name]
+;;                            (set-thing! [:parts name :time] 0.0))]
+;;       template `(do
+;;                   (require '[temp.core :refer :all])
+
+;;                   (let [~@input-bindings
+;;                         ~@output-bindings
+;;                         ~@helpers
+;;                         ]
+;;                     ~function
+;;                     ))
+;;       ]
+
+;;   ;; (println (macroexpand '(script [foo bar] [_ some] (fn [p] 2))))
+
+;;   (println ((eval template) 10))
+  
+;;   ;; (eval (read-string "(script 1 2 3)"))
+  
+;;   ))
+
+
+(defn process-code [code inputs outputs]
+  (let [input-names (nth code 1)
+        output-names (nth code 2)
+        function (nth code 3)
+        input-bindings (map-bindings input-names inputs)
+        output-bindings (map-bindings output-names outputs)
+
+        helpers '[get-value (fn [name]
+                              (get-in @world [:parts name :value]))
+                  run-chip (fn [name]
+                             (set-thing! [:parts name :time] 0.0))]]
+    `(do
+       (require '[temp.core :refer :all])
+
+       (let [~@input-bindings
+             ~@output-bindings
+             ~@helpers]
+         ~function))))
+
 (defn run-script! [w cpu-name pin-name]
   (let [cpu (get-in w [:parts cpu-name])
         root (or (:root-filename cpu) "default")
         filename (str "resources/" root ".clj")
-        code (read-string (slurp filename))]
+        inputs (keys (:inputs cpu))
+        outputs (keys (:outputs cpu))
+        code (process-code (read-string (slurp filename))
+                           inputs outputs)]
     (.start
      (new Thread
           (proxy [Runnable] []
@@ -2799,6 +2878,11 @@
                   (do
                     (println "script failed")
                     (println (.getMessage e)))))))))))
+
+(clear-output!)
+;; (run-script! @world :cpu8000 nil)
+nil
+)
 
 (defn run-selected-cpu [world]
   (if-let [selected-cpu (:selected-cpu world)]
@@ -2811,7 +2895,7 @@
   (let [cpu-box (:cpu-box world)
         {:keys [x y w h]} cpu-box
         middle (int (/ window-width 2))]
-    
+
     (fill-rect! :black x y w h)
     (draw-rect! :dark-gray x y (- w 14) (- h 14))
     (draw-line! :dark-gray middle (- y (/ h 2)) middle (+ y (/ h 2)))
@@ -2860,12 +2944,12 @@
           part-direction (get-in world [:info part-type :direction])]
       (cond
         (= part-name (:selected-cpu world)) world
-        
+
         (= part-direction :input)
         (if (in? part-name (keys (:inputs cpu)))
           (dissoc-in world [:parts cpu-name :inputs part-name])
           (assoc-in world [:parts cpu-name :inputs part-name] 0))
-        
+
         (= part-direction :output)
         (if (in? part-name (keys (:outputs cpu)))
           (dissoc-in world [:parts cpu-name :outputs part-name])
@@ -2969,14 +3053,15 @@
            (get-parts-with-type parts :block)))
 
 (defn set-probe-value [world probe-name]
-  (let [probe (if (:use-weld-groups world)
-                (get-in world [:weld-groups probe-name])
-                (get-in world [:parts probe-name]))                
-        position (get-transform-position (:transform probe))
-        value (if (inside-any-block? (:parts world) position)
-                1
-                0)]
-    (assoc-in world [:parts probe-name :value] value)))
+  (if-let [probe (if (:use-weld-groups world)
+                   (get-in world [:weld-groups probe-name])
+                   (get-in world [:parts probe-name]))]
+    (let [position (get-transform-position (:transform probe))
+          value (if (inside-any-block? (:parts world) position)
+                  1
+                  0)]
+      (assoc-in world [:parts probe-name :value] value))
+    world))
 
 (defn set-probe-values [world]
   (reduce (fn [w probe-name]
@@ -3105,9 +3190,6 @@
 ;;-------------------------------------------------------------------------------;;
 ;; weld optimization
 
-(do
-1
-  
 (defn get-limited-tree [parts root-name all-root-names]
   (let [root (get-in parts [root-name])
         children (filter (fn [name]
@@ -3225,16 +3307,7 @@
     (-> world
         (create-kinematic-bodies parts groups)
         (assoc-in [:weld-groups] weld-groups)
-        (compute-transforms :weld-groups))
-    ))
-
-;;#######################################################
-(clear-output!)
-(let [world @world]
-
-  (create-weld-groups world)
-  nil
-  ))
+        (compute-transforms :weld-groups))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; load/save machine
@@ -3621,8 +3694,7 @@
     (draw-2d! world)
     (prepare-tree world)))
 
-(set-thing! [:use-weld-groups] false)
-(set-thing! [:parts :cpu8000 :root-filename] "script")
-(print-parts!)
-(clear-output!)
+
+
+
 
