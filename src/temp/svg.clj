@@ -10,6 +10,7 @@
 (import org.apache.batik.dom.svg.SVGDOMImplementation)
 (import org.apache.batik.util.SVGConstants)
 (import java.io.ByteArrayInputStream)
+(import java.awt.image.BufferedImage)
 
 (defn parse-svg-from-map [document width height]
   (let [transcoder-hints (new TranscodingHints)

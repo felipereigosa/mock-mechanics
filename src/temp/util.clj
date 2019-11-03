@@ -209,3 +209,8 @@
 
 (defn file-exists? [filename]
   (.exists (clojure.java.io/file filename)))
+
+(defn join-keywords [& keywords]
+  (keyword (apply str (interpose "-" (map (fn [k]
+                                            (subs (str k) 1)) keywords)))))
+

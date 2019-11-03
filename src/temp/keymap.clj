@@ -1,6 +1,8 @@
 
 (ns temp.core)
 
+(import org.lwjgl.glfw.GLFW)
+
 (def keymap {GLFW/GLFW_KEY_SPACE                   nil
              GLFW/GLFW_KEY_APOSTROPHE              nil
              GLFW/GLFW_KEY_COMMA                   ","

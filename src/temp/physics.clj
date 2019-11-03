@@ -17,6 +17,7 @@
 (import com.bulletphysics.dynamics.constraintsolver.SliderConstraint)
 (import com.bulletphysics.dynamics.constraintsolver.Generic6DofConstraint)
 (import com.bulletphysics.collision.dispatch.CollisionFlags)
+(import javax.vecmath.Vector3f)
 
 (defn create-planet []
   (let [collision-configuration (new DefaultCollisionConfiguration)
