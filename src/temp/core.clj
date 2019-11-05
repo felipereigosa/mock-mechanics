@@ -173,16 +173,21 @@
 (declare get-part-at)
 
 (defn get-function-value [function t interpolator]
-  (let [pairs (map vector function (rest function))
-        pair (find-if (fn [[[t0 & _] [t1 & _]]]
-                        (<= t0 t t1))
-                      pairs)
-        t0 (first (first pair))
-        t1 (first (second pair))
-        s (map-between-ranges t t0 t1 0 1)
-        v0 (second (first pair))
-        v1 (second (second pair))]
-    (interpolator v0 v1 s)))
+  (let [final-time (first (last function))]
+    (cond
+      (<= t 0.0) (last (first function))
+      (>= t final-time) (last (last function))
+      :else
+      (let [pairs (map vector function (rest function))
+            pair (find-if (fn [[[t0 & _] [t1 & _]]]
+                            (<= t0 t t1))
+                          pairs)
+            t0 (first (first pair))
+            t1 (first (second pair))
+            s (map-between-ranges t t0 t1 0 1)
+            v0 (second (first pair))
+            v1 (second (second pair))]
+        (interpolator v0 v1 s)))))
 
 (defn create-image [filename x y w h]
   (let [document (read-xml filename)
@@ -203,15 +208,14 @@
                   (:regions image))))
 
 (defn draw-text-box! [world]
-  (let [text (if (:text-input world)
-               (str (:text world))
-               (:command world))]
-    (fill-rect! :black 80 13 150 25)
-    (draw-text! :green text 15 17 14)
-    ))
+  (let [[text color] (if (:text-input world)
+                       [(str (:text world)) :dark-gray]
+                       [(:command world) :black])]
+    (fill-rect! color 80 13 150 25)
+    (draw-text! :green text 15 17 14)))
 
 (defn read-input [world callback]
-  (println "listening for input:")
+  (println! "listening for input:")
   (-> world
       (assoc-in [:input-callback] callback)
       (assoc-in [:text-input] true)))
@@ -222,7 +226,7 @@
                      parts)))
 
 (defn print-parts! []
-  (println (keys (:parts @world))))
+  (println! (keys (:parts @world))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; draw parts
@@ -576,7 +580,7 @@
       (create-weld-groups)))
 
 (defn change-mode [world new-mode]
-  (println "entering" new-mode "mode")
+  (println! "entering" new-mode "mode")
   (let [exit-fun (or (get-function (:mode world) :exited) identity)
         enter-fun (or (get-function new-mode :entered) identity)
         world (-> world
@@ -711,6 +715,14 @@
       (dissoc-in [:parts parent-name :outputs part-name])
       (dissoc-in [:parts parent-name :functions part-name])))
 
+(defn unselect-part [world part-name]
+  (cond
+    (= part-name (:selected-chip world))
+    (dissoc-in world [:selected-chip])
+    
+    (= part-name (:selected-cpu world))
+    (dissoc-in world [:selected-cpu])))
+
 (defn delete-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
@@ -722,7 +734,9 @@
         (let [world (reduce #(forget-part %1 %2 part-name)
                             world
                             (keys (:parts world)))]
-          (dissoc-in world [:parts part-name]))
+          (-> world
+              (unselect-part part-name)
+              (dissoc-in [:parts part-name])))
         world))))
 
 ;;----------------------------------------------------------------------;;
@@ -797,7 +811,7 @@
           normal (:normal world)
           l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
           increase-vector (map * (:normal world) [l l l])]
-      (println "scale:" (round (/ l grain-size)))
+      (println! "scale:" (round (/ l grain-size)))
       (-> world
           (set-block-size block-name scale center increase-vector)
           (assoc-in [:increase-vector] increase-vector)
@@ -864,7 +878,7 @@
           center (:original-center world)
           normal (second adjust-line)
           l (within (+ (apply max scale) d) grain-size 10)]
-      (println "scale:" (round (/ l grain-size)))
+      (println! "scale:" (round (/ l grain-size)))
       (-> world
           (set-track-size track-name scale center l)
           (assoc-in [:track-length] l)
@@ -976,171 +990,8 @@
     world))
 
 ;;----------------------------------------------------------------------;;
-;; cpu mode
 
-(defn load-script [world]
-  (if-let [selected-cpu (:selected-cpu world)]
-    (read-input world (fn [w text]
-                        (let [filename (str "resources/" text ".clj")]
-                          (if (file-exists? filename)
-                            (assoc-in w [:parts selected-cpu :root-filename] text)
-                            (do
-                              (println "invalid filename:" text)
-                              w)))))
-    (do
-      (println "select a cpu")
-      world)))
-
-(defn map-bindings [names values]
-  (flatten (vec (apply merge (map (fn [a b]
-                                    (if (= a '_)
-                                      nil
-                                      {a b}))
-                                  names values)))))
-
-(defn process-code [code inputs outputs]
-  (let [input-names (nth code 1)
-        output-names (nth code 2)
-        function (nth code 3)
-        input-bindings (map-bindings input-names inputs)
-        output-bindings (map-bindings output-names outputs)
-
-        helpers '[get-value (fn [name]
-                              (get-in @world [:parts name :value]))
-                  run-chip (fn [name]
-                             (set-thing! [:parts name :time] 0.0))]]
-    `(do
-       (require '[temp.core :refer :all])
-
-       (let [~@input-bindings
-             ~@output-bindings
-             ~@helpers]
-         ~function))))
-
-(defn run-script! [w cpu-name pin-name]
-  (let [cpu (get-in w [:parts cpu-name])
-        root (or (:root-filename cpu) "default")
-        filename (str "resources/" root ".clj")
-        inputs (keys (:inputs cpu))
-        outputs (keys (:outputs cpu))
-        code (process-code (read-string (slurp filename))
-                           inputs outputs)]
-    (.start
-     (new Thread
-          (proxy [Runnable] []
-            (run []
-              (try
-                ((eval code) pin-name)
-                (catch Exception e
-                  (do
-                    (println "script failed")
-                    (println (.getMessage e)))))))))))
-
-(defn run-selected-cpu [world]
-  (if-let [selected-cpu (:selected-cpu world)]
-    (do
-      (run-script! world selected-cpu nil)
-      world)
-    world))
-
-(defn cpu-mode-draw [world]
-  (let [cpu-box (:cpu-box world)
-        {:keys [x y w h]} cpu-box
-        middle (int (/ window-width 2))]
-
-    (fill-rect! :black x y w h)
-    (draw-rect! :dark-gray x y (- w 14) (- h 14))
-    (draw-line! :dark-gray middle (- y (/ h 2)) middle (+ y (/ h 2)))
-    (if-let [cpu-name (:selected-cpu world)]
-      (let [cpu (get-in world [:parts cpu-name])]
-        (draw-text! :gray "inputs:" 20 490 15)
-        (draw-text! :gray "outputs:" (+ middle 13) 490 15)
-        (dotimes [i (count (:outputs cpu))]
-          (let [part-name (first (nth (vec (:outputs cpu)) i))
-                color (get-in world [:parts part-name :color])]
-            (fill-rect! color (+ middle 20 (* i 30)) 520 20 20)
-            (draw-rect! :gray (+ middle 20 (* i 30)) 520 20 20)))
-        (dotimes [i (count (:inputs cpu))]
-          (let [part-name (first (nth (vec (:inputs cpu)) i))
-                color (get-in world [:parts part-name :color])]
-            (fill-rect! color (+ 27 (* i 30)) 520 20 20)
-            (draw-rect! :gray (+ 27 (* i 30)) 520 20 20))))
-      (let [hw (* w 0.5)
-            hh (* h 0.5)
-            o (- 7)
-            x1 (- x hw o)
-            x2 (+ x hw o)
-            y1 (- y hh o)
-            y2 (+ y hh o)]
-        (draw-line! :dark-gray x1 y1 x2 y2)
-        (draw-line! :dark-gray x1 y2 x2 y1)))))
-
-(defn select-cpu [world x y]
-  (if (inside-box? (:cpu-box world) x y)
-    world
-    (if-let [part-name (get-part-at world x y)]
-      (let [part (get-in world [:parts part-name])]
-        (if (= (:type part) :cpu)
-          (-> world
-              (assoc-in [:selected-mesh :transform] (:transform part))
-              (assoc-in [:selected-cpu] part-name))
-          world))
-      world)))
-
-(defn cpu-change-part [world x y]
-  (if-let [part-name (get-part-at world x y)]
-    (let [cpu-name (:selected-cpu world)
-          cpu (get-in world [:parts cpu-name])
-          part (get-in world [:parts part-name])
-          part-type (:type part)
-          part-direction (get-in world [:info part-type :direction])]
-      (cond
-        (= part-name (:selected-cpu world)) world
-
-        (= part-direction :input)
-        (if (in? part-name (keys (:inputs cpu)))
-          (dissoc-in world [:parts cpu-name :inputs part-name])
-          (assoc-in world [:parts cpu-name :inputs part-name] 0))
-
-        (= part-direction :output)
-        (if (in? part-name (keys (:outputs cpu)))
-          (dissoc-in world [:parts cpu-name :outputs part-name])
-          (assoc-in world [:parts cpu-name :outputs part-name] 0))
-
-        :else world))
-    world))
-
-(defn cpu-mode-pressed [world event]
-  (let [x (:x event)
-        y (:y event)]
-    (if-let [selected-cpu (:selected-cpu world)]
-      (if (inside-box? (:cpu-box world) x y)
-        world
-        (cpu-change-part world x y))
-      (select-cpu world x y))))
-
-(defn input-value-changed [world cpu-name input-name]
-  (run-script! world cpu-name input-name)
-  world)
-
-(defn cpu-input-changes [world cpu-name]
-  (let [cpu (get-in world [:parts cpu-name])]
-    (reduce (fn [w [input-name old-value]]
-              (let [new-value (get-in world [:parts input-name :value])]
-                (if (= new-value old-value)
-                  w
-                  (-> w
-                      (input-value-changed cpu-name input-name)
-                      (assoc-in [:parts cpu-name
-                                 :inputs input-name] new-value)))))
-            world
-            (:inputs cpu))))
-
-(defn cpus-input-changes [world]
-  (reduce (fn [w cpu-name]
-            (cpu-input-changes w cpu-name))
-          world
-          (get-parts-with-type (:parts world) :cpu)))
+(load "cpu-mode")
 
 ;;----------------------------------------------------------------------;;
 ;; cable mode
@@ -1165,8 +1016,6 @@
 ;;----------------------------------------------------------------------;;
 ;; idle mode
 
-(declare button-pressed)
-
 (defn idle-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
@@ -1175,8 +1024,7 @@
         (if (= (:type part) :button)
           (-> world
               (assoc-in [:parts part-name :value] 1)
-              (assoc-in [:button] part-name)
-              (button-pressed part-name))
+              (assoc-in [:button] part-name))
           world))
       world)))
 
@@ -1226,15 +1074,6 @@
     (filter (fn [chip-name]
               (in? input-name (get-in world [:parts chip-name :inputs])))
             chips)))
-
-(defn button-pressed [world button-name]
-  ;; (reduce (fn [w chip-name]
-  ;;           (assoc-in w [:parts chip-name :time] 0.0))
-  ;;         world
-  ;;         (get-chips-with-input world button-name))
-  ;; (println "button pressed" button-name)
-  world
-  )
 
 (defn draw-buttons! [world]
   (let [button-names (get-parts-with-type (:parts world) :button)]
@@ -1610,25 +1449,27 @@
                 (assoc-in w [:graph-subcommand] :add))
    ":graph d" (fn [w]
                 (assoc-in w [:graph-subcommand] :delete))
-   ":graph r" run-selected-chip
+   ":graph r" #(run-selected-chip %)
    ":graph s" (fn [w]
                 (dissoc-in w [:selected-chip]))
    ":graph t" (fn [w]
                 (assoc-in w [:graph-subcommand] :toggle-relative))
    ":graph v" (fn [w]
-                (assoc-in w [:graph-subcommand] :set-value))   
+                (assoc-in w [:graph-subcommand] :set-value))
+   ":graph 1" #(reset-graph-view %)
+   ":graph n" #(set-snap-value %)
 
    "C-x m" #(change-mode % :cpu)
    ":cpu s" (fn [w]
               (dissoc-in w [:selected-cpu]))
-   ":cpu r" run-selected-cpu
-   ":cpu l" load-script
+   ":cpu r" #(run-selected-cpu %)
+   ":cpu l" #(load-script %)
 
    "." (fn [w]
          (change-mode w :pivot))
 
    "C-x r" (fn [w]
-             (println "reset world")
+             (println! "reset world")
              (create-world))
 
    "C-x s" #(read-input % save-machine-callback)
@@ -1664,12 +1505,24 @@
 
 (defn text-input-key-pressed [world event]
   (let [key (get-in keymap [(:code event)])]
-    (if (= key :enter)
-      (let [callback (:input-callback world)]
+    (case key
+      :enter
+      (let [callback (:input-callback world)
+            world (try
+                    (callback world (:text world))
+                    (catch Exception e
+                      (do
+                        (println! "invalid input:" (:text world))
+                        world)))]
         (-> world
-            (callback (:text world))
             (dissoc-in [:text])
             (assoc-in [:text-input] false)))
+
+      :backspace
+      (if (empty? (:text world))
+        world
+        (update-in world [:text] #(apply str (butlast %))))
+
       (update-in world [:text]
                  (fn [text]
                    (apply str (concat text key)))))))
@@ -1751,12 +1604,13 @@
         (assoc-in [:spheres] [])
         (assoc-in [:button-mesh] (create-cylinder-mesh [0 0 0] [1 0 0 0]
                                                        [0.2 0.2 0.2] :red))
+
+        (assoc-in [:graph-snap-value] 0.1)
     )))
 (reset-world!)
 )
 
 (defn update-world [world elapsed]
-  ;; (println (get-in world [:parts :probe7995 :value]))
   (if (in? (:mode world) [:insert :edit])
     world
     (let [world (-> world
@@ -1862,4 +1716,3 @@
                 (mode-mouse-released world event))]
     (draw-2d! world)
     (prepare-tree world)))
-

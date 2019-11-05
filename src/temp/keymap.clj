@@ -53,7 +53,7 @@
              GLFW/GLFW_KEY_ESCAPE                  "esc"
              GLFW/GLFW_KEY_ENTER                   :enter
              GLFW/GLFW_KEY_TAB                     nil
-             GLFW/GLFW_KEY_BACKSPACE               nil
+             GLFW/GLFW_KEY_BACKSPACE               :backspace
              GLFW/GLFW_KEY_INSERT                  nil
              GLFW/GLFW_KEY_DELETE                  nil
              GLFW/GLFW_KEY_RIGHT                   nil

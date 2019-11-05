@@ -18,6 +18,9 @@
     (vec (map vector (map first relative-points)
               (map #(+ start-value %) (accumulate deltas))))))
 
+(defn compute-final-time [functions]
+  (apply max (map (comp first last :points) (vals functions))))
+
 (defn activate-chip [world chip-name]
   (let [chip (get-in world [:parts chip-name])
         functions (map-map (fn [[name function]]
@@ -69,13 +72,10 @@
 (defn draw-cross [graph-box]
   (let [buffer (:buffer graph-box)
         {:keys [x y w h]} graph-box
-        hw (* w 0.5)
-        hh (* h 0.5)
-        o (- 7)
-        x1 (- x hw o)
-        x2 (+ x hw o)
-        y1 (- y hh o)
-        y2 (+ y hh o)]
+        x1 7
+        x2 (- w 7)
+        y1 7
+        y2 (- h 7)]
     (draw-line buffer :dark-gray x1 y1 x2 y2)
     (draw-line buffer :dark-gray x1 y2 x2 y1)))
 
@@ -136,7 +136,6 @@
         hh (* h 0.5)]
 
     (clear buffer :black)
-    (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14))
 
     (if-let [chip-name (:selected-chip world)]
       (let [chip (get-in world [:parts chip-name])
@@ -148,6 +147,13 @@
                 function (get-in chip [:functions function-name])]
             (draw-function! (:graph-box world) view function color))))
       (draw-cross graph-box))
+
+    (fill-rect buffer :black 0 hh 14 h)
+    (fill-rect buffer :black w hh 14 h)
+    (fill-rect buffer :black hw 0 w 14)
+    (fill-rect buffer :black hw h w 14)
+    (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14))
+    
     (draw-image! buffer x y)))
 
 (defn run-wave [world part-name function old-time time]
@@ -239,7 +245,7 @@
                        (assoc-in [:points node-index coord-index] value)
                        (normalize-function)))))
     (do
-      (println "Invalid value")
+      (println! "Invalid value")
       world)))
 
 (defn set-node-values-callback [world node text]
@@ -247,7 +253,7 @@
     (if (or (not (= (count values) 2))
             (some nil? values))
       (do
-        (println "Invalid format")
+        (println! "Invalid format")
         world)
       (let [[x y] values
             [function-name node-index] node]
@@ -356,7 +362,7 @@
 (defn set-part-value [world x y]
   (if-let [part-name (get-part-at world x y)]
     (do
-      (println "set value of " part-name)
+      (println! "set value of " part-name)
       (read-input world (fn [w text]
                           (let [value (within (parse-float text) 0 1)]
                             (assoc-in w [:parts part-name :value] value)))))
@@ -373,6 +379,39 @@
       (assoc-in world [:moving-node] node)
       world)))
 
+(defn snap-value [value step]
+  (* (round (/ value step)) step))
+
+(defn snap-coords [coords spec]
+  (cond
+    (number? spec) (vec (map #(snap-value % spec) coords))
+    (vector? spec) (vec (map snap-value coords spec))
+    :else coords))
+
+(defn parse-snap [text]
+  (let [value (parse-float text)]
+    (if (nil? value)
+      (let [values (map parse-float (split text #","))]
+        (if (and (= (count values) 2)
+                 (number? (first values))
+                 (> (first values) 0)
+                 (number? (second values))
+                 (> (second values) 0))
+          (vec values)
+          (do
+            (println! "invalid snap format")
+            nil)))
+      (if (<= value 0.0)
+        (do
+          (println! "disable snap")
+          nil)
+        value))))
+
+(defn set-snap-value [world]
+  (read-input world
+              (fn [w text]
+                (assoc-in w [:graph-snap-value] (parse-snap text)))))
+
 (defn move-node-moved [world x y]
   (if-let [[function-name index] (:moving-node world)]
     (let [graph-box (:graph-box world)
@@ -380,12 +419,13 @@
           chip (get-in world [:parts chip-name])
           view (:view chip)
           coords (global->local graph-box view [x y])
+          coords (snap-coords coords (:graph-snap-value world))
           new-points (-> (get-in chip [:functions function-name :points])
                          (assoc-in [index] coords))
           world (assoc-in world [:parts chip-name
                                  :functions function-name :points]
                           new-points)]
-      (println "move node:" (apply format "%.2f, %.2f" coords))
+      (println! "move node:" (apply format "%.2f, %.2f" coords))
       (draw-2d! world)
       world)
     world))
@@ -450,12 +490,18 @@
     (move-node-released world x y)
     (pan-graph-released world x y)))
 
+(defn reset-graph-view [world]
+  (if-let [chip-name (:selected-chip world)]
+    (assoc-in world [:parts chip-name :view] {:offset [0 0]
+                                              :zoom 1})
+    world))
+
 (defn graph-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
     (if-let [selected-chip (:selected-chip world)]
       (if (inside-box? (:graph-box world) x y)
-        (let [world (case (:graph-subcommand world)
+        (let [world (case (:graph-subcommand world) ;;##################
                       :set-x (set-node world :x x y)
                       :set-y (set-node world :y x y)
                       :set-both (set-node world :both x y)
@@ -464,7 +510,9 @@
                       :move (pan-or-move-pressed world x y)
                       :toggle-relative (toggle-relative-flag world x y)
                       world)]
-          (assoc-in world [:graph-subcommand] :move))
+          ;; (assoc-in world [:graph-subcommand] :move)
+          world
+          )
         (if (= (:graph-subcommand world) :set-value)
           (set-part-value world x y)
           (chip-change-part world x y)))
@@ -488,3 +536,33 @@
     world))
 
 
+;; (do
+;; 1
+
+;; (defn get-function-value [function t interpolator]
+;;   (let [final-time (first (last function))]
+;;     (cond
+;;       (<= t 0.0) (last (first function))
+;;       (>= t final-time) (last (last function))
+;;       :else
+;;       (let [pairs (map vector function (rest function))
+;;             pair (find-if (fn [[[t0 & _] [t1 & _]]]
+;;                             (<= t0 t t1))
+;;                           pairs)
+;;             t0 (first (first pair))
+;;             t1 (first (second pair))
+;;             s (map-between-ranges t t0 t1 0 1)
+;;             v0 (second (first pair))
+;;             v1 (second (second pair))]
+;;         (interpolator v0 v1 s)))))
+
+;; (clear-output!)
+;; (let [world @world
+;;       chip-name :chip7772
+;;       chip (get-in world [:parts chip-name])
+;;       functions (vals (:functions chip))
+;;       i (fn [a b t]
+;;           (+ (* a (- 1.0 t)) (* b t)))
+;;       ]
+;;   (println! (get-function-value (:points (nth functions 0)) -1 i))
+;;   ))

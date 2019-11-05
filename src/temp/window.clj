@@ -544,7 +544,7 @@
       (draw-text! :green (nth last-lines i)
                   15 (+ (* i 15) (- window-height 80)) 14))))
 
-(defn println [& args]
+(defn println! [& args]
   (apply gl-println args)
   (let [line (apply print-str (conj (into [] args) "\n"))
         truncated-output (apply str (take-last 1024 @output))]
