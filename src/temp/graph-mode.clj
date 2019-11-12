@@ -1,3 +1,4 @@
+
 (ns temp.core)
 
 (defn normalize-function [function]
@@ -10,13 +11,27 @@
         (assoc-in [:points] (vec points))
         (assoc-in [:points 0 0] 0))))
 
+(do
+1
+
 (defn compute-absolute-points [start-value relative-points]
-  (let [pairs (map vector relative-points (rest relative-points))
-        deltas (map (fn [[[x1 y1] [x2 y2]]]
-                      (* (- x2 x1) (map-between-ranges y1 0 1 -1 1)))
-                    pairs)]
-    (vec (map vector (map first relative-points)
-              (map #(+ start-value %) (accumulate deltas))))))
+  ;; (let [pairs (map vector relative-points (rest relative-points))
+  ;;       deltas (map (fn [[[x1 y1] [x2 y2]]]
+  ;;                     (* (- x2 x1) (map-between-ranges y1 0 1 -1 1)))
+  ;;                   pairs)]
+  ;;   (vec (map vector (map first relative-points)
+  ;;             (map #(+ start-value %) (accumulate deltas))))
+  ;;   )
+
+  [[0 start-value] [1 (+ start-value 0.5)]])
+
+;; (clear-output!)
+;; (let [world @world
+;;       ]
+
+;;   (println! (compute-absolute-points 0.5 [[0 0] [0.5 1] [1 1]]))
+;;   )
+)
 
 (defn compute-final-time [functions]
   (apply max (map (comp first last :points) (vals functions))))
@@ -156,14 +171,18 @@
     
     (draw-image! buffer x y)))
 
-(defn run-wave [world part-name function old-time time]
+(defn run-wave [world part-name function time]
   (let [part (get-in world [:parts part-name])
         linear-interpolator (fn [a b t]
                               (+ (* a (- 1.0 t)) (* b t)))
         new-value (float (get-function-value
                           (:final-points function)
                           time linear-interpolator))]
-    (assoc-in world [:parts part-name :value] new-value)))
+    (if (= (:type part) :wagon)
+      (let [total-length (reduce + (:track-lengths part))]
+        (assoc-in world [:parts part-name :value]
+                  (/ new-value total-length)))
+      (assoc-in world [:parts part-name :value] new-value))))
 
 (defn run-chip [world chip-name dt]
   (let [chip (get-in world [:parts chip-name])
@@ -174,7 +193,7 @@
             time (within (+ old-time dt) 0.0 final-time)
             world (assoc-in world [:parts chip-name :time] time)]
         (reduce (fn [w [name function]]
-                  (run-wave w name function old-time time))
+                  (run-wave w name function time))
                 world
                 (:functions chip))))))
 
@@ -339,9 +358,8 @@
         functions (:functions chip)]
     (if-let [[function-name index] (get-node-at functions t v)]
       (let [function (get-in functions [function-name])]
-        (if (or
-             (= index 0)
-             (= index (dec (count (:points function)))))
+        (if (or (= index 0)
+                (= (count (:points function)) 2))
           world
           (update-in world [:parts chip-name :functions function-name :points]
                      #(vector-remove % index))))
@@ -361,12 +379,28 @@
 
 (defn set-part-value [world x y]
   (if-let [part-name (get-part-at world x y)]
-    (do
+    (let [part (get-in world [:parts part-name])]
       (println! "set value of " part-name)
-      (read-input world (fn [w text]
-                          (let [value (within (parse-float text) 0 1)]
-                            (assoc-in w [:parts part-name :value] value)))))
+      (read-input
+       world
+       (fn [w text]
+         (let [value (parse-float text)
+               value (if (= (:type part) :wagon)
+                       (/ value
+                          (reduce + (:track-lengths part)))
+                       value)]
+           (-> w
+               (assoc-in [:parts part-name :value] value)
+               (prepare-tree))))))
     world))
+
+(defn print-wagon-lengths [world x y]
+  (if-let [part-name (get-part-at world x y)]
+    (let [part (get-in world [:parts part-name])]
+      (if (= (:type part) :wagon)
+        (println! "track lengths: " (:track-lengths part))
+        (println! "not a wagon!"))))
+  world)
 
 (defn move-node-pressed [world x y]
   (let [graph-box (:graph-box world)
@@ -500,8 +534,8 @@
   (let [x (:x event)
         y (:y event)]
     (if-let [selected-chip (:selected-chip world)]
-      (if (inside-box? (:graph-box world) x y)
-        (let [world (case (:graph-subcommand world) ;;##################
+      (let [world (if (inside-box? (:graph-box world) x y)
+                    (case (:graph-subcommand world)
                       :set-x (set-node world :x x y)
                       :set-y (set-node world :y x y)
                       :set-both (set-node world :both x y)
@@ -509,13 +543,12 @@
                       :delete (delete-node world x y)
                       :move (pan-or-move-pressed world x y)
                       :toggle-relative (toggle-relative-flag world x y)
-                      world)]
-          ;; (assoc-in world [:graph-subcommand] :move)
-          world
-          )
-        (if (= (:graph-subcommand world) :set-value)
-          (set-part-value world x y)
-          (chip-change-part world x y)))
+                      world)
+                    (case (:graph-subcommand world)
+                      :set-value (set-part-value world x y)
+                      :print-lengths (print-wagon-lengths world x y)
+                      (chip-change-part world x y)))]
+        (assoc-in world [:graph-subcommand] :move))
       (select-chip world x y))))
 
 (defn graph-mode-moved [world event]
@@ -534,35 +567,3 @@
                          #(change-zoom % (:graph-box world) event))]
     (draw-2d! world)
     world))
-
-
-;; (do
-;; 1
-
-;; (defn get-function-value [function t interpolator]
-;;   (let [final-time (first (last function))]
-;;     (cond
-;;       (<= t 0.0) (last (first function))
-;;       (>= t final-time) (last (last function))
-;;       :else
-;;       (let [pairs (map vector function (rest function))
-;;             pair (find-if (fn [[[t0 & _] [t1 & _]]]
-;;                             (<= t0 t t1))
-;;                           pairs)
-;;             t0 (first (first pair))
-;;             t1 (first (second pair))
-;;             s (map-between-ranges t t0 t1 0 1)
-;;             v0 (second (first pair))
-;;             v1 (second (second pair))]
-;;         (interpolator v0 v1 s)))))
-
-;; (clear-output!)
-;; (let [world @world
-;;       chip-name :chip7772
-;;       chip (get-in world [:parts chip-name])
-;;       functions (vals (:functions chip))
-;;       i (fn [a b t]
-;;           (+ (* a (- 1.0 t)) (* b t)))
-;;       ]
-;;   (println! (get-function-value (:points (nth functions 0)) -1 i))
-;;   ))

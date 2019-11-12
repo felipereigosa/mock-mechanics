@@ -4,7 +4,7 @@
 (defn load-script [world]
   (if-let [selected-cpu (:selected-cpu world)]
     (read-input world (fn [w text]
-                        (let [filename (str "resources/" text ".clj")]
+                        (let [filename (str "resources/scripts/" text ".clj")]
                           (if (file-exists? filename)
                             (assoc-in w [:parts selected-cpu :root-filename] text)
                             (do
@@ -43,21 +43,24 @@
 (defn run-script! [w cpu-name pin-name]
   (let [cpu (get-in w [:parts cpu-name])
         root (or (:root-filename cpu) "default")
-        filename (str "resources/" root ".clj")
+        filename (str "resources/scripts/" root ".clj")
         inputs (keys (:inputs cpu))
-        outputs (keys (:outputs cpu))
-        code (process-code (read-string (slurp filename))
-                           inputs outputs)]
-    (.start
-     (new Thread
-          (proxy [Runnable] []
-            (run []
-              (try
-                ((eval code) pin-name)
-                (catch Exception e
-                  (do
-                    (println! "script failed")
-                    (println! (.getMessage e)))))))))))
+        outputs (keys (:outputs cpu))]
+    (if-let [text (try
+                    (read-string (slurp filename))
+                    (catch Exception e
+                      (println! "eof found on script")))]
+      (let [code (process-code text inputs outputs)]
+        (.start
+         (new Thread
+              (proxy [Runnable] []
+                (run []
+                  (try
+                    ((eval code) pin-name)
+                    (catch Exception e
+                      (do
+                        (println! "script failed")
+                        (println! (.getMessage e)))))))))))))
 
 (defn run-selected-cpu [world]
   (if-let [selected-cpu (:selected-cpu world)]

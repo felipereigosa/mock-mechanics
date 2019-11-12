@@ -183,8 +183,7 @@
 
 (defn gl-println [& forms]
   (binding [*out* @out]
-    (apply clojure.core/println forms))
-  )
+    (apply clojure.core/println forms)))
 
 (defn check-shader [shader]
   (let [status (GL20/glGetShaderi shader GL20/GL_COMPILE_STATUS)]
@@ -397,7 +396,6 @@
         h (get-image-height image2)
         x (if (first corner) x (- x (/ w 2)))
         y (if (first corner) y (- y (/ h 2)))]
-    (gl-println corner)
     (.drawImage g image2 (int x) (int y) nil)))
 
 (def pixels (make-array Integer/TYPE (* window-width window-height)))

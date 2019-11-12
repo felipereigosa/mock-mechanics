@@ -481,19 +481,39 @@
         inverse-transform (get-inverse-transform (:transform t0))]
     (vec (map #(apply-transform inverse-transform %) points))))
 
-(defn compute-loop-function [loop]
-  (let [lengths (map (fn [a b]
+(defn is-extra-point? [a b c]
+  (float-equals?
+   (vector-dot-product
+    (vector-normalize (vector-subtract b a))
+    (vector-normalize (vector-subtract c a)))
+   1.0))
+
+(defn remove-extra-points [points]
+  (concat [(first points)]
+          (filter not-nil?
+                  (map (fn [n]
+                         (let [a (nth points (dec n))
+                               b (nth points n)
+                               c (nth points (inc n))]
+                           (if (is-extra-point? a b c)
+                             nil
+                             b)))
+                       (range 1 (dec (count points)))))
+          [(last points)]))
+
+(defn set-wagon-loop [world wagon-name track-name]
+  (let [loop (get-track-loop world track-name)
+        lengths (map (fn [a b]
                        (vector-length (vector-subtract a b)))
                      loop (rest loop))
         total-length (reduce + lengths)
-        ts (map #(/ % total-length) (accumulate lengths))]
-    (map vector ts loop)))
-
-;;---
-
-(defn set-wagon-loop [world wagon-name track-name]
-  (assoc-in world [:parts wagon-name :loop-fn]
-            (compute-loop-function (get-track-loop world track-name))))
+        times (map #(/ % total-length) (accumulate lengths))
+        loop-fn (map vector times loop)]
+    (update-in world [:parts wagon-name]
+               (fn [wagon]
+                 (-> wagon
+                     (assoc-in [:loop-fn] loop-fn)
+                     (assoc-in [:track-lengths] lengths))))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; mechanical tree
@@ -721,7 +741,9 @@
     (dissoc-in world [:selected-chip])
     
     (= part-name (:selected-cpu world))
-    (dissoc-in world [:selected-cpu])))
+    (dissoc-in world [:selected-cpu])
+
+    :else world))
 
 (defn delete-mode-pressed [world event]
   (let [x (:x event)
@@ -811,11 +833,10 @@
           normal (:normal world)
           l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
           increase-vector (map * (:normal world) [l l l])]
-      (println! "scale:" (round (/ l grain-size)))
+      (println! "scale: " l)
       (-> world
           (set-block-size block-name scale center increase-vector)
-          (assoc-in [:increase-vector] increase-vector)
-          ))
+          (assoc-in [:increase-vector] increase-vector)))
     world))
 
 (defn scale-block-released [world event]
@@ -826,13 +847,11 @@
           world (-> world
                     (assoc-in [:parts block-name :scale] scale)
                     (set-value-0-transform block-name))
-          center (get-part-position world block-name)
-          ]
+          center (get-part-position world block-name)]
       (-> world
           (set-block-size block-name scale center increase-vector)
           (create-relative-transform block-name parent-name)
-          (dissoc-in [:edited-part])
-          ))
+          (dissoc-in [:edited-part])))
     world))
 
 (defn set-track-size [world track-name original-scale original-center height]
@@ -878,7 +897,7 @@
           center (:original-center world)
           normal (second adjust-line)
           l (within (+ (apply max scale) d) grain-size 10)]
-      (println! "scale:" (round (/ l grain-size)))
+      (println! "scale:" l)
       (-> world
           (set-track-size track-name scale center l)
           (assoc-in [:track-length] l)
@@ -992,6 +1011,7 @@
 ;;----------------------------------------------------------------------;;
 
 (load "cpu-mode")
+(load "machines")
 
 ;;----------------------------------------------------------------------;;
 ;; cable mode
@@ -1303,65 +1323,6 @@
         )))
 
 ;;-------------------------------------------------------------------------------;;
-;; load/save machine
-
-(defn get-simple-transform [transform]
-  {:position (get-transform-position transform)
-   :rotation (get-transform-rotation transform)})
-
-(defn get-simple-part [part]
-  (let [children (map-map (fn [[name transform]]
-                            {name (get-simple-transform transform)})
-                          (:children part))]
-    (-> part
-        (dissoc-in [:transform])
-        (assoc-in [:children] children))))
-
-(defn get-complex-transform [transform]
-  (make-transform (:position transform) (:rotation transform)))
-
-(defn get-complex-part [part]
-  (let [children (map-map (fn [[name transform]]
-                            {name (get-complex-transform transform)})
-                          (:children part))]
-    (-> part
-        (assoc-in [:transform] (make-transform [0 0 0] [1 0 0 0]))
-        (assoc-in [:children] children))))
-
-;;---
-
-(defn save-machine! [world filename]
-  (let [ground-children (map-map (fn [[name transform]]
-                                   {name (get-simple-transform transform)})
-                                 (:ground-children world))
-        parts (map-map (fn [[name part]]
-                         {name (get-simple-part part)})
-                       (:parts world))]
-    (spit filename {:ground-children ground-children
-                    :parts parts})))
-
-(defn load-machine [world filename]
-  (let [{:keys [ground-children parts graph-box]} (read-string (slurp filename))
-        ground-children (map-map (fn [[name transform]]
-                                   {name (get-complex-transform transform)})
-                                 ground-children)
-        parts (map-map (fn [[name part]]
-                         {name (get-complex-part part)})
-                       parts)]
-    (-> world
-        (assoc-in [:ground-children] ground-children)
-        (assoc-in [:parts] parts)
-        (compute-transforms :parts)
-        (create-weld-groups))))
-
-(defn save-machine-callback [world text]
-  (save-machine! world (str "resources/" text ".clj"))
-  world)
-
-(defn load-machine-callback [world text]
-  (load-machine (create-world) (str "resources/" text ".clj")))
-
-;;-------------------------------------------------------------------------------;;
 ;; commands
 
 (defn edit-mode-draw [world]
@@ -1458,6 +1419,8 @@
                 (assoc-in w [:graph-subcommand] :set-value))
    ":graph 1" #(reset-graph-view %)
    ":graph n" #(set-snap-value %)
+   ":graph l" (fn [w]
+                (assoc-in w [:graph-subcommand] :print-lengths))
 
    "C-x m" #(change-mode % :cpu)
    ":cpu s" (fn [w]

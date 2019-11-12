@@ -81,8 +81,10 @@
   (let [vec (.-origin transform)]
     [(.-x vec) (.-y vec) (.-z vec)]))
 
+(declare println!)
+
 (defn print-transform [transform]
-  (println [(get-transform-position transform)
+  (println! [(get-transform-position transform)
             (get-transform-rotation transform)]))
 
 (defn get-rotation-component [transform]
