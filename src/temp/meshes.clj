@@ -570,19 +570,18 @@
                            seq)]
     (into [] (concat z-parallel x-parallel))))
 
-(defn create-grid-mesh [world num-cells size]
+(defn create-grid-mesh [num-cells size]
   (let [vertices (get-grid-vertices num-cells size)
         color (get-color :black)
         r (/ (get-red color) 255)
         g (/ (get-green color) 255)
-        b (/ (get-blue color) 255)
-        grid {:vertices-buffer (get-float-buffer vertices)
-              :color [r g b 1.0]
-              :transform (make-transform [0.0 0.0 0.0] [0 1 0 0])
-              :program :basic
-              :scale [1 1 1]
-              :draw-fn draw-lines!}]
-    (assoc-in world [:background-meshes :grid] grid)))
+        b (/ (get-blue color) 255)]
+    {:vertices-buffer (get-float-buffer vertices)
+     :color [r g b 1.0]
+     :transform (make-transform [0.0 0.0 0.0] [0 1 0 0])
+     :program :basic
+     :scale [1 1 1]
+     :draw-fn draw-lines!}))
 
 (defn create-vector-mesh [world position direction color base-name
                           & {:keys [width tip] :or {width 0.1 tip 1}}]

@@ -31,6 +31,16 @@
 (import java.nio.ByteBuffer)
 (import java.nio.ByteOrder)
 
+(defn create-world [])
+(defn draw-world! [world])
+(defn update-world [world elapsed] world)
+(defn key-pressed [world event] world)
+(defn key-released [world event] world)
+(defn mouse-pressed [world event] world)
+(defn mouse-moved [world event] world)
+(defn mouse-released [world event] world)
+(defn mouse-scrolled [world event] world)
+
 (def to-run (atom nil))
 
 (defn run-pending! []
@@ -57,7 +67,7 @@
     key-handler))
 
 (def window-width 685)
-(def window-height 715)
+(def window-height 705)
 (def mouse-x (atom 0))
 (def mouse-y (atom 0))
 (def mouse-button (atom nil))
@@ -91,8 +101,10 @@
 (defn create-mouse-motion-handler! [window]
   (let [mouse-motion-handler (proxy [GLFWCursorPosCallback] []
                                (invoke [window x y]
-                                 (reset! mouse-x x)
-                                 (reset! mouse-y y)
+                                 (let [x-offset -2 ;;####### window manager problem
+                                       y-offset -2]
+                                   (reset! mouse-x (+ x x-offset))
+                                   (reset! mouse-y (+ y y-offset)))
                                  (try
                                    (swap! world
                                           (fn [w]
@@ -143,7 +155,7 @@
                         (run []
     (GLFW/glfwInit)
     (GLFW/glfwWindowHint GLFW/GLFW_VISIBLE GLFW/GLFW_FALSE)
-    (GLFW/glfwWindowHint GLFW/GLFW_RESIZABLE GLFW/GLFW_FALSE)
+    (GLFW/glfwWindowHint GLFW/GLFW_RESIZABLE GLFW/GLFW_TRUE)
     (GLFW/glfwWindowHint GLFW/GLFW_SAMPLES 8)
 
     (let [window (GLFW/glfwCreateWindow window-width
@@ -537,7 +549,7 @@
         last-lines (take-last 5 lines)
         hw (/ window-width 2)
         hh (/ window-height 2)]
-    (fill-rect! :dark-gray hw (- window-height 50) window-width 100)
+    (fill-rect! :black hw (- window-height 50) window-width 100)
     (dotimes [i (count last-lines)]
       (draw-text! :green (nth last-lines i)
                   15 (+ (* i 15) (- window-height 80)) 14))))
@@ -640,7 +652,6 @@
 (declare draw-2d!)
 (declare draw-3d!)
 (declare draw-ortho-mesh!)
-(declare create-grid-mesh)
 (declare create-ortho-mesh)
 (declare create-cube-mesh)
 (declare draw-mesh!)
@@ -691,7 +702,6 @@
       (#(create-camera % [0 0 1] 40 25 -35))
       (assoc-in [:camera :pivot] [0 0 0])
       (compute-camera)
-      (#(create-grid-mesh % 24 0.5))
       (assoc-in [:output] (create-ortho-mesh))))
 
 (defn reset-world! []

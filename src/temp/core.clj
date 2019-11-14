@@ -1,18 +1,5 @@
 (ns temp.core)
 
-(require '[clojure.set :refer [difference union map-invert]])
-(require '[clojure.string :refer [split join]])
-
-(defn create-world [])
-(defn draw-world! [world])
-(defn update-world [world elapsed] world)
-(defn key-pressed [world event] world)
-(defn key-released [world event] world)
-(defn mouse-pressed [world event] world)
-(defn mouse-moved [world event] world)
-(defn mouse-released [world event] world)
-(defn mouse-scrolled [world event] world)
-
 (load "world")
 (load "util")
 (load "vector")
@@ -150,7 +137,9 @@
 (declare get-closest-snap-point)
 
 (defn inserting? [world]
-  (= (:mode world) :insert))
+  (and
+   (= (:mode world) :insert)
+   (not (= (:insert-type world) :wagon))))
 
 (defn move-cursor [world event]
   (if (inserting? world)
@@ -502,7 +491,7 @@
           [(last points)]))
 
 (defn set-wagon-loop [world wagon-name track-name]
-  (let [loop (get-track-loop world track-name)
+  (let [loop (remove-extra-points (get-track-loop world track-name))
         lengths (map (fn [a b]
                        (vector-length (vector-subtract a b)))
                      loop (rest loop))
@@ -817,9 +806,8 @@
             (assoc-in [:adjust-line] [point (vector-normalize v)])
             (assoc-in [:original-scale] scale)
             (assoc-in [:original-center] center)
-            (assoc-in [:normal] normal)
-            ))
-      world)))
+            (assoc-in [:normal] normal)))
+        world)))
 
 (defn scale-block-moved [world event]
   (if-let [block-name (:edited-part world)]
@@ -833,7 +821,7 @@
           normal (:normal world)
           l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
           increase-vector (map * (:normal world) [l l l])]
-      (println! "scale: " l)
+      (println! (format "scale: %.2f" l))
       (-> world
           (set-block-size block-name scale center increase-vector)
           (assoc-in [:increase-vector] increase-vector)))
@@ -897,11 +885,10 @@
           center (:original-center world)
           normal (second adjust-line)
           l (within (+ (apply max scale) d) grain-size 10)]
-      (println! "scale:" l)
+      (println! (format "scale: %.2f" l))
       (-> world
           (set-track-size track-name scale center l)
-          (assoc-in [:track-length] l)
-          ))
+          (assoc-in [:track-length] l)))
     world))
 
 (defn scale-track-released [world event]
@@ -1375,11 +1362,11 @@
                  (assoc-in w [:insert-type] :track))
    ":insert c" (fn [w]
                  (assoc-in w [:insert-type] :chip))
-   ":insert m" (fn [w]
+   ":insert m" (fn [w] ;;#########
                  (assoc-in w [:insert-type] :cpu))
    ":insert p" (fn [w]
                  (assoc-in w [:insert-type] :probe))
-   ":insert a" (fn [w]
+   ":insert a" (fn [w] ;;#########
                  (assoc-in w [:insert-type] :button))
    ":insert s" (fn [w]
                  (assoc-in w [:insert-type] :sphere))
@@ -1404,7 +1391,7 @@
                 (assoc-in w [:graph-subcommand] :set-x))
    ":graph y" (fn [w]
                 (assoc-in w [:graph-subcommand] :set-y))
-   ":graph z" (fn [w]
+   ":graph C-c x" (fn [w]
                 (assoc-in w [:graph-subcommand] :set-both))
    ":graph a" (fn [w]
                 (assoc-in w [:graph-subcommand] :add))
@@ -1418,11 +1405,11 @@
    ":graph v" (fn [w]
                 (assoc-in w [:graph-subcommand] :set-value))
    ":graph 1" #(reset-graph-view %)
-   ":graph n" #(set-snap-value %)
+   ":graph C-c s" #(set-snap-value %)
    ":graph l" (fn [w]
                 (assoc-in w [:graph-subcommand] :print-lengths))
 
-   "C-x m" #(change-mode % :cpu)
+   "C-x m" #(change-mode % :cpu) ;;#########
    ":cpu s" (fn [w]
               (dissoc-in w [:selected-cpu]))
    ":cpu r" #(run-selected-cpu %)
@@ -1529,12 +1516,12 @@
         r 0.2
         ]
     (create-debug-meshes!)
-    ;; (clear-output!)
-
     (-> world
-        (assoc-in [:meshes :ground] (create-cube-mesh
-                                 [0 -0.25 0] [1 0 0 0] [12 0.5 12]
-                                 (make-color 40 40 40)))
+        (assoc-in [:background-meshes :ground]
+                  (create-cube-mesh
+                   [0 -0.25 0] [1 0 0 0] [12 0.5 12]
+                   (make-color 40 40 40)))
+        (assoc-in [:background-meshes :grid] (create-grid-mesh 24 0.5))
         (assoc-in [:info] (create-info))
         (assoc-in [:ground-children] {})
         (assoc-in [:graph-box] {:x 343 :y 540
@@ -1626,9 +1613,11 @@
 (do
 1
 
+(defn redraw! []
+  (reset! redraw-flag true))
+
 (defn draw-2d! [world]
   (clear!)
-
   (draw-text-box! world)
 
   (if-let [fun (get-function (:mode world) :draw)]

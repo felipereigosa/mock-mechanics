@@ -11,27 +11,13 @@
         (assoc-in [:points] (vec points))
         (assoc-in [:points 0 0] 0))))
 
-(do
-1
-
 (defn compute-absolute-points [start-value relative-points]
-  ;; (let [pairs (map vector relative-points (rest relative-points))
-  ;;       deltas (map (fn [[[x1 y1] [x2 y2]]]
-  ;;                     (* (- x2 x1) (map-between-ranges y1 0 1 -1 1)))
-  ;;                   pairs)]
-  ;;   (vec (map vector (map first relative-points)
-  ;;             (map #(+ start-value %) (accumulate deltas))))
-  ;;   )
-
-  [[0 start-value] [1 (+ start-value 0.5)]])
-
-;; (clear-output!)
-;; (let [world @world
-;;       ]
-
-;;   (println! (compute-absolute-points 0.5 [[0 0] [0.5 1] [1 1]]))
-;;   )
-)
+  (let [pairs (map vector relative-points (rest relative-points))
+        deltas (map (fn [[[t1 v1] [t2 v2]]]
+                      (* (- t2 t1) v1))
+                    pairs)]
+    (vec (map vector (map first relative-points)
+              (map #(+ start-value %) (accumulate deltas))))))
 
 (defn compute-final-time [functions]
   (apply max (map (comp first last :points) (vals functions))))
@@ -39,7 +25,10 @@
 (defn activate-chip [world chip-name]
   (let [chip (get-in world [:parts chip-name])
         functions (map-map (fn [[name function]]
-                             (let [start-value (get-in world [:parts name :value])
+                             (let [part (get-in world [:parts name])
+                                   start-value (if (= (:type part) :wagon)
+                                                 (* (:value part) (reduce + (:track-lengths part)))
+                                                 (:value part))
                                    final-points (if (:relative function)
                                                   (compute-absolute-points start-value (:points function))
                                                   (:points function))
@@ -163,11 +152,15 @@
             (draw-function! (:graph-box world) view function color))))
       (draw-cross graph-box))
 
-    (fill-rect buffer :black 0 hh 14 h)
-    (fill-rect buffer :black w hh 14 h)
-    (fill-rect buffer :black hw 0 w 14)
-    (fill-rect buffer :black hw h w 14)
-    (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14))
+    (let [color (if (= (:graph-subcommand world) :move)
+                  :black
+                  :white)]
+      (fill-rect buffer color 0 hh 14 h)
+      (fill-rect buffer color w hh 14 h)
+      (fill-rect buffer color hw 0 w 14)
+      (fill-rect buffer color hw h w 14)
+      (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14))
+      )
     
     (draw-image! buffer x y)))
 
@@ -239,15 +232,24 @@
         world))
     world))
 
-(defn get-node-at [functions t v]
-  (let [named-points (mapcat (fn [[name function]]
+(defn get-node-at [world x y]
+  (let [graph-box (:graph-box world)
+        chip-name (:selected-chip world)
+        chip (get-in world [:parts chip-name])
+        view (:view chip)
+        [t v] (global->local graph-box view [x y])
+        functions (:functions chip)
+        named-points (mapcat (fn [[name function]]
                                (let [points (:points function)]
                                (map (fn [point index]
                                       [name index point])
                                     points (range (count points)))))
                              functions)
-        named-point (find-if (fn [[name index point]]
-                               (< (distance point [t v]) 0.1))
+        dx (/ (* 2 (/ 7.0 (:w graph-box))) (:zoom view))
+        dy (/ (* 2 (/ 7.0 (:h graph-box))) (:zoom view))
+        named-point (find-if (fn [[name index [px py]]]
+                               (and (< (abs (- px t)) dx)
+                                    (< (abs (- py v)) dy)))
                              named-points)]
     (if (nil? named-point)
       nil
@@ -285,54 +287,54 @@
                          (normalize-function))))))))
 
 (defn set-node [world which x y]
-  (let [graph-box (:graph-box world)
-        chip-name (:selected-chip world)
-        chip (get-in world [:parts chip-name])
-        functions (:functions chip)
-        view (:view chip)
-        [t v] (global->local graph-box view [x y])]
-    (if-let [node (get-node-at functions t v)]
-      (if (= which :both)
-        (read-input world #(set-node-values-callback %1 node %2))
-        (read-input world #(set-node-value-callback %1 node which %2)))
-      world)))
+  (if-let [node (get-node-at world x y)]
+    (if (= which :both)
+      (read-input world #(set-node-values-callback %1 node %2))
+      (read-input world #(set-node-value-callback %1 node which %2)))
+    world))
 
-(defn point-between-points? [p p1 p2]
+(defn point-between-points? [p p1 p2 zoom]
   (if (vector= p1 p2)
     (vector= p p1)
     (let [v (vector-subtract p2 p1)
           line [p1 (vector-normalize v)]
           l (vector-length v)]
       (and
-       (< (point-line-distance p line) 0.04)
+       (< (point-line-distance p line) (/ 0.04 zoom))
        (< (distance p p1) l)
        (< (distance p p2) l)))))
 
-(defn normal-function-collision [points t v]
+(defn normal-function-collision [points t v zoom]
   (let [segments (map vector points (rest points))
         point [t v]]
     (some (fn [[a b]]
-            (point-between-points? [t v] a b))
+            (point-between-points? [t v] a b zoom))
           segments)))
 
-(defn square-function-collision [points t v]
+(defn square-function-collision [points t v zoom]
   (let [segments (map vector points (rest points))
         corners (map (fn [[[_ y1] [x2 _]]]
                        [x2 y1])
                      segments)
         new-points (butlast (interleave points
                                         (conj (vec corners) nil)))]
-    (normal-function-collision new-points t v)))
+    (normal-function-collision new-points t v zoom)))
 
-(defn function-collision [function t v]
+(defn function-collision [function t v zoom]
   (if (:relative function)
-    (square-function-collision (:points function) t v)
-    (normal-function-collision (:points function) t v)))
+    (square-function-collision (:points function) t v zoom)
+    (normal-function-collision (:points function) t v zoom)))
 
-(defn get-function-at [functions t v]
-  (first (find-if (fn [[name function]]
-                    (function-collision function t v))
-                  functions)))
+(defn get-function-at [world x y]
+  (let [graph-box (:graph-box world)
+        chip-name (:selected-chip world)
+        chip (get-in world [:parts chip-name])
+        view (:view chip)
+        [t v] (global->local graph-box view [x y])
+        functions (:functions chip)]
+    (first (find-if (fn [[name function]]
+                      (function-collision function t v (:zoom view)))
+                    functions))))
 
 (defn add-node [world x y]
   (let [graph-box (:graph-box world)
@@ -341,7 +343,7 @@
         functions (:functions chip)
         view (:view chip)
         [t v] (global->local graph-box view [x y])]
-    (if-let [function-name (get-function-at functions t v)]
+    (if-let [function-name (get-function-at world x y)]
       (update-in world [:parts chip-name :functions function-name]
                  (fn [function]
                    (-> function
@@ -350,13 +352,10 @@
       world)))
 
 (defn delete-node [world x y]
-  (let [graph-box (:graph-box world)
-        chip-name (:selected-chip world)
+  (let [chip-name (:selected-chip world)
         chip (get-in world [:parts chip-name])
-        view (:view chip)
-        [t v] (global->local graph-box view [x y])
         functions (:functions chip)]
-    (if-let [[function-name index] (get-node-at functions t v)]
+    (if-let [[function-name index] (get-node-at world x y)]
       (let [function (get-in functions [function-name])]
         (if (or (= index 0)
                 (= (count (:points function)) 2))
@@ -366,16 +365,10 @@
       world)))
 
 (defn toggle-relative-flag [world x y]
-  (let [graph-box (:graph-box world)
-        chip-name (:selected-chip world)
-        chip (get-in world [:parts chip-name])
-        functions (:functions chip)
-        view (:view chip)
-        [t v] (global->local graph-box view [x y])]
-    (if-let [function-name (get-function-at functions t v)]
-      (update-in world [:parts chip-name :functions
-                        function-name :relative] not)
-      world)))
+  (if-let [function-name (get-function-at world x y)]
+    (update-in world [:parts (:selected-chip world) :functions
+                      function-name :relative] not)
+    world))
 
 (defn set-part-value [world x y]
   (if-let [part-name (get-part-at world x y)]
@@ -403,15 +396,9 @@
   world)
 
 (defn move-node-pressed [world x y]
-  (let [graph-box (:graph-box world)
-        chip-name (:selected-chip world)
-        chip (get-in world [:parts chip-name])
-        view (:view chip)
-        [t v] (global->local graph-box view [x y])
-        functions (:functions chip)]
-    (if-let [node (get-node-at functions t v)]
-      (assoc-in world [:moving-node] node)
-      world)))
+  (if-let [node (get-node-at world x y)]
+    (assoc-in world [:moving-node] node)
+    world))
 
 (defn snap-value [value step]
   (* (round (/ value step)) step))
@@ -504,15 +491,9 @@
   (dissoc-in world [:start-point]))
 
 (defn pan-or-move-pressed [world x y]
-  (let [graph-box (:graph-box world)
-        chip-name (:selected-chip world)
-        chip (get-in world [:parts chip-name])
-        view (:view chip)
-        [t v] (global->local graph-box view [x y])
-        functions (:functions chip)]
-    (if-let [node (get-node-at functions t v)]
-      (move-node-pressed world x y)
-      (pan-graph-pressed world x y))))
+  (if (nil? (get-node-at world x y))
+    (pan-graph-pressed world x y)
+    (move-node-pressed world x y)))
 
 (defn pan-or-move-moved [world x y]
   (if (:moving-node world)
@@ -549,7 +530,7 @@
                       :print-lengths (print-wagon-lengths world x y)
                       (chip-change-part world x y)))]
         (assoc-in world [:graph-subcommand] :move))
-      (select-chip world x y))))
+      (select-chip world x y))))  
 
 (defn graph-mode-moved [world event]
   (pan-or-move-moved world (:x event) (:y event)))

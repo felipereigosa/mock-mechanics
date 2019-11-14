@@ -2,6 +2,9 @@
 (in-ns 'temp.core)
 (import java.awt.Color)
 
+(require '[clojure.set :refer [difference union map-invert]])
+(require '[clojure.string :refer [split join]])
+
 (def pi Math/PI)
 
 (defn to-radians [angle]
