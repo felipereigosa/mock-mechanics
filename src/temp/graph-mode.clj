@@ -539,7 +539,19 @@
   (pan-or-move-released world (:x event) (:y event)))
 
 (defn change-zoom [view graph-box event]
-  (update-in view [:zoom] #(within (+ % (* (:amount event) 0.05)) 0.01 100)))
+  (let [point (global->local graph-box view [(:x event) (:y event)])
+        f (if (pos? (:amount event))
+            1.1
+            0.9)
+        offset (:offset view)
+        zoom (:zoom view)
+        new-zoom (* zoom f)
+        displacement (-> (vector-subtract offset point)
+                         (vector-multiply f))
+        new-offset (vector-add point displacement)]
+    {:offset new-offset
+     :zoom new-zoom}
+    ))
 
 (defn graph-mode-scrolled [world event]
   (let [graph-box (:graph-box world)

@@ -1,3 +1,7 @@
 
-(fn [pin-name]
-  (temp.core/println "default script"))
+(script
+ []
+ []
+
+ (fn [part-name]
+   (println! "default script")))

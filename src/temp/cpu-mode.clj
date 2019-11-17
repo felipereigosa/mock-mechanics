@@ -24,21 +24,25 @@
 (defn process-code [code inputs outputs]
   (let [input-names (nth code 1)
         output-names (nth code 2)
-        function (nth code 3)
+        other (nthrest code 3)
         input-bindings (map-bindings input-names inputs)
         output-bindings (map-bindings output-names outputs)
-
         helpers '[get-value (fn [name]
                               (get-in @world [:parts name :value]))
-                  run-chip (fn [name]
-                             (update-thing! [] #(activate-chip % name)))]]
+                  activate (fn [name]
+                             (update-thing! [] #(activate-chip % name)))
+                  chip-active? (fn [name]
+                                 (let [chip (get-thing! [:parts name])]
+                                   (not (= (:time chip) (:final-time chip)))))
+                  wait (fn [pred]
+                         (while (pred) (sleep 50)))]]
     `(do
        (require '[temp.core :refer :all])
 
        (let [~@input-bindings
              ~@output-bindings
              ~@helpers]
-         ~function))))
+         ~@other))))
 
 (defn run-script! [w cpu-name pin-name]
   (let [cpu (get-in w [:parts cpu-name])
@@ -60,7 +64,7 @@
                     (catch Exception e
                       (do
                         (println! "script failed")
-                        (println! (.getMessage e)))))))))))))
+                            (println! (.getMessage e)))))))))))))
 
 (defn run-selected-cpu [world]
   (if-let [selected-cpu (:selected-cpu world)]

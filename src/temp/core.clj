@@ -89,7 +89,9 @@
               :scale (get-in info [type :scale])}]
     (if (= type :chip)
       (-> part
+          (assoc-in [:functions] {})
           (assoc-in [:time] 1.0)
+          (assoc-in [:final-time] 0.0)
           (assoc-in [:view] {:offset [0 0]
                              :zoom 1}))
       part)))
@@ -263,22 +265,13 @@
 ;;---
 
 (defn get-snap-specs [world]
-  (let [;; grid-specs (vec (map (fn [[a b]]
-        ;;                        {:position [(- a 5.5) 0 (- b 5.5)]
-        ;;                         :rotation [1 0 0 0]
-        ;;                         :local [(- a 5.5) 0 (- b 5.5)]
-        ;;                         :part :ground})
-        ;;                      (create-combinations (range 12) (range 12))))
-        grid-specs [{:position [0.25 0 0.25]
-                     :rotation [1 0 0 0]
-                     :part :ground}
-                    {:position [0.75 0 0.25]
-                     :rotation [1 0 0 0]
-                     :part :ground}
-                    {:position [1.25 0 0.25]
-                     :rotation [1 0 0 0]
-                     :part :ground}
-                    ]
+  (let [grid-specs (vec (map (fn [[a b]]
+                               (let [x (+ (* a 0.5) 0.25)
+                                     y (+ (* b 0.5) 0.25)]
+                                 {:position [x 0 y]
+                                  :rotation [1 0 0 0]
+                                  :part :ground}))
+                             (create-combinations (range 10) (range 10))))
         face-specs
         (vec
          (remove-nil
@@ -1529,6 +1522,11 @@
                                 :buffer (new-image 685 150)
                                 })
 
+        ;; (assoc-in [:graph-box] {:x 443 :y 340
+        ;;                         :w 200 :h 200
+        ;;                         :buffer (new-image 200 200)
+        ;;                         })
+
         (assoc-in [:cpu-box] {:x 343 :y 540 :w 685 :h 150})
         (#(assoc-in % [:snap-specs] (get-snap-specs %)))
         (update-move-plane)
@@ -1624,6 +1622,10 @@
     (fun world))
 
   (draw-output!)
+
+  ;; (fill-circle! :red 100 465 2)
+  ;; (fill-circle! :red 100 615 2)
+  ;; (fill-circle! :red 74 (+ 465 129) 2)
   )
 (reset! redraw-flag true))
 
@@ -1668,3 +1670,7 @@
                 (mode-mouse-released world event))]
     (draw-2d! world)
     (prepare-tree world)))
+
+(set-thing! [:use-weld-groups] false)
+
+
