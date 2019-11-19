@@ -213,6 +213,12 @@
 (defn file-exists? [filename]
   (.exists (clojure.java.io/file filename)))
 
+(defn get-files-at [directory]
+  (let [files (file-seq (clojure.java.io/file directory))]
+    (rest (map (fn [file]
+                 (last (split (.toString file) #"/")))
+               files))))
+
 (defn join-keywords [& keywords]
   (keyword (apply str (interpose "-" (map (fn [k]
                                             (subs (str k) 1)) keywords)))))

@@ -370,23 +370,6 @@
                       function-name :relative] not)
     world))
 
-(defn set-part-value [world x y]
-  (if-let [part-name (get-part-at world x y)]
-    (let [part (get-in world [:parts part-name])]
-      (println! "set value of " part-name)
-      (read-input
-       world
-       (fn [w text]
-         (let [value (parse-float text)
-               value (if (= (:type part) :wagon)
-                       (/ value
-                          (reduce + (:track-lengths part)))
-                       value)]
-           (-> w
-               (assoc-in [:parts part-name :value] value)
-               (prepare-tree))))))
-    world))
-
 (defn print-wagon-lengths [world x y]
   (if-let [part-name (get-part-at world x y)]
     (let [part (get-in world [:parts part-name])]
@@ -526,7 +509,6 @@
                       :toggle-relative (toggle-relative-flag world x y)
                       world)
                     (case (:graph-subcommand world)
-                      :set-value (set-part-value world x y)
                       :print-lengths (print-wagon-lengths world x y)
                       (chip-change-part world x y)))]
         (assoc-in world [:graph-subcommand] :move))

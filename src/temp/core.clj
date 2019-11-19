@@ -604,8 +604,10 @@
     world))
 
 (defn mode-mouse-released [world event]
-  (if-let [fun (get-function (:mode world) :released)]
-    (fun world event)
+  (let [world (if-let [fun (get-function (:mode world) :released)]
+                (fun world event)
+                world)]
+    ;; (save-checkpoint!)
     world))
 
 ;;----------------------------------------------------------------------;;
@@ -1339,6 +1341,8 @@
     :scale (scale-mode-released world event)
     world))
 
+;;----------------------------------------------------------------------;;
+
 (do
 1
 
@@ -1395,8 +1399,6 @@
                 (dissoc-in w [:selected-chip]))
    ":graph t" (fn [w]
                 (assoc-in w [:graph-subcommand] :toggle-relative))
-   ":graph v" (fn [w]
-                (assoc-in w [:graph-subcommand] :set-value))
    ":graph 1" #(reset-graph-view %)
    ":graph C-c s" #(set-snap-value %)
    ":graph l" (fn [w]
@@ -1416,7 +1418,21 @@
              (create-world))
 
    "C-x s" #(read-input % save-machine-callback)
+   "C-x C-s" save-version
    "C-x l" #(read-input % load-machine-callback)
+   "C-x C-l" #(read-input % load-last-version-callback)
+
+   "C-x v" #(change-mode % :set-value)
+
+   "C-/" (fn [w]
+           (println! "undo")
+           w
+           )
+
+   "C-x /" (fn [w]
+             (println! "redo")
+             w
+             )
    })
 
 (set-thing! [:bindings] (get-bindings)))
@@ -1456,10 +1472,12 @@
                     (catch Exception e
                       (do
                         (println! "invalid input:" (:text world))
-                        world)))]
-        (-> world
-            (dissoc-in [:text])
-            (assoc-in [:text-input] false)))
+                        world)))
+            world (-> world
+                      (dissoc-in [:text])
+                      (assoc-in [:text-input] false))]
+        ;; (save-checkpoint!)
+        world)
 
       :backspace
       (if (empty? (:text world))
@@ -1509,6 +1527,7 @@
         r 0.2
         ]
     (create-debug-meshes!)
+    (reset-undo!)
     (-> world
         (assoc-in [:background-meshes :ground]
                   (create-cube-mesh
@@ -1611,9 +1630,6 @@
 (do
 1
 
-(defn redraw! []
-  (reset! redraw-flag true))
-
 (defn draw-2d! [world]
   (clear!)
   (draw-text-box! world)
@@ -1627,7 +1643,7 @@
   ;; (fill-circle! :red 100 615 2)
   ;; (fill-circle! :red 74 (+ 465 129) 2)
   )
-(reset! redraw-flag true))
+(redraw!))
 
 (defn mouse-scrolled [world event]
   (if (and (= (:mode world) :graph)
@@ -1635,6 +1651,7 @@
     (graph-mode-scrolled world event)
     (let [amount (+ 1 (* (:amount event) -0.05))]
       (zoom-camera world amount))))
+
 
 (defn mouse-pressed [world event]
   (let [x (:x event)
@@ -1670,7 +1687,3 @@
                 (mode-mouse-released world event))]
     (draw-2d! world)
     (prepare-tree world)))
-
-(set-thing! [:use-weld-groups] false)
-
-

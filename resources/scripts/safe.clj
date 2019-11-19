@@ -1,38 +1,33 @@
 
 (script
- []
- [far near]
+ [probe button]
+ [far near bolt]
 
  (fn [part-name]
-   ;; (if (= part-name button)
+   (if (and (= part-name button)
+            (= (get-value button) 1))
      (let [;; n (case
-           ;;       (= (get-value probe-0) 0) 0
+           ;;       (= (get-value probe-0) 1) 0
            ;;       (= (get-value probe-1) 1) 1
-           ;;       (= (get-value probe-2) 2) 2
-           ;;       (= (get-value probe-3) 3) 3)
+           ;;       (= (get-value probe-2) 1) 2
+           ;;       (= (get-value probe-3) 1) 3)
            n 1
            ]
 
-       ;; (dotimes [i n]
-       ;;   (run step-chip))
-
-       ;; (when (= (get-value test-probe) 0)
-       ;;   (run bolt-chip))
-       
-       ;; (run reset-chip)         
-
-       ;; (when (= (get-value unlocked-probe) 0)
-       ;;   (run open-door))
        (dotimes [i n]
          (activate far)
          (wait #(chip-active? far))
          )
 
-       (sleep 1000)
-
-       
+       (if (= (get-value probe) 1)
+         (do
+           (println! "wrong value")
+           (sleep 100))
+         (do
+           (activate bolt)
+           (wait #(chip-active? bolt))))
 
        (dotimes [i n]
          (activate near)
          (wait #(chip-active? near)))
-       )))
+       ))))

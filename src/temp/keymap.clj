@@ -8,7 +8,7 @@
              GLFW/GLFW_KEY_COMMA                   ","
              GLFW/GLFW_KEY_MINUS                   nil
              GLFW/GLFW_KEY_PERIOD                  "."
-             GLFW/GLFW_KEY_SLASH                   nil
+             GLFW/GLFW_KEY_SLASH                   "/"
              GLFW/GLFW_KEY_0                       "0"
              GLFW/GLFW_KEY_1                       "1"
              GLFW/GLFW_KEY_2                       "2"

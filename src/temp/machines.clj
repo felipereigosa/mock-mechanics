@@ -52,7 +52,41 @@
 
 (defn save-machine-callback [world text]
   (save-machine! world (str "resources/machines/" text ".clj"))
-  world)
+  (println! "saved machine" text)
+  (assoc-in world [:last-saved-machine] text))
 
 (defn load-machine-callback [world text]
-  (load-machine (create-world) (str "resources/machines/" text ".clj")))
+  (println! "loaded machine" text)
+  (-> (create-world)
+      (load-machine (str "resources/machines/" text ".clj"))
+      (assoc-in [:last-saved-machine] text)))
+
+(defn save-version [world]
+  (if-let [last-saved (:last-saved-machine world)]
+    (let [[root number] (split last-saved #"\.")
+          number (if (nil? number)
+                   0
+                   (parse-int number))
+          new-name (str root "." (format "%03d" (inc number)))]
+      (save-machine-callback world new-name))
+    (do
+      (println! "you need to save first!")
+      world)))
+
+(defn extract-number [name]
+  (let [r-index (.indexOf name ".")
+        l-index (.indexOf name "." (inc r-index))]
+    (if (= l-index -1)
+      nil
+      (parse-int (subs name (inc r-index) l-index)))))
+
+(defn load-last-version-callback [world text]
+  (let [all-files (get-files-at "resources/machines")
+        text-files (filter #(.startsWith % text) all-files)
+        number (if (= (count text-files) 1)
+                 ""
+                 (let [number (->> (map extract-number text-files)
+                                               (filter not-nil?)
+                                               (apply max))]
+                   (str "." (format "%03d" number))))]
+    (load-machine-callback world (str text number))))

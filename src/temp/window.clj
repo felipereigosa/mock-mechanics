@@ -649,6 +649,10 @@
 ;;-------------------------------------------------------------------------------;;
 
 (def redraw-flag (atom true))
+
+(defn redraw! []
+  (reset! redraw-flag true))
+
 (declare draw-2d!)
 (declare draw-3d!)
 (declare draw-ortho-mesh!)
