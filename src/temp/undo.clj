@@ -1,49 +1,49 @@
 
 (ns temp.core)
 
-(def undo-ring (atom (vec (range 10))))
-(def undo-index (atom 0))
+(def undo-ring (atom nil))
+(def undo-index (atom nil))
+(def undo-fields (atom nil))
 
-(defn reset-undo! []
-  (reset! undo-ring (vec (range 10)))
-  (reset! undo-index 0))
+(defn reset-undo! [world fields]
+  (reset! undo-ring (vec (repeat 10 world)))
+  (reset! undo-index 1)
+  (reset! undo-fields fields)
+  world)
 
-(defn save-checkpoint! []
-  ;; (println! "saved checkpoint")
-  ;; (swap! undo-ring (fn [ring]
-  ;;                    (let [index (mod @undo-index (count @undo-ring))]
-  ;;                      (assoc-in ring [index] @world))))
-  ;; (swap! undo-index inc)
-  (println! "save checkpoint")
-  nil)
+(defn different-checkpoint? [world]
+  (let [index (mod (- @undo-index 1) (count @undo-ring))
+        saved-world (nth @undo-ring index)]
+    (find-if (fn [field]
+               (not= (get world field)
+                     (get saved-world field)))
+             @undo-fields)))
 
-(defn undo! []
-  ;; (swap! undo-index dec)
-  ;; (let [index (mod (dec @undo-index) (count @undo-ring))]
-  ;;     (reset! world (nth @undo-ring index))
-  ;;   nil)
-  ;; (println! @undo-ring @undo-index)
-  (println! "undo")
-  nil
-  )
+(defn save-checkpoint! [world]
+  (when (different-checkpoint? world)
+    (swap! undo-ring (fn [ring]
+                       (let [index (mod @undo-index (count @undo-ring))]
+                         (assoc-in ring [index] world)
+                         )))
+    (swap! undo-index inc))
+  world)
 
-(defn redo! []
-  ;; (swap! undo-index inc)
-  ;; (let [index (mod (dec @undo-index) (count @undo-ring))]
-  ;;   (reset! world (nth @undo-ring index))
-  ;;   nil)
-  (println! "redo")
-  )
+(declare prepare-tree)
 
-;;----------------------------------------------------------------------;;
+(defn copy-world [dest source fields]
+  (prepare-tree (reduce (fn [w field]
+                          (assoc-in w [field] (get-in source [field])))
+                        dest
+                        fields)))
 
-;; (save-checkpoint!)
+(defn undo! [world]
+  (let [index (mod (- @undo-index 2) (count @undo-ring))
+        saved-world (nth @undo-ring index)]
+    (swap! undo-index dec)
+    (copy-world world saved-world @undo-fields)))
 
-;; (do
-;;   (clear-output!)
-;;   (println! @undo-index)
-;;   (println! (nth @undo-ring 2)))
-
-;; (do
-;;   (reset! world (nth @undo-ring 0))
-;;   nil)
+(defn redo! [world]
+  (let [index (mod @undo-index (count @undo-ring))
+        saved-world (nth @undo-ring index)]
+    (swap! undo-index inc)
+    (copy-world world saved-world @undo-fields)))

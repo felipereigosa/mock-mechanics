@@ -13,7 +13,7 @@
 (load "window")
 (load "meshes")
 
-;;-------------------------------------------------------------------------------;;
+;;----------------------------------------------------------------------;;
 ;; miscellaneous
 
 (defn create-info []
@@ -604,17 +604,19 @@
     world))
 
 (defn mode-mouse-released [world event]
-  (let [world (if-let [fun (get-function (:mode world) :released)]
-                (fun world event)
-                world)]
-    ;; (save-checkpoint!)
+  (if-let [fun (get-function (:mode world) :released)]
+    (fun world event)
     world))
 
 ;;----------------------------------------------------------------------;;
 
 (load "graph-mode")
+(load "cpu-mode")
+(load "set-value-mode")
+(load "undo")
+(load "machines")
 
-;;-------------------------------------------------------------------------------;;
+;;----------------------------------------------------------------------;;
 ;; insert mode
 
 (defn spec->transform [offset spec parent]
@@ -703,6 +705,35 @@
       :sphere
       (insert-sphere world x y))))
 
+;;----------------------------------------------------------------------;;
+;; cable mode
+
+(defn get-cable-at [world x y]
+  ;;################################
+  )
+
+;;----------------------------------------------------------------------;;
+;; edit mode
+
+(defn set-object-color [world x y]
+  (if-let [cable-name (get-cable-at world x y)]
+    (assoc-in world [:cables cable-name :color] (:current-color world))
+    (if-let [part-name (get-part-at world x y)]
+      (assoc-in world [:parts part-name :color] (:current-color world))
+      world)))
+
+(defn rotate-part [world event]
+  (if-let [part-name (get-part-at world (:x event) (:y event))]
+    (let [part (get-in world [:parts part-name])
+          transform (:transform part)
+          rotation (make-transform [0 0 0] [0 1 0 90])
+          transform (combine-transforms rotation transform)
+          parent-name (get-parent-part world part-name)]
+      (-> world
+          (assoc-in [:parts part-name :transform] transform)
+          (create-relative-transform part-name parent-name)))
+    world))
+
 ;;-------------------------------------------------------------------------------;;
 ;; delete mode
 
@@ -710,7 +741,6 @@
 
 (declare get-sphere-at)
 (declare delete-sphere)
-(declare get-cable-at)
 
 (defn forget-part [world parent-name part-name]
   (-> world
@@ -744,16 +774,6 @@
               (unselect-part part-name)
               (dissoc-in [:parts part-name])))
         world))))
-
-;;----------------------------------------------------------------------;;
-;; color mode
-
-(defn set-object-color [world x y]
-  (if-let [cable-name (get-cable-at world x y)]
-    (assoc-in world [:cables cable-name :color] (:current-color world))
-    (if-let [part-name (get-part-at world x y)]
-      (assoc-in world [:parts part-name :color] (:current-color world))
-      world)))
 
 ;;----------------------------------------------------------------------;;
 ;; scale mode
@@ -991,16 +1011,56 @@
     world))
 
 ;;----------------------------------------------------------------------;;
+;; translate mode
 
-(load "cpu-mode")
-(load "machines")
+(defn translate-mode-pressed [world event]
+  (let [x (:x event)
+        y (:y event)]
+    (if-let [part-name (:part-name (get-part-collision world x y))]
+      (assoc-in world [:edited-part] part-name)
+      world)))
 
-;;----------------------------------------------------------------------;;
-;; cable mode
+(defn translate-mode-moved [world event]
+  (if-let [part-name (:edited-part world)]
+    (let [x (:x event)
+          y (:y event)
+          part (get-in world [:parts part-name])]
+      (if (= (:type part) :wagon)
+        world
+        (if-let [spec (get-closest-snap-point world x y
+                                              (:snap-specs world))]
+          (let [offset (* 0.5 (second (:scale part)))
+                parent-name (:part spec)
+                parent (get-in world [:parts parent-name])
+                transform (spec->transform offset spec parent)]
+            (-> world
+                (assoc-in [:parts part-name :transform] transform)
+                (assoc-in [:parent-name] parent-name)
+                ))
+          world)))
+    world))
 
-(defn get-cable-at [world x y]
-  ;;################################
-  )
+(defn translate-mode-released [world event]
+  (if-let [part-name (:edited-part world)]
+    (let [x (:x event)
+          y (:y event)
+          part (get-in world [:parts part-name])
+          new-parent-name (:parent-name world)
+          old-parent-name (get-parent-part world part-name)
+          world (-> world
+                    (dissoc-in [:parts old-parent-name
+                                :children part-name])
+                    (dissoc-in [:edited-part]))]
+      (if (= (:type part) :wagon)
+        (let [track-name (get-part-at world x y)
+              transform (get-in world [:parts track-name :transform])]
+          (-> world
+              (assoc-in [:parts part-name :transform] transform)
+              (assoc-in [:parts track-name :children part-name]
+                        (make-transform [0 0 0] [1 0 0 0]))
+              (set-wagon-loop part-name track-name)))
+        (create-relative-transform world part-name new-parent-name)))
+    world))
 
 ;;----------------------------------------------------------------------;;
 ;; pivot mode
@@ -1289,7 +1349,8 @@
 
 (defn create-weld-groups [world]
   (let [groups (segregate-parts world)
-        parts (:parts (compute-transforms (reset-part-values world) :parts))
+        parts (:parts (compute-transforms
+                       (reset-part-values world) :parts))
         info (:info world)
         weld-groups (map-map (fn [names]
                                (let [children (get-group-children parts names groups)
@@ -1325,19 +1386,23 @@
       (case (:edit-subcommand world)
         :color (set-object-color world x y)
         :move (move-mode-pressed world event)
+        :translate (translate-mode-pressed world event)
         :scale (scale-mode-pressed world event)
         :delete (delete-mode-pressed world event)
+        :rotate (rotate-part world event)
         world))))
 
 (defn edit-mode-moved [world event]
   (case (:edit-subcommand world)
     :move (move-mode-moved world event)
+    :translate (translate-mode-moved world event)
     :scale (scale-mode-moved world event)
     world))
 
 (defn edit-mode-released [world event]
   (case (:edit-subcommand world)
     :move (move-mode-released world event)
+    :translate (translate-mode-released world event)
     :scale (scale-mode-released world event)
     world))
 
@@ -1380,6 +1445,10 @@
                (assoc-in w [:edit-subcommand] :scale))
    ":edit m" (fn [w]
                (assoc-in w [:edit-subcommand] :move))
+   ":edit t" (fn [w]
+               (assoc-in w [:edit-subcommand] :translate))
+   ":edit r" (fn [w]
+               (assoc-in w [:edit-subcommand] :rotate))
 
    "C-x g" #(change-mode % :graph)
    ":graph m" (fn [w]
@@ -1424,15 +1493,8 @@
 
    "C-x v" #(change-mode % :set-value)
 
-   "C-/" (fn [w]
-           (println! "undo")
-           w
-           )
-
-   "C-x /" (fn [w]
-             (println! "redo")
-             w
-             )
+   "C-/" #(undo! %)
+   "C-x /" #(redo! %)
    })
 
 (set-thing! [:bindings] (get-bindings)))
@@ -1476,8 +1538,7 @@
             world (-> world
                       (dissoc-in [:text])
                       (assoc-in [:text-input] false))]
-        ;; (save-checkpoint!)
-        world)
+        (save-checkpoint! world))
 
       :backspace
       (if (empty? (:text world))
@@ -1524,10 +1585,8 @@
 
 (defn create-world []
   (let [world (create-gl-world)
-        r 0.2
-        ]
+        r 0.2]
     (create-debug-meshes!)
-    (reset-undo!)
     (-> world
         (assoc-in [:background-meshes :ground]
                   (create-cube-mesh
@@ -1540,12 +1599,6 @@
                                 :w 685 :h 150
                                 :buffer (new-image 685 150)
                                 })
-
-        ;; (assoc-in [:graph-box] {:x 443 :y 340
-        ;;                         :w 200 :h 200
-        ;;                         :buffer (new-image 200 200)
-        ;;                         })
-
         (assoc-in [:cpu-box] {:x 343 :y 540 :w 685 :h 150})
         (#(assoc-in % [:snap-specs] (get-snap-specs %)))
         (update-move-plane)
@@ -1573,6 +1626,7 @@
                                                        [0.2 0.2 0.2] :red))
 
         (assoc-in [:graph-snap-value] 0.1)
+        (reset-undo! [:ground-children :planet :spheres :parts])
     )))
 (reset-world!)
 )
@@ -1633,12 +1687,9 @@
 (defn draw-2d! [world]
   (clear!)
   (draw-text-box! world)
-
   (if-let [fun (get-function (:mode world) :draw)]
     (fun world))
-
   (draw-output!)
-
   ;; (fill-circle! :red 100 465 2)
   ;; (fill-circle! :red 100 615 2)
   ;; (fill-circle! :red 74 (+ 465 129) 2)
@@ -1686,4 +1737,6 @@
                 :else
                 (mode-mouse-released world event))]
     (draw-2d! world)
-    (prepare-tree world)))
+    (-> world
+        (prepare-tree)
+        (save-checkpoint!))))
