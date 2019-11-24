@@ -11,6 +11,12 @@
                           (:children part))]
     (-> part
         (dissoc-in [:transform])
+        (update-in [:color] (fn [color]
+                              (if (keyword? color)
+                                color
+                                [(.getRed color)
+                                 (.getRed color)
+                                 (.getRed color)])))
         (assoc-in [:children] children))))
 
 (defn get-complex-transform [transform]
@@ -22,6 +28,10 @@
                           (:children part))]
     (-> part
         (assoc-in [:transform] (make-transform [0 0 0] [1 0 0 0]))
+        (update-in [:color] (fn [color]
+                              (if (vector? color)
+                                (apply make-color color)
+                                color)))
         (assoc-in [:children] children))))
 
 ;;---

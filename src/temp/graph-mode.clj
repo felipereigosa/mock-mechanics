@@ -512,7 +512,7 @@
                       :print-lengths (print-wagon-lengths world x y)
                       (chip-change-part world x y)))]
         (assoc-in world [:graph-subcommand] :move))
-      (select-chip world x y))))  
+      (select-chip world x y))))
 
 (defn graph-mode-moved [world event]
   (pan-or-move-moved world (:x event) (:y event)))
@@ -520,20 +520,21 @@
 (defn graph-mode-released [world event]
   (pan-or-move-released world (:x event) (:y event)))
 
+(defn place-point [view graph-box local-point global-point]
+  (let [p (global->local graph-box view global-point)
+        v (vector-multiply (vector-subtract p local-point) (:zoom view))]
+    (update-in view [:offset] #(vector-add % v))))
+
 (defn change-zoom [view graph-box event]
-  (let [point (global->local graph-box view [(:x event) (:y event)])
-        f (if (pos? (:amount event))
-            1.1
-            0.9)
-        offset (:offset view)
+  (let [offset (:offset view)
         zoom (:zoom view)
+        f (if (pos? (:amount event)) 1.1 0.9)
         new-zoom (* zoom f)
-        displacement (-> (vector-subtract offset point)
-                         (vector-multiply f))
-        new-offset (vector-add point displacement)]
-    {:offset new-offset
-     :zoom new-zoom}
-    ))
+        global-point [(:x event) (:y event)]
+        local-point (global->local graph-box view global-point)]
+    (place-point {:offset offset
+                  :zoom new-zoom}
+                 graph-box local-point global-point)))
 
 (defn graph-mode-scrolled [world event]
   (let [graph-box (:graph-box world)

@@ -17,12 +17,18 @@
 ;; miscellaneous
 
 (defn create-info []
-  {:block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+  {:ground {:model (create-cube-mesh [0 0 0] [1 0 0 0]
+                                    [1 1 1] :white)
+           :points []
+           :scale [0.5 0.5 0.5]
+           :direction nil
+           }
+
+   :block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                     [1 1 1] :white)
            :points [[0.5 0 0] [-0.5 0 0]
                     [0 0.5 0] [0 -0.5 0]
                     [0 0 0.5] [0 0 -0.5]]
-           :offset 0.25
            :scale [0.5 0.5 0.5]
            :direction nil
            }
@@ -32,7 +38,6 @@
            :points [[0.5 0 0] [-0.5 0 0]
                     [0 0.5 0] [0 -0.5 0]
                     [0 0 0.5] [0 0 -0.5]]
-           :offset 0.25
            :scale [0.5 0.5 0.5]
            :direction nil
            }
@@ -40,7 +45,6 @@
    :probe {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                     [1 1 1] :white)
            :points []
-           :offset 0.05
            :scale [0.1 0.1 0.1]
            :direction :input
            }
@@ -51,7 +55,6 @@
                     [0 0.2 0]
                     [0 0 0.2] [0 0 -0.2]
                     ]
-           :offset 1
            :scale [0.1 1 0.1]
            :direction :output
            }
@@ -59,7 +62,6 @@
    :chip {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                    [1 1 1] :white)
           :points []
-          :offset 0.05
           :scale [0.3 0.1 0.3]
           :direction :output
           }
@@ -67,7 +69,6 @@
    :cpu {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                   [1 1 1] :white)
          :points []
-         :offset 0.05
          :scale [0.3 0.1 0.3]
          :direction :output
          }
@@ -75,7 +76,6 @@
    :button {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                      [1 1 1] :white)
             :points []
-            :offset 0.1
             :scale [0.5 0.2 0.5]
             :direction :input
             }
@@ -96,6 +96,29 @@
                              :zoom 1}))
       part)))
 
+(defn create-relative-transform [world child-name parent-name]
+  (let [child (get-in world [:parts child-name])]
+    (if (= parent-name :ground)
+      (assoc-in world [:ground-children child-name] (:transform child))
+      (let [parent (get-in world [:parts parent-name])
+            child-transform (:transform child)
+            parent-transform (:transform parent)
+            final-transform (remove-transform child-transform parent-transform)]
+        (assoc-in world [:parts parent-name :children child-name]
+                  final-transform)))))
+
+(defn create-ground-part [world]
+  (let [color (make-color 40 40 40)
+        part (create-part :ground color (:info world))
+        name :ground-part
+        transform (make-transform [0 -0.25 0] [1 0 0 0])
+        scale [12 0.5 12]]
+      (-> world
+          (assoc-in [:parts name] part)
+          (assoc-in [:parts name :transform] transform)
+          (assoc-in [:parts name :scale] scale)
+          (create-relative-transform name :ground))))
+
 (defn get-part-with-color [world color]
   (first (find-if (fn [[name part]]
                     (= (:color part) color))
@@ -112,17 +135,6 @@
                (let [parent (get-in world [:parts name])]
                  (in? child-name (keys (:children parent)))))
              (keys (:parts world)))))
-
-(defn create-relative-transform [world child-name parent-name]
-  (let [child (get-in world [:parts child-name])]
-    (if (= parent-name :ground)
-      (assoc-in world [:ground-children child-name] (:transform child))
-      (let [parent (get-in world [:parts parent-name])
-            child-transform (:transform child)
-            parent-transform (:transform parent)
-            final-transform (remove-transform child-transform parent-transform)]
-        (assoc-in world [:parts parent-name :children child-name]
-                  final-transform)))))
 
 (defn set-value-0-transform [world part-name]
   (let [parent-name (get-parent-part world part-name)
@@ -270,30 +282,29 @@
                                      y (+ (* b 0.5) 0.25)]
                                  {:position [x 0 y]
                                   :rotation [1 0 0 0]
-                                  :part :ground}))
+                                  :part :ground-part}))
                              (create-combinations (range 10) (range 10))))
-        face-specs
-        (vec
-         (remove-nil
-          (mapcat (fn [[name part]]
-                    (let [part (get-in world [:parts name])
-                          transform (:transform part)
-                          position (get-transform-position transform)
-                          rotation (get-transform-rotation transform)
-                          points (get-in world [:info (:type part) :points])
-                          [sa sb sc] (if (= (:type part) :track)
-                                       [1 1 1]
-                                       (:scale part))
-                          points (map (fn [[a b c]]
-                                        [(* sa a) (* sb b) (* sc c)])
-                                      points)]
-                      (map (fn [p]
-                             (let [[pos rot] (make-spec position rotation p)]
-                               {:position pos
-                                :rotation rot
-                                :part name}))
-                           points)))
-                  (:parts world))))]
+        face-specs (vec
+                    (remove-nil
+                     (mapcat (fn [[name part]]
+                               (let [part (get-in world [:parts name])
+                                     transform (:transform part)
+                                     position (get-transform-position transform)
+                                     rotation (get-transform-rotation transform)
+                                     points (get-in world [:info (:type part) :points])
+                                     [sa sb sc] (if (= (:type part) :track)
+                                                  [1 1 1]
+                                                  (:scale part))
+                                     points (map (fn [[a b c]]
+                                                   [(* sa a) (* sb b) (* sc c)])
+                                                 points)]
+                                 (map (fn [p]
+                                        (let [[pos rot] (make-spec position rotation p)]
+                                          {:position pos
+                                           :rotation rot
+                                           :part name}))
+                                      points)))
+                             (:parts world))))]
     (vec (concat grid-specs face-specs))))
 
 (defn get-closest-snap-point [world x y snap-specs]
@@ -632,11 +643,16 @@
 
 ;;---
 
+(defn get-part-offset [part]
+  (if (= (:type part) :track)
+    (second (:scale part))
+    (* 0.5 (second (:scale part)))))
+
 (defn insert-part [world type color x y]
   (if-let [spec (get-closest-snap-point world x y (:snap-specs world))]
     (let [part (create-part type color (:info world))
           name (gen-keyword type)
-          offset (get-in world [:info (:type part) :offset])
+          offset (get-part-offset part)t
           parent-name (:part spec)
           parent (get-in world [:parts parent-name])
           transform (spec->transform offset spec parent)]
@@ -753,7 +769,7 @@
   (cond
     (= part-name (:selected-chip world))
     (dissoc-in world [:selected-chip])
-    
+
     (= part-name (:selected-cpu world))
     (dissoc-in world [:selected-cpu])
 
@@ -1029,14 +1045,13 @@
         world
         (if-let [spec (get-closest-snap-point world x y
                                               (:snap-specs world))]
-          (let [offset (* 0.5 (second (:scale part)))
+          (let [offset (get-part-offset part)
                 parent-name (:part spec)
                 parent (get-in world [:parts parent-name])
                 transform (spec->transform offset spec parent)]
             (-> world
                 (assoc-in [:parts part-name :transform] transform)
-                (assoc-in [:parent-name] parent-name)
-                ))
+                (assoc-in [:parent-name] parent-name)))
           world)))
     world))
 
@@ -1068,11 +1083,12 @@
 (defn pivot-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)
-        pos (if-let [part-name (get-part-at world x y)]
-              (get-part-position world part-name)
+        part-name (get-part-at world x y)
+        pos (if (= part-name :ground-part)
               (let [line (unproject-point world [x y])
                     ground-plane [[0 0 0] [1 0 0] [0 0 1]]]
-                (line-plane-intersection line ground-plane)))]
+                (line-plane-intersection line ground-plane))
+              (get-part-position world part-name))]
     (compute-camera (assoc-in world [:camera :pivot] pos))))
 
 ;;----------------------------------------------------------------------;;
@@ -1588,19 +1604,15 @@
         r 0.2]
     (create-debug-meshes!)
     (-> world
-        (assoc-in [:background-meshes :ground]
-                  (create-cube-mesh
-                   [0 -0.25 0] [1 0 0 0] [12 0.5 12]
-                   (make-color 40 40 40)))
         (assoc-in [:background-meshes :grid] (create-grid-mesh 24 0.5))
         (assoc-in [:info] (create-info))
-        (assoc-in [:ground-children] {})
+        (create-ground-part)
         (assoc-in [:graph-box] {:x 343 :y 540
                                 :w 685 :h 150
                                 :buffer (new-image 685 150)
                                 })
         (assoc-in [:cpu-box] {:x 343 :y 540 :w 685 :h 150})
-        (#(assoc-in % [:snap-specs] (get-snap-specs %)))
+        (prepare-tree)
         (update-move-plane)
         (assoc-in [:cursor] (create-cone-mesh [0 -5 0] [1 0 0 0]
                                               [0.05 0.1 0.05] :black))
@@ -1690,9 +1702,6 @@
   (if-let [fun (get-function (:mode world) :draw)]
     (fun world))
   (draw-output!)
-  ;; (fill-circle! :red 100 465 2)
-  ;; (fill-circle! :red 100 615 2)
-  ;; (fill-circle! :red 74 (+ 465 129) 2)
   )
 (redraw!))
 
@@ -1702,7 +1711,6 @@
     (graph-mode-scrolled world event)
     (let [amount (+ 1 (* (:amount event) -0.05))]
       (zoom-camera world amount))))
-
 
 (defn mouse-pressed [world event]
   (let [x (:x event)
