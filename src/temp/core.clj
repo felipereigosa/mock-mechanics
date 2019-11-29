@@ -279,12 +279,12 @@
 
 (defn get-snap-specs [world]
   (let [grid-specs (vec (map (fn [[a b]]
-                               (let [x (+ (* a 0.5) 0.25)
-                                     y (+ (* b 0.5) 0.25)]
+                               (let [x (- (* a 0.5) 5.75)
+                                     y (- (* b 0.5) 5.75)]
                                  {:position [x 0 y]
                                   :rotation [1 0 0 0]
                                   :part :ground-part}))
-                             (create-combinations (range 10) (range 10))))
+                             (create-combinations (range 24) (range 24))))
         face-specs (vec
                     (remove-nil
                      (mapcat (fn [[name part]]
@@ -776,6 +776,20 @@
 
     :else world))
 
+(defn delete-part [world part-name]
+  (let [part (get-in world [:parts part-name])
+        world (reduce (fn [w child-name]
+                        (delete-part w child-name))
+                      world
+                      (keys (:children part)))
+
+        world (reduce #(forget-part %1 %2 part-name)
+                      world
+                      (keys (:parts world)))]
+    (-> world
+        (unselect-part part-name)
+        (dissoc-in [:parts part-name]))))
+
 (defn delete-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
@@ -784,12 +798,7 @@
     (if-let [sphere (get-sphere-at world x y)]
       (delete-sphere world sphere)
       (if-let [part-name (get-part-at world x y)]
-        (let [world (reduce #(forget-part %1 %2 part-name)
-                            world
-                            (keys (:parts world)))]
-          (-> world
-              (unselect-part part-name)
-              (dissoc-in [:parts part-name])))
+        (delete-part world part-name)
         world))))
 
 ;;----------------------------------------------------------------------;;
@@ -1607,11 +1616,40 @@
 (reset-world!)
 )
 
+;; (set-thing! [:force] {:part-name (get-part-with-color @world :yellow)
+;;                       :velocity 0.0
+;;                       :acceleration 0.1
+;;                       })
+
+;; (set-thing! [:force] nil)
+
+;; (set-thing! [:parts (get-part-with-color @world :yellow) :value]
+;;             0.06)
+
+;; (set-thing! [:use-weld-groups] true)   
+
+(do
+1
+
+(defn apply-force [world elapsed]
+  (if-let [{:keys [part-name velocity acceleration]} (:force world)]
+    (let [value (get-in world [:parts part-name :value])
+          dt (* elapsed 0.001)
+          dv (* acceleration dt)
+          velocity (+ velocity dv)
+          dvalue (* velocity dt)
+          value (+ value dvalue)]
+      (-> world
+          (assoc-in [:parts part-name :value] value)
+          (assoc-in [:force :velocity] velocity)))          
+    world))
+
 (defn update-world [world elapsed]
   (if (in? (:mode world) [:insert :edit])
     world
     (let [world (-> world
                     (run-chips elapsed)
+                    (apply-force elapsed)
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
@@ -1622,6 +1660,14 @@
       (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)
       world)))
+
+;; (clear-output!)
+;; (let [world @world
+;;       ]
+;;   (apply-force world 500)
+;;   nil
+;;   )
+)
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]

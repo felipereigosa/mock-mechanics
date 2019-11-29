@@ -1,17 +1,12 @@
 
 (script
- []
- [chip-a chip-b]
-
- (defn foo [x]
-   (+ x 1))
-
- (defn bar []
-   3.14)
+ [button]
+ [out-chip in-chip]
 
  (fn [part-name]
-   (activate chip-a)
-   (wait #(chip-active? chip-a))
-   (activate chip-b)
-   )
- )
+   ;; (when (and (= part-name button)
+   ;;            (= (get-value button) 1))
+   ;;   (if (= (get-value probe) 1)
+   ;;     (activate out-chip)
+   (activate in-chip)
+   ))

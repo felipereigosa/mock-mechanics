@@ -9,6 +9,11 @@
         descendents (map #(get-limited-tree parts % all-root-names) children)]
     (vec (apply concat [root-name] descendents))))
 
+(declare get-parts-with-type)
+(declare get-tail-transform)
+(declare compute-transforms)
+(declare create-kinematic-bodies)
+
 (defn get-root-parts [world]
   (let [chip-names (get-parts-with-type (:parts world) :chip)
         ground-children (keys (:ground-children world))
