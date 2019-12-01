@@ -216,3 +216,8 @@
   (vec (map (fn [a b]
               (+ (* a (- 1.0 t)) (* b t)))
             p1 p2)))
+
+(defn project-vector [v other]
+  (let [size (float (/ (vector-dot-product v other)
+                       (vector-dot-product other other)))]
+    (vector-multiply other size)))

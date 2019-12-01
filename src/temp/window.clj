@@ -727,7 +727,14 @@
                           [0.05 0.05 0.05] :red)
                     :yellow (create-cube-mesh
                              [-100 0 0] [1 0 0 0]
-                             [0.05 0.05 0.05] :yellow)}}))
+                             [0.05 0.05 0.05] :yellow)
+                    :green (create-cube-mesh
+                             [-100 0 0] [1 0 0 0]
+                             [0.05 0.05 0.05] :green)
+                    :blue (create-cube-mesh
+                             [-100 0 0] [1 0 0 0]
+                             [0.05 0.05 0.05] :blue)
+                    }}))
 
 (defn draw-debug-meshes! []
   (let [points (:points @debug-meshes)]

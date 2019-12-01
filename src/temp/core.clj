@@ -1616,34 +1616,6 @@
 (reset-world!)
 )
 
-;; (set-thing! [:force] {:part-name (get-part-with-color @world :yellow)
-;;                       :velocity 0.0
-;;                       :acceleration 0.1
-;;                       })
-
-;; (set-thing! [:force] nil)
-
-;; (set-thing! [:parts (get-part-with-color @world :yellow) :value]
-;;             0.06)
-
-;; (set-thing! [:use-weld-groups] true)   
-
-(do
-1
-
-(defn apply-force [world elapsed]
-  (if-let [{:keys [part-name velocity acceleration]} (:force world)]
-    (let [value (get-in world [:parts part-name :value])
-          dt (* elapsed 0.001)
-          dv (* acceleration dt)
-          velocity (+ velocity dv)
-          dvalue (* velocity dt)
-          value (+ value dvalue)]
-      (-> world
-          (assoc-in [:parts part-name :value] value)
-          (assoc-in [:force :velocity] velocity)))          
-    world))
-
 (defn update-world [world elapsed]
   (if (in? (:mode world) [:insert :edit])
     world
@@ -1660,14 +1632,6 @@
       (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)
       world)))
-
-;; (clear-output!)
-;; (let [world @world
-;;       ]
-;;   (apply-force world 500)
-;;   nil
-;;   )
-)
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
