@@ -223,3 +223,9 @@
   (keyword (apply str (interpose "-" (map (fn [k]
                                             (subs (str k) 1)) keywords)))))
 
+(defn snap-value [value step]
+  (* (round (/ value step)) step))
+
+(defn keyword->str [k]
+  (subs (str k) 1))
+

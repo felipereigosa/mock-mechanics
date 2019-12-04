@@ -622,9 +622,12 @@
 
 ;;----------------------------------------------------------------------;;
 
+(load "value-force")
 (load "graph-mode")
 (load "cpu-mode")
 (load "set-value-mode")
+(load "idle-mode")
+(load "toggle-mode")
 (load "undo")
 (load "machines")
 
@@ -1185,28 +1188,6 @@
     (compute-camera (assoc-in world [:camera :pivot] pos))))
 
 ;;----------------------------------------------------------------------;;
-;; idle mode
-
-(defn idle-mode-pressed [world event]
-  (let [x (:x event)
-        y (:y event)]
-    (if-let [part-name (get-part-at world x y)]
-      (let [part (get-in world [:parts part-name])]
-        (if (= (:type part) :button)
-          (-> world
-              (assoc-in [:parts part-name :value] 1)
-              (assoc-in [:button] part-name))
-          world))
-      world)))
-
-(defn idle-mode-released [world event]
-  (if-let [button-name (:button world)]
-    (-> world
-        (assoc-in [:parts button-name :value] 0)
-        (dissoc-in [:button]))
-    world))
-
-;;----------------------------------------------------------------------;;
 ;; extra parts
 
 (defn point-inside-block? [block point]
@@ -1481,6 +1462,7 @@
    "C-x C-l" #(read-input % load-last-version-callback)
 
    "C-x v" #(change-mode % :set-value)
+   "C-x t" #(change-mode % :toggle)
 
    "C-/" #(undo! %)
    "C-x /" #(redo! %)
@@ -1611,6 +1593,10 @@
                                                        [0.2 0.2 0.2] :red))
 
         (assoc-in [:graph-snap-value] 0.1)
+        (assoc-in [:selected-property] 0)
+
+        (assoc-in [:properties] [:free :hidden :physics])
+        
         (reset-undo! [:ground-children :planet :spheres :parts])
     )))
 (reset-world!)

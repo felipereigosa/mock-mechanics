@@ -383,9 +383,6 @@
     (assoc-in world [:moving-node] node)
     world))
 
-(defn snap-value [value step]
-  (* (round (/ value step)) step))
-
 (defn snap-coords [coords spec]
   (cond
     (number? spec) (vec (map #(snap-value % spec) coords))

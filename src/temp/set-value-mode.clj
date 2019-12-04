@@ -24,125 +24,71 @@
 (do
 1
 
-(defn get-weld-parent-part [world part-name]
-  (let [weld-groups (:weld-groups world)]
-    (find-if (fn [name]
-               (let [children (get-in weld-groups [name :children])]
-                 (in? part-name (keys children))))
-             (keys weld-groups))))
-
-(defn get-function-segment [function t]
-  (cond
-    (<= t 0.0) [(nth function 0) (nth function 1)]
-
-    (>= t 1.0)
-    (let [n (count function)]
-      [(nth function (- n 2)) (nth function (- n 1))])
-
-    :else
-    (let [pairs (map vector function (rest function))]
-      (find-if (fn [[[t0 & _] [t1 & _]]]
-                 (<= t0 t t1))
-               pairs))))
-
-(defn get-wagon-direction [world wagon-name]
-  (let [wagon (get-in world [:parts wagon-name])
-        loop-fn (if (:use-weld-groups world)
-                  (compute-translated-loop-fn (:loop-fn wagon))
-                  (:loop-fn wagon))
-        parent-name (if (:use-weld-groups world)
-                      (do
-                        (println! "direction error")
-                        (get-weld-parent-part world wagon-name))
-                      
-                      (get-parent-part world wagon-name))
-
-        parent (get-in world [:parts parent-name])
-        parent-transform (:transform parent)
-        loop-fn (map (fn [[t v]]
-                       [t (apply-transform parent-transform v)])
-                     loop-fn)
-        value (within (:value wagon) 0.0 1.0)
-        [[_ p0] [_ p1]] (get-function-segment loop-fn value)]
-    (vector-normalize (vector-subtract p1 p0))))
-
 (defn set-value-mode-pressed [world event]
-  ;; (set-part-value world (:x event) (:y event))
   (let [x (:x event)
         y (:y event)
         {:keys [part-name point]} (get-part-collision world x y)
         part (get-in world [:parts part-name])
-        transform (:transform part)
-        inverse-transform (get-inverse-transform transform)
-        local-point (apply-transform inverse-transform point)
-        mouse-line (unproject-point world [x y])]
-    (assoc-in world [:force] {:part-name part-name
-                              :velocity 0
-                              :line mouse-line
-                              :point local-point})))
+        world (assoc-in world [:press-time] (get-current-time))]
+    (case (:type part)
+      :wagon (let [transform (:transform part)
+                   inverse-transform (get-inverse-transform transform)
+                   local-point (apply-transform inverse-transform point)
+                   mouse-line (unproject-point world [x y])]
+               (assoc-in world [:force] {:part-name part-name
+                                         :velocity 0
+                                         :line mouse-line
+                                         :point local-point}))
+      :track
+      (assoc-in world [:track-force] {:part-name part-name
+                                      :point point
+                                      :start-value (:value part)
+                                      })
+
+      world)))
 
 (defn set-value-mode-moved [world event]
-  (if (nil? (:force world))
-    world
-    (let [x (:x event)
-          y (:y event)
-          mouse-line (unproject-point world [x y])]
-      (assoc-in world [:force :line] mouse-line))))
-
-(defn set-value-mode-released [world event]
-  (dissoc-in world [:force]))
-
-(defn set-value-mode-pressed [world event]
-  ;; (set-part-value world (:x event) (:y event))
   (let [x (:x event)
-        y (:y event)
-        {:keys [part-name point]} (get-part-collision world x y)
-        part (get-in world [:parts part-name])
-        transform (:transform part)
-        inverse-transform (get-inverse-transform transform)
-        local-point (apply-transform inverse-transform point)
-        mouse-line (unproject-point world [x y])]
-    (assoc-in world [:force] {:part-name part-name
-                              :velocity 0
-                              :line mouse-line
-                              :point local-point})))
+        y (:y event)]
+    (cond
+      (:force world)
+      (let [mouse-line (unproject-point world [x y])]
+        (assoc-in world [:force :line] mouse-line))
 
-(defn set-value-mode-moved [world event]
-  (if (nil? (:force world))
-    world
-    (let [x (:x event)
-          y (:y event)
-          mouse-line (unproject-point world [x y])]
-      (assoc-in world [:force :line] mouse-line))))
+      (:track-force world)
+      (let [{:keys [part-name point start-value]} (:track-force world)
+            track (get-in world [:parts part-name])
+            transform (:transform track)
+            rotation (get-rotation-component transform)
+            track-direction (apply-transform rotation [0 1 0])
+            plane (get-camera-plane world point)
+            [p0 p1 p2] plane
+            v1 (vector-subtract p1 p0)
+            v2 (vector-subtract p2 p0)
+            plane-normal (vector-normalize (vector-cross-product v1 v2))
+            line (unproject-point world [x y])
+            p2 (line-plane-intersection line plane)
+            side-vector (vector-normalize
+                         (vector-cross-product track-direction plane-normal))
+
+            side-line [point side-vector]
+            p3 (point-line-projection p2 side-line)
+            v (vector-subtract p3 point)
+            s (- (vector-dot-product v side-vector))]
+        (assoc-in world [:parts part-name :value] (+ start-value s)))
+
+      :else world)))
 
 (defn set-value-mode-released [world event]
-  (dissoc-in world [:force]))
+  (let [world (-> world
+                  (dissoc-in [:force])
+                  (dissoc-in [:track-force]))
+        delay (- (get-current-time) (:press-time world))]
+    (if (< delay 150)
+      (set-part-value world (:x event) (:y event))
+      world)))
 
-(defn apply-force [world elapsed]
-  (if-let [{:keys [part-name velocity line point]} (:force world)]
-    (let [wagon-name part-name ;;#################
-          wagon (get-in world [:parts wagon-name])
-          transform (:transform wagon)
-          p1 (apply-transform transform point)
-          p2 (point-line-projection p1 line)
-          force-vector (vector-subtract p2 p1)
-          track-direction (get-wagon-direction world wagon-name)
-          force-component (/ (vector-dot-product force-vector track-direction)
-                             (vector-length track-direction))
-          acceleration (* force-component 100)
-          value (get-in world [:parts part-name :value])
-          dt (* elapsed 0.001)
-          dv (* acceleration dt)
-          dampening-factor 0.80
-          velocity (* (+ velocity dv) dampening-factor)
-          dvalue (* velocity dt)
-          value (+ value dvalue)]
-      (-> world
-          (assoc-in [:parts part-name :value] value)
-          (assoc-in [:force :velocity] velocity)))
-    world))
-
-(clear-output!)
+;; (clear-output!)
 )
 
 ;; (set-thing! [:parts (get-part-with-color @world :green) :value]
@@ -154,5 +100,7 @@
 ;; (clear-output!)
 
 ;; (set-thing! [:use-weld-groups] false)
+
+;; (clear-output!)
 
 
