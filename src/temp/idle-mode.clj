@@ -1,9 +1,6 @@
 
 (ns temp.core)
 
-(do
-1
-
 (defn idle-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)
@@ -40,8 +37,3 @@
         (dissoc-in [:button]))
     (dissoc-in world [:force])))
 
-)
-
-;; (set-thing! [:use-weld-groups] false)
-;; (set-thing! [:force] nil)
-;; (reset-world!)

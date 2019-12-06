@@ -23,21 +23,12 @@
                pairs))))
 
 (defn get-wagon-direction [world wagon-name]
-  (let [wagon (get-in world [:parts wagon-name])
-        loop-fn (if (:use-weld-groups world)
-                  (compute-translated-loop-fn (:loop-fn wagon))
-                  (:loop-fn wagon))
-        parent-name (if (:use-weld-groups world)
-                      (do
-                        (println! "direction error")
-                        (get-weld-parent-part world wagon-name))
-                      
-                      (get-parent-part world wagon-name))
-
-        parent (get-in world [:parts parent-name])
-        parent-transform (:transform parent)
+  (let [w2 (set-value-0-transform world wagon-name)
+        wagon (get-in w2 [:parts wagon-name])
+        loop-fn (compute-translated-loop-fn (:loop-fn wagon))
+        transform (:transform wagon)
         loop-fn (map (fn [[t v]]
-                       [t (apply-transform parent-transform v)])
+                       [t (apply-transform transform v)])
                      loop-fn)
         value (within (:value wagon) 0.0 1.0)
         [[_ p0] [_ p1]] (get-function-segment loop-fn value)]
@@ -45,7 +36,10 @@
 
 (defn apply-force-to-wagon [world elapsed]
   (if-let [{:keys [part-name velocity line point]} (:force world)]
-    (let [wagon (get-in world [:parts part-name])
+    (let [key (if (:use-weld-groups world)
+                :weld-groups
+                :parts)
+          wagon (get-in world [key part-name])
           transform (:transform wagon)
           p1 (apply-transform transform point)
           p2 (point-line-projection p1 line)
@@ -68,7 +62,10 @@
 
 (defn apply-force-to-track [world elapsed]
   (if-let [{:keys [part-name velocity line point]} (:force world)]
-    (let [track (get-in world [:parts part-name])
+    (let [key (if (:use-weld-groups world)
+                :weld-groups
+                :parts)
+          track (get-in world [key part-name])
           transform (:transform track)
           p1 (apply-transform transform point)
           p2 (point-line-projection p1 line)

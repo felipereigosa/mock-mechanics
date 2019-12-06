@@ -19,11 +19,11 @@
 
 (defn create-info []
   {:ground {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                                    [1 1 1] :white)
-           :points []
-           :scale [0.5 0.5 0.5]
-           :direction nil
-           }
+                                     [1 1 1] :white)
+            :points []
+            :scale [0.5 0.5 0.5]
+            :direction nil
+            }
 
    :block {:model (create-cube-mesh [0 0 0] [1 0 0 0]
                                     [1 1 1] :white)
@@ -1239,7 +1239,16 @@
                      (make-transform (vector-multiply up 0.02) [1 0 0 0])
                      (make-transform (vector-multiply up 0.1) [1 0 0 0]))
             transform (combine-transforms base-transform offset)
-            mesh (assoc-in (:button-mesh world) [:transform] transform)]
+            property (nth (get-in world [:properties])
+                          (:selected-property world))
+            color (if (not= (:mode world) :toggle)
+                    [1 0 0 1]
+                    (if (get-in button [property])
+                      [1 0 0 1]
+                      [1 1 1 1]))
+            mesh (-> (:button-mesh world)
+                     (assoc-in [:transform] transform)
+                     (assoc-in [:color] color))]
         (draw-mesh! world mesh)))))
 
 ;;----------------------------------------------------------------------;;
@@ -1529,7 +1538,7 @@
             (assoc-in [:command] "")
             (assoc-in [:text] "")
             (assoc-in [:text-input] false)
-            (assoc-in [:mode] :idle))
+            (change-mode :idle))
         (if (:text-input world)
           (text-input-key-pressed world event)
           (-> world
@@ -1593,8 +1602,8 @@
                                                        [0.2 0.2 0.2] :red))
 
         (assoc-in [:graph-snap-value] 0.1)
-        (assoc-in [:selected-property] 0)
 
+        (assoc-in [:selected-property] 0)
         (assoc-in [:properties] [:free :hidden :physics])
         
         (reset-undo! [:ground-children :planet :spheres :parts])

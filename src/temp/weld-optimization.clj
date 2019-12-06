@@ -29,14 +29,18 @@
                                         cpu-names))
         roots (concat chip-children
                       cpu-children)
-
         roots (filter (fn [name]
                         (let [part (get-in world [:parts name])]
                           (not (in? (:type part) [:chip :button]))))
                       roots)
-
-        roots (concat ground-children roots)]
-    (into [] (into #{} roots))))
+        free-parts (filter (fn [part-name]
+                             (get-in world [:parts part-name :free]))
+                           (keys (:parts world)))
+        force-part (get-in world [:force :part-name])
+        track-force-part (get-in world [:track-force :part-name])
+        roots (concat ground-children roots free-parts
+                      (filter not-nil? [force-part track-force-part]))]
+    (vec (into #{} roots))))
 
 (defn segregate-parts [world]
   (let [roots (get-root-parts world)]
@@ -58,19 +62,29 @@
     {:vertices (vec (flatten vertices))
      :colors (vec (flatten (repeat (count vertices) color)))}))
 
-(defn bake-part [info part]
+(defn bake-part [info part property]
   (let [model (get-in info [(:type part) :model])
-        transform (if (= (:type part) :track)
+        type (:type part)
+        color (if (or (= type :ground)
+                      (nil? property))
+                (:color part)
+                (if (get-in part [property])
+                  :red
+                  :white))
+        ;; color (if (= type :ground)
+        ;;         (:color part)
+        ;;         :purple)
+        transform (if (= type :track)
                     (get-tail-transform part)
                     (:transform part))]
-    (bake-mesh model transform (:scale part) (:color part))))
+    (bake-mesh model transform (:scale part) color)))
 
-(defn create-mesh-from-parts [parts names info edited-part]
+(defn create-mesh-from-parts [parts names info edited-part property]
   (let [baked-parts (map (fn [name]
                            (if (= name edited-part)
                              {:vertices []
                               :colors []}
-                             (bake-part info (get-in parts [name]))))
+                             (bake-part info (get-in parts [name]) property)))
                          names)
         {:keys [vertices colors]} (reduce (fn [a b]
                                             (merge-with (comp vec concat) a b))
@@ -122,9 +136,13 @@
                        (reset-part-values world)
                        :parts))
         info (:info world)
+        property (if (= (:mode world) :toggle)
+                   (nth (get-in world [:properties])
+                        (:selected-property world))
+                   nil)
         weld-groups (map-map (fn [names]
                                (let [children (get-group-children parts names groups)
-                                     mesh (-> (create-mesh-from-parts parts names info (:edited-part world))
+                                     mesh (-> (create-mesh-from-parts parts names info (:edited-part world) property)
                                               (assoc-in [:children] children)
                                               (assoc-in [:parts] names))]
                                  {(first names) mesh}))
