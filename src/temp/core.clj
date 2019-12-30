@@ -388,8 +388,12 @@
                               :distance d
                               :point p
                               :index i})))
-                       (:parts world))]
-    (first (sort-by :distance (remove-nil distances)))))
+                       (:parts world))
+        distances (filter (fn [distance]
+                            (not (or (nil? distance)
+                                     (= (:part-name distance) :ground-part))))
+                          distances)]
+    (first (sort-by :distance distances))))
 
 (defn get-part-at [world px py]
   (:part-name (get-part-collision world px py)))
@@ -577,7 +581,7 @@
           (:ground-children world)))
 
 ;;----------------------------------------------------------------------;;
-;; modes
+;; mode management
 
 (defn get-function [mode function]
   (resolve (symbol (str "temp.core/"
@@ -1340,7 +1344,7 @@
         (draw-mesh! world mesh)))))
 
 ;;-------------------------------------------------------------------------------;;
-;; commands
+;; edit mode
 
 (defn edit-mode-draw [world]
   (let [{:keys [image x y]} (:color-palette world)]
@@ -1384,6 +1388,7 @@
     world))
 
 ;;----------------------------------------------------------------------;;
+;; commands
 
 (do
 1
@@ -1533,22 +1538,28 @@
   (if (in? (:code event) [341 345])
     (assoc-in world [:control-pressed] true)
     (if-let [key (get-key (:control-pressed world) (:code event))]
-      (if (= key "C-g")
+      (cond
+        (= key "C-g")
         (-> world
             (assoc-in [:command] "")
             (assoc-in [:text] "")
             (assoc-in [:text-input] false)
             (change-mode :idle))
-        (if (:text-input world)
-          (text-input-key-pressed world event)
-          (-> world
-              (update-in [:command] (fn [c]
-                                      (if (or (empty? c)
-                                              (:end-of-command world))
-                                        key
-                                        (str c " " key))))
-              (assoc-in [:end-of-command] false)
-              (execute-command))))
+        
+        (:text-input world)
+        (text-input-key-pressed world event)
+
+        (string? key)
+        (-> world
+            (update-in [:command] (fn [c]
+                                    (if (or (empty? c)
+                                            (:end-of-command world))
+                                      key
+                                      (str c " " key))))
+            (assoc-in [:end-of-command] false)
+            (execute-command))
+        
+        :else world)
       world)))
 
 (defn key-released [world event]
