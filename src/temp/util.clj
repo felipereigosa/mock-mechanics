@@ -229,3 +229,15 @@
 (defn keyword->str [k]
   (subs (str k) 1))
 
+(defmacro >> [argument & functions]
+  (letfn [(helper [a fs]
+            (if (empty? fs)
+              a
+              (let [[f & fs] fs
+                    index (.indexOf f '.)
+                    [prefix suffix] (if (= index -1)
+                                      [(list (first f)) (rest f)]
+                                      [(take index f)
+                                       (nthrest f (inc index))])]
+                (recur (concat prefix [a] suffix) fs))))]
+    (helper argument functions)))

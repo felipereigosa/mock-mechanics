@@ -31,7 +31,7 @@
                     [0 0.5 0] [0 -0.5 0]
                     [0 0 0.5] [0 0 -0.5]]
            :scale [0.5 0.5 0.5]
-           :direction nil
+           :direction :input
            }
 
    :wagon {:model (create-cube-mesh [0 0 0] [1 0 0 0]
@@ -1184,7 +1184,7 @@
   (let [x (:x event)
         y (:y event)
         part-name (get-part-at world x y)
-        pos (if (= part-name :ground-part)
+        pos (if (nil? part-name)
               (let [line (unproject-point world [x y])
                     ground-plane [[0 0 0] [1 0 0] [0 0 1]]]
                 (line-plane-intersection line ground-plane))
@@ -1194,42 +1194,32 @@
 ;;----------------------------------------------------------------------;;
 ;; extra parts
 
-(defn point-inside-block? [block point]
-  (let [transform (:transform block)
-        inverse-transform (get-inverse-transform transform)
-        local-point (apply-transform inverse-transform point)]
-    (every? (fn [[v d]]
-              (< (abs v) (/ d 2)))
-            (map vector local-point (:scale block)))))
-
-(defn inside-any-block? [parts position]
-  (find-if (fn [block-name]
-             (let [block (get-in parts [block-name])]
-               (point-inside-block? block position)))
-           (get-parts-with-type parts :block)))
-
-(defn set-probe-value [world probe-name]
-  (if-let [probe (if (:use-weld-groups world)
-                   (get-in world [:weld-groups probe-name])
-                   (get-in world [:parts probe-name]))]
-    (let [position (get-transform-position (:transform probe))
-          value (if (inside-any-block? (:parts world) position)
-                  1
-                  0)]
-      (assoc-in world [:parts probe-name :value] value))
-    world))
-
 (defn set-probe-values [world]
-  (reduce (fn [w probe-name]
-            (set-probe-value w probe-name))
-          world
-          (get-parts-with-type (:parts world) :probe)))
-
-(defn get-chips-with-input [world input-name]
-  (let [chips (get-parts-with-type (:parts world) :chip)]
-    (filter (fn [chip-name]
-              (in? input-name (get-in world [:parts chip-name :inputs])))
-            chips)))
+  (let [probe-names (get-parts-with-type (:parts world) :probe)
+        positions (map (fn [probe-name]
+                         (let [probe (if (:use-weld-groups world)
+                                       (get-in world [:weld-groups probe-name])
+                                       (get-in world [:parts probe-name]))]
+                           (get-transform-position (:transform probe))))
+                       probe-names)
+        close-pairs (mapcat (fn [i]
+                              (map (fn [j]
+                                     (let [p1 (nth positions i)
+                                           p2 (nth positions j)
+                                           d (distance p1 p2)]
+                                       (if (< d 0.12)
+                                         [i j]
+                                         nil)))
+                                   (range (inc i) (count probe-names))))
+                            (range (dec (count probe-names))))
+        close-indices (flatten (filter not-nil? close-pairs))
+        close-probes (map #(nth probe-names %) close-indices)]
+    (reduce (fn [w probe-name]
+              (if (in? probe-name close-probes)
+                (assoc-in w [:parts probe-name :value] 1)
+                (assoc-in w [:parts probe-name :value] 0)))
+            world
+            probe-names)))
 
 (defn draw-buttons! [world]
   (let [button-names (get-parts-with-type (:parts world) :button)]
@@ -1394,84 +1384,56 @@
 1
 
 (defn get-bindings []
-  {"C-x i" (fn [w]
-             (-> w
-                 (change-mode :insert)
-                 (assoc-in [:insert-type] :block)))
-   ":insert b" (fn [w]
-                 (assoc-in w [:insert-type] :block))
-   ":insert w" (fn [w]
-                 (assoc-in w [:insert-type] :wagon))
-   ":insert t" (fn [w]
-                 (assoc-in w [:insert-type] :track))
-   ":insert c" (fn [w]
-                 (assoc-in w [:insert-type] :chip))
-   ":insert m" (fn [w] ;;#########
-                 (assoc-in w [:insert-type] :cpu))
-   ":insert p" (fn [w]
-                 (assoc-in w [:insert-type] :probe))
-   ":insert a" (fn [w] ;;#########
-                 (assoc-in w [:insert-type] :button))
-   ":insert s" (fn [w]
-                 (assoc-in w [:insert-type] :sphere))
+  {"C-x i" #(-> %
+                (change-mode :insert)
+                (assoc-in [:insert-type] :block))
+   ":insert b" #(assoc-in % [:insert-type] :block)
+   ":insert w" #(assoc-in % [:insert-type] :wagon)
+   ":insert t" #(assoc-in % [:insert-type] :track)
+   ":insert c" #(assoc-in % [:insert-type] :chip)
+   ":insert m" #(assoc-in % [:insert-type] :cpu)
+   ":insert p" #(assoc-in % [:insert-type] :probe)
+   ":insert a" #(assoc-in % [:insert-type] :button)
+   ":insert s" #(assoc-in % [:insert-type] :sphere)
 
-   "C-x e" (fn [w]
-             (-> w
-                 (change-mode :edit)
-                 (assoc-in [:edit-subcommand] :move)))
-   ":edit d" (fn [w]
-               (assoc-in w [:edit-subcommand] :delete))
-   ":edit c" (fn [w]
-               (assoc-in w [:edit-subcommand] :color))
-   ":edit s" (fn [w]
-               (assoc-in w [:edit-subcommand] :scale))
-   ":edit m" (fn [w]
-               (assoc-in w [:edit-subcommand] :move))
-   ":edit t" (fn [w]
-               (assoc-in w [:edit-subcommand] :translate))
-   ":edit p" (fn [w]
-               (assoc-in w [:edit-subcommand] :paste))
-   ":edit r" (fn [w]
-               (assoc-in w [:edit-subcommand] :rotate))
+   "C-x e" #(-> %
+                (change-mode :edit)
+                (assoc-in [:edit-subcommand] :move))
+   ":edit d" #(assoc-in % [:edit-subcommand] :delete)
+   ":edit c" #(assoc-in % [:edit-subcommand] :color)
+   ":edit s" #(assoc-in % [:edit-subcommand] :scale)
+   ":edit m" #(assoc-in % [:edit-subcommand] :move)
+   ":edit t" #(assoc-in % [:edit-subcommand] :translate)
+   ":edit p" #(assoc-in % [:edit-subcommand] :paste)
+   ":edit r" #(assoc-in % [:edit-subcommand] :rotate)
 
    "C-x g" #(change-mode % :graph)
-   ":graph m" (fn [w]
-                (assoc-in w [:graph-subcommand] :move))
-   ":graph x" (fn [w]
-                (assoc-in w [:graph-subcommand] :set-x))
-   ":graph y" (fn [w]
-                (assoc-in w [:graph-subcommand] :set-y))
-   ":graph C-c x" (fn [w]
-                (assoc-in w [:graph-subcommand] :set-both))
-   ":graph a" (fn [w]
-                (assoc-in w [:graph-subcommand] :add))
-   ":graph d" (fn [w]
-                (assoc-in w [:graph-subcommand] :delete))
+   ":graph m" #(assoc-in % [:graph-subcommand] :move)
+   ":graph x" #(assoc-in % [:graph-subcommand] :set-x)
+   ":graph y" #(assoc-in % [:graph-subcommand] :set-y)
+   ":graph C-c x" #(assoc-in % [:graph-subcommand] :set-both)
+   ":graph a" #(assoc-in % [:graph-subcommand] :add)
+   ":graph d" #(assoc-in % [:graph-subcommand] :delete)
    ":graph r" #(run-selected-chip %)
-   ":graph s" (fn [w]
-                (dissoc-in w [:selected-chip]))
-   ":graph t" (fn [w]
-                (assoc-in w [:graph-subcommand] :toggle-relative))
+   ":graph s" #(dissoc-in % [:selected-chip])
+   ":graph t" #(assoc-in % [:graph-subcommand] :toggle-relative)
    ":graph 1" #(reset-graph-view %)
    ":graph C-c s" #(set-snap-value %)
-   ":graph l" (fn [w]
-                (assoc-in w [:graph-subcommand] :print-lengths))
+   ":graph l" #(assoc-in % [:graph-subcommand] :print-lengths)
 
-   "C-x m" #(change-mode % :cpu) ;;#########
-   ":cpu s" (fn [w]
-              (dissoc-in w [:selected-cpu]))
+   "C-x m" #(change-mode % :cpu)
+   ":cpu s" #(dissoc-in % [:selected-cpu])
    ":cpu r" #(run-selected-cpu %)
    ":cpu l" #(load-script %)
 
-   "." (fn [w]
-         (change-mode w :pivot))
+   "." #(change-mode % :pivot)
 
    "C-x r" (fn [w]
              (println! "reset world")
              (create-world))
 
    "C-x s" #(read-input % save-machine-callback)
-   "C-x C-s" save-version
+   "C-x C-s" #(save-version %)
    "C-x l" #(read-input % load-machine-callback)
    "C-x C-l" #(read-input % load-last-version-callback)
 
@@ -1545,7 +1507,7 @@
             (assoc-in [:text] "")
             (assoc-in [:text-input] false)
             (change-mode :idle))
-        
+
         (:text-input world)
         (text-input-key-pressed world event)
 
@@ -1558,7 +1520,7 @@
                                       (str c " " key))))
             (assoc-in [:end-of-command] false)
             (execute-command))
-        
+
         :else world)
       world)))
 
@@ -1616,7 +1578,7 @@
 
         (assoc-in [:selected-property] 0)
         (assoc-in [:properties] [:free :hidden :physics])
-        
+
         (reset-undo! [:ground-children :planet :spheres :parts])
     )))
 (reset-world!)
@@ -1626,12 +1588,12 @@
   (if (in? (:mode world) [:insert :edit])
     world
     (let [world (-> world
+                    (set-probe-values)
                     (run-chips elapsed)
                     (apply-force elapsed)
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
-                    (set-probe-values)
                     (cpus-input-changes)
                     ;; (enforce-cable-lengths)
                     )]
@@ -1728,3 +1690,4 @@
     (-> world
         (prepare-tree)
         (save-checkpoint!))))
+

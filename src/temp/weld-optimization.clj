@@ -15,30 +15,20 @@
 (declare create-kinematic-bodies)
 
 (defn get-root-parts [world]
-  (let [chip-names (get-parts-with-type (:parts world) :chip)
-        ground-children (keys (:ground-children world))
+  (let [ground-children (keys (:ground-children world))
+        
+        chip-names (get-parts-with-type (:parts world) :chip)
         chip-children (apply concat (map (fn [chip-name]
                                            (let [chip (get-in world [:parts chip-name])]
                                              (keys (:functions chip))))
                                          chip-names))
-        cpu-names (get-parts-with-type (:parts world) :cpu)
-        cpu-children (apply concat (map (fn [cpu-name]
-                                          (let [cpu (get-in world [:parts cpu-name])]
-                                            (concat (keys (:inputs cpu))
-                                                    (keys (:outputs cpu)))))
-                                        cpu-names))
-        roots (concat chip-children
-                      cpu-children)
-        roots (filter (fn [name]
-                        (let [part (get-in world [:parts name])]
-                          (not (in? (:type part) [:chip :button]))))
-                      roots)
+        probes (get-parts-with-type (:parts world) :probe)
         free-parts (filter (fn [part-name]
                              (get-in world [:parts part-name :free]))
                            (keys (:parts world)))
         force-part (get-in world [:force :part-name])
         track-force-part (get-in world [:track-force :part-name])
-        roots (concat ground-children roots free-parts
+        roots (concat ground-children chip-children free-parts probes
                       (filter not-nil? [force-part track-force-part]))]
     (vec (into #{} roots))))
 
