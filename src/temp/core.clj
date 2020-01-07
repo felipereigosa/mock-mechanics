@@ -740,11 +740,14 @@
 ;; edit mode
 
 (defn set-object-color [world x y]
-  (if-let [cable-name (get-cable-at world x y)]
-    (assoc-in world [:cables cable-name :color] (:current-color world))
-    (if-let [part-name (get-part-at world x y)]
-      (assoc-in world [:parts part-name :color] (:current-color world))
-      world)))
+  (let [[r g b] (get-in world [:color-palette :regions
+                               (:current-color world) :color])
+        color (new Color r g b)]
+    (if-let [cable-name (get-cable-at world x y)]
+      (assoc-in world [:cables cable-name :color] color)
+      (if-let [part-name (get-part-at world x y)]
+        (assoc-in world [:parts part-name :color] color)
+        world))))
 
 (defn rotate-part [world event]
   (if-let [part-name (get-part-at world (:x event) (:y event))]
@@ -1342,9 +1345,12 @@
 
   (let [color-box (get-in world [:color-palette
                                  :regions (:current-color world)])
-        {:keys [x y w h]} color-box]
+        {:keys [x y w h]} color-box
+        color (if (< x 230)
+                :red
+                :black)]
     (dotimes [i 3]
-      (draw-rect! :black x y (- w i 1) (- h i 1)))))
+      (draw-rect! color x y (- w i) (- h i 1)))))
 
 (defn edit-mode-pressed [world event]
   (let [x (:x event)
@@ -1559,7 +1565,7 @@
         (assoc-in [:bindings] (get-bindings))
         (assoc-in [:current-color] :red)
         (assoc-in [:color-palette]
-                  (create-image "resources/colors.svg" 150 590 -1 40))
+                  (create-image "resources/colors.svg" 340 590 -1 40))
         (assoc-in [:selected-mesh]
                   (create-wireframe-cube [0 0.52 0] [1 0 0 0]
                                          [0.3001 0.1001 0.3001] :white))
@@ -1691,3 +1697,20 @@
         (prepare-tree)
         (save-checkpoint!))))
 
+
+;; (do
+;; 1
+
+;; ;; (get-region-at (:color-palette world) x y)
+
+
+
+
+
+;; (clear-output!)
+;; (let [world @world
+;;       color-palette (create-image "resources/colors.svg" 150 590 -1 40)
+;;       ]
+
+;;   (println! (get-in color-palette [:regions :blue :color]))
+;;   ))

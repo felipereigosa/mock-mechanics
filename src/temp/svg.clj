@@ -72,6 +72,11 @@
 ;;     (parse-svg-from-map document width height)))
 
 
+(defn parse-hex-color [str]
+  [(Integer/parseInt (subs str 0 2) 16)
+   (Integer/parseInt (subs str 2 4) 16)
+   (Integer/parseInt (subs str 4 6) 16)])
+
 (defn get-svg-regions [document]
   (let [[dx dy] (get-svg-dimensions document)
         g (get-child-if document :g {:inkscape:label "regions"})
@@ -90,11 +95,16 @@
                               w (parse-float w)
                               h (get-in rect [:attrs :height])
                               h (parse-float h)
-                              ]
+                              style (get-in rect [:attrs :style])
+                              fill-index (.indexOf style "fill:")
+                              color (parse-hex-color
+                                     (subs style (+ fill-index 6)
+                                           (+ fill-index 12)))]
                           {name {:x (/ (+ x tx (/ w 2)) dx)
                                  :y (/ (+ y ty (/ h 2)) dy)
                                  :w (/ w dx)
-                                 :h (/ h dy)}}))
+                                 :h (/ h dy)
+                                 :color color}}))
                       rects))))
 
 (defn get-absolute-svg-regions [document box]
