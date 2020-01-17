@@ -59,7 +59,7 @@
           normal (:normal world)
           l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
           increase-vector (map * (:normal world) [l l l])]
-      (println! (format "scale: %.2f" l))
+      (println! (format "side: %.2f" l))
       (-> world
           (set-block-size block-name scale center increase-vector)
           (assoc-in [:increase-vector] increase-vector)))
@@ -123,7 +123,7 @@
           center (:original-center world)
           normal (second adjust-line)
           l (within (+ (apply max scale) d) grain-size 10)]
-      (println! (format "scale: %.2f" l))
+      (println! (format "length: %.2f" l))
       (-> world
           (set-track-size track-name scale center l)
           (assoc-in [:track-length] l)))
@@ -147,86 +147,59 @@
 (do
 1
 
-;; (defn aligned-axis [v]
-;;   (let [[value _ index] (first (sort-by second >
-;;                                         (map vector v (map abs v) (range))))
-;;         value (/ value (abs value))]
-;;     (assoc-in [0 0 0] [index] value)))
-
-;; (defn square-base [world part-name normal]
-;;   (let [part (get-in world [:parts part-name])
-;;         [x y z] (:scale part)
-;;         [nx _ nz] normal
-;;         scale (if (float-equals? nx 0.0)
-;;                 [z y z]
-;;                 [x y x])]
-;;     (assoc-in world [:parts part-name :scale] scale)))
-
 (defn scale-cylinder-pressed [world event]
   (let [x (:x event)
         y (:y event)]
     (if-let [{:keys [part-name point index]}
              (get-part-collision world x y)]
-      (let [;; part (get-in world [:parts part-name])
-            ;; vertices (get-in world [:info :cylinder :model :vertices])
-            ;; triangles (partition 3 (partition 3 vertices))
-            ;; [a b c] (nth triangles index)
-            ;; v1 (vector-subtract b a)
-            ;; v2 (vector-subtract c a)
-            ;; normal (aligned-axis (vector-cross-product v1 v2))
-            ;; rotation-transform (get-rotation-component (:transform part))
-            ;; v (vector-normalize (apply-transform rotation-transform normal))
-            ;; scale (:scale part)
-            ;; center (get-transform-position (:transform part))
-            ]
-        (println! "scale cylinder")
+      (let [part (get-in world [:parts part-name])
+            inverse-transform (get-inverse-transform (:transform part))
+            local-point (apply-transform inverse-transform point)
+            half-height (/ (second (:scale part)) 2)
+            [lx ly lz] local-point
+            local-normal (if (float-equals? ly half-height)
+                           [0 1 0]
+                           (vector-normalize [lx 0 lz]))
+            rotation-transform (get-rotation-component (:transform part))
+            v (apply-transform rotation-transform local-normal)
+            scale (:scale part)
+            center (get-transform-position (:transform part))]
         (-> world
             (assoc-in [:edited-part] part-name)
             (create-weld-groups)
-            ;; (assoc-in [:adjust-line] [point v])
-            ;; (assoc-in [:original-scale] scale)
-            ;; (assoc-in [:original-center] center)
-            ;; (assoc-in [:normal] normal)
-            ))
+            (assoc-in [:adjust-line] [point v])
+            (assoc-in [:original-scale] scale)
+            (assoc-in [:original-center] center)
+            (assoc-in [:normal] local-normal)))
         world)))
 
 (defn scale-cylinder-moved [world event]
   (if-let [part-name (:edited-part world)]
-    (let [;; adjust-line (:adjust-line world)
-          ;; mouse-line (unproject-point world [(:x event) (:y event)])
-          ;; d (line-line-closest-point adjust-line mouse-line)
-          ;; grain-size 0.1
-          ;; d (* grain-size (round (/ d grain-size)))
-          ;; scale (:original-scale world)
-          ;; center (:original-center world)
-          ;; normal (:normal world)
-          ;; l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
-          ;; increase-vector (map * (:normal world) [l l l])
-          ]
-      ;; (println! (format "scale: %.2f" l))
-      (-> world
-          ;; (set-block-size part-name scale center increase-vector)
-          ;; (square-base part-name normal)
-          ;; (assoc-in [:increase-vector] increase-vector)
-          ))
+    (let [adjust-line (:adjust-line world)
+          mouse-line (unproject-point world [(:x event) (:y event)])
+          d (line-line-closest-point adjust-line mouse-line)
+          scale (:original-scale world)
+          center (:original-center world)]
+      (if (= (:normal world) [0 1 0])
+        (let [grain-size 0.1
+              d (* grain-size (round (/ d grain-size)))
+              l (max (+ d (second scale)) 0.1)]
+          (println! (format "height: %.2f" l))
+          (set-block-size world part-name scale center [0 l 0]))
+        (let [grain-size 0.05
+              d (* grain-size (round (/ d grain-size)))          
+              d2 (max (+ (first scale) (* d 2)) 0.1)
+              new-scale [d2 (second scale) d2]]
+          (println! (format "diameter: %.2f" d2))
+          (assoc-in world [:parts part-name :scale] new-scale))))
     world))
 
 (defn scale-cylinder-released [world event]
   (if-let [part-name (:edited-part world)]
-    (let [;; parent-name (get-parent-part world part-name)
-          ;; scale (:original-scale world)
-          ;; increase-vector (:increase-vector world)
-          ;; world (-> world
-          ;;           (assoc-in [:parts part-name :scale] scale)
-          ;;           (set-value-0-transform part-name))
-          ;; center (get-part-position world part-name)
-          ]
+    (let [parent-name (get-parent-part world part-name)]
       (-> world
-          ;; (set-block-size part-name scale center increase-vector)
-          ;; (square-base part-name (:normal world))
-          ;; (create-relative-transform part-name parent-name)
-          (dissoc-in [:edited-part])
-          ))
+          (create-relative-transform part-name parent-name)
+          (dissoc-in [:edited-part])))
     world))
 
 (defn scale-cone-pressed [world event]
@@ -235,68 +208,53 @@
     (if-let [{:keys [part-name point index]}
              (get-part-collision world x y)]
       (let [part (get-in world [:parts part-name])
-            ;; vertices (get-in world [:info :cone :model :vertices])
-            ;; triangles (partition 3 (partition 3 vertices))
-            ;; [a b c] (nth triangles index)
-            ;; v1 (vector-subtract b a)
-            ;; v2 (vector-subtract c a)
-            ;; normal (aligned-axis (vector-cross-product v1 v2))
-            ;; rotation-transform (get-rotation-component (:transform part))
-            ;; v (vector-normalize (apply-transform rotation-transform normal))
-            ;; scale (:scale part)
-            ;; center (get-transform-position (:transform part))
-            ;; inverse-transform (get-inverse-transform (:transform part))
-            ;; local-point (apply-transform inverse-transform point)
-            ;; scale-height (pos? (second local-point))
-            ]
-        ;; (println! scale-height)
+            inverse-transform (get-inverse-transform (:transform part))
+            local-point (apply-transform inverse-transform point)
+            half-height (/ (second (:scale part)) 2)
+            [lx ly lz] local-point
+            local-normal (if (pos? ly)
+                           [0 1 0]
+                           (vector-normalize [lx 0 lz]))
+            rotation-transform (get-rotation-component (:transform part))
+            v (apply-transform rotation-transform local-normal)
+            scale (:scale part)
+            center (get-transform-position (:transform part))]
         (-> world
             (assoc-in [:edited-part] part-name)
             (create-weld-groups)
-            ;; (assoc-in [:adjust-line] [point v])
-            ;; (assoc-in [:original-scale] scale)
-            ;; (assoc-in [:original-center] center)
-            ;; (assoc-in [:normal] normal)
-            ))
+            (assoc-in [:adjust-line] [point v])
+            (assoc-in [:original-scale] scale)
+            (assoc-in [:original-center] center)
+            (assoc-in [:normal] local-normal)))
         world)))
 
 (defn scale-cone-moved [world event]
   (if-let [part-name (:edited-part world)]
-    (let [;; adjust-line (:adjust-line world)
-          ;; mouse-line (unproject-point world [(:x event) (:y event)])
-          ;; d (line-line-closest-point adjust-line mouse-line)
-          ;; grain-size 0.1
-          ;; d (* grain-size (round (/ d grain-size)))
-          ;; scale (:original-scale world)
-          ;; center (:original-center world)
-          ;; normal (:normal world)
-          ;; l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
-          ;; increase-vector (map * (:normal world) [l l l])
-          ]
-      ;; (println! (format "scale: %.2f" l))
-      (-> world
-          ;; (set-block-size part-name scale center increase-vector)
-          ;; (square-base part-name normal)
-          ;; (assoc-in [:increase-vector] increase-vector)
-          ))
+    (let [adjust-line (:adjust-line world)
+          mouse-line (unproject-point world [(:x event) (:y event)])
+          d (line-line-closest-point adjust-line mouse-line)
+          scale (:original-scale world)
+          center (:original-center world)]
+      (if (= (:normal world) [0 1 0])
+        (let [grain-size 0.1
+              d (* grain-size (round (/ d grain-size)))
+              l (max (+ d (second scale)) 0.1)]
+          (println! (format "height: %.2f" l))
+          (set-block-size world part-name scale center [0 l 0]))
+        (let [grain-size 0.05
+              d (* grain-size (round (/ d grain-size)))          
+              d2 (max (+ (first scale) (* d 2)) 0.1)
+              new-scale [d2 (second scale) d2]]
+          (println! (format "diameter: %.2f" d2))
+          (assoc-in world [:parts part-name :scale] new-scale))))
     world))
 
 (defn scale-cone-released [world event]
   (if-let [part-name (:edited-part world)]
-    (let [;; parent-name (get-parent-part world part-name)
-          ;; scale (:original-scale world)
-          ;; increase-vector (:increase-vector world)
-          ;; world (-> world
-          ;;           (assoc-in [:parts part-name :scale] scale)
-          ;;           (set-value-0-transform part-name))
-          ;; center (get-part-position world part-name)
-          ]
+    (let [parent-name (get-parent-part world part-name)]
       (-> world
-          ;; (set-block-size part-name scale center increase-vector)
-          ;; (square-base part-name (:normal world))
-          ;; (create-relative-transform part-name parent-name)
-          (dissoc-in [:edited-part])
-          ))
+          (create-relative-transform part-name parent-name)
+          (dissoc-in [:edited-part])))
     world))
 
 (defn scale-mode-pressed [world event]
