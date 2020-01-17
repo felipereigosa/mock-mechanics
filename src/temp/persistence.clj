@@ -15,8 +15,8 @@
                               (if (keyword? color)
                                 color
                                 [(.getRed color)
-                                 (.getRed color)
-                                 (.getRed color)])))
+                                 (.getGreen color)
+                                 (.getBlue color)])))
         (assoc-in [:children] children))))
 
 (defn get-complex-transform [transform]
@@ -33,8 +33,6 @@
                                 (apply make-color color)
                                 color)))
         (assoc-in [:children] children))))
-
-;;---
 
 (defn save-machine! [world filename]
   (let [ground-children (map-map (fn [[name transform]]

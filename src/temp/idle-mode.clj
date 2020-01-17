@@ -1,9 +1,6 @@
 
 (ns temp.core)
 
-(do
-1
-
 (defn idle-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
@@ -42,5 +39,3 @@
     (-> world
         (dissoc-in [:pressed-part])
         (dissoc-in [:force]))))
-)
-

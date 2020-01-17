@@ -74,7 +74,6 @@
 (defn create-kinematic-body [position rotation scale]
   (let [[w h d] scale
         shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))
-        ;; shape (new PlaneShape (new Vector3f nx ny nz) d)
         transform (make-transform position rotation)
         motion-state (new DefaultMotionState transform)
         mass 1.0
@@ -89,41 +88,8 @@
     (.forceActivationState body RigidBody/DISABLE_DEACTIVATION)
     body))
 
-;; (declare make-transform)
-
-;; (defn create-cube-body
-;;   ([[w h d] mass transform group collides]
-;;    (let [shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))]
-;;      (create-body shape mass transform group collides)))
-;;   ([scale position rotation]
-;;    (create-cube-body scale 1 (make-transform position rotation) 1 1)))
-
-;; ;; (defn create-cube-object [mass position rotation scale skin group collides]
-;; ;;   {:mesh (create-cube-mesh [0 0 0] [0 1 0 0] scale skin)
-;; ;;    :body (create-cube-body scale mass (make-transform position rotation) ;;#######
-;; ;;                           group collides)})
-
 (defn create-sphere-body [r mass transform]
   (create-body (new SphereShape r) mass transform))
-
-;; ;; (defn create-sphere-object [mass position rotation scale skin group collides]
-;; ;;   {:mesh (create-sphere-mesh [0 0 0] [0 0 1 0] scale skin)
-;; ;;    :body (create-sphere-body (first scale) mass (make-transform position rotation)
-;; ;;                              group collides)})
-
-;; ;; (defn create-cylinder-body [r h mass transform group collides]
-;; ;;   (create-body (new CylinderShape (new Vector3f r (/ h 2) r)) mass transform group collides))
-
-;; ;; (defn create-cylinder-object [mass position rotation scale skin group collides]
-;; ;;   {:mesh (create-cylinder-mesh [0 0 0] [0 0 1 0] scale skin)
-;; ;;    :body (create-cylinder-body (first scale) (second scale)
-;; ;;                              mass (make-transform position rotation)
-;; ;;                              group collides)})
-
-;; (declare get-transform-matrix)
-;; (declare get-transform-position)
-;; (declare get-transform-rotation)
-;; (declare make-vector3f)
 
 (defn set-body-transform [body transform]
   (.setWorldTransform (.getMotionState body) transform))
@@ -135,65 +101,88 @@
 (defn step-simulation! [planet elapsed]
   (.stepSimulation planet elapsed 7 (/ 1 60.0)))
 
-;; (defn apply-local-force [body force point]
-;;   (.applyForce body (make-vector3f force) (make-vector3f point))
-;;   body)
+;;----------------------------------------------------------------------;;
+;; part physics
 
-;; (defn apply-force [body force point]
-;;   (let [transform (get-body-transform body)
-;;         body-position (get-transform-position transform)
-;;         point (vector-subtract point body-position)]
-;;     (.applyForce body (make-vector3f force) (make-vector3f point))
-;;     body))
+(defn create-sphere [world position]
+  (let [body (create-sphere-body
+              (:sphere-radius world) 1.0
+              (make-transform position [1 0 0 0]))]
+    (add-body-to-planet (:planet world) body)
+    (update-in world [:spheres] (partial cons body))))
 
+(defn delete-sphere [world sphere]
+  (remove-body (:planet world) sphere)
+  (update-in world [:spheres]
+             (fn [spheres]
+               (remove #(= % sphere) spheres))))
 
-;; (defn body-local-point [body point]
-;;   (let [[x y z] point
-;;         vector (into-array Float/TYPE [x y z 1.0])
-;;         transform (get-body-transform body)
-;;         matrix (get-inverse-matrix (get-transform-matrix transform))
-;;         [x y z _] (into [] (multiply-matrix-vector matrix vector))]
-;;     [x y z]))
+(defn get-sphere-at [world x y]
+  (let [line (unproject-point world [x y])
+        radius (:sphere-radius world)
+        spheres (filter (fn [sphere]
+                          (let [transform (get-body-transform sphere)
+                                position (get-transform-position transform)]
+                            (< (point-line-distance position line) radius)))
+                        (:spheres world))
+        eye (get-in world [:camera :eye])]
+    (first (sort-by (fn [sphere]
+                      (let [transform (get-body-transform sphere)
+                            position (get-transform-position transform)]
+                        (distance position eye)))
+                    spheres))))
 
-;; (defn body-local-axis [body axis]
-;;   (let [[x y z] axis
-;;         vector (into-array Float/TYPE [x y z 1.0])
-;;         rotation (get-transform-rotation (get-body-transform body))
-;;         transform (make-transform [0 0 0] rotation)
-;;         matrix (get-inverse-matrix (get-transform-matrix transform))
-;;         [x y z _] (into [] (multiply-matrix-vector matrix vector))]    
-;;     [x y z]))
+(defn is-physical-part? [[name part]] ;;###########################
+  (and
+   (in? (:type part) [:block :wagon])
+   (= (:color part) :yellow)))
 
-;; (defn create-weld-constraint [body-a body-b]
-;;   (let [point (get-transform-position (get-body-transform body-a))
-;;         axis [0 1 0]
-;;         pivot-a (make-vector3f (body-local-point body-a point))
-;;         axis-a (make-vector3f (body-local-axis body-a axis))
-;;         pivot-b (make-vector3f (body-local-point body-b point))
-;;         axis-b (make-vector3f (body-local-axis body-b axis))
-;;         constraint (new HingeConstraint body-a body-b
-;;                         pivot-a pivot-b axis-a axis-b)]
-;;     (.setLimit constraint 0 0.01)
-;;     (.addConstraint @planet constraint)
-;;     constraint))
+(defn compute-kinematic-body [part-name parts groups]
+  (let [part (get-in parts [part-name])
+        position (get-transform-position (:transform part))
+        rotation (get-transform-rotation (:transform part))
+        scale (:scale part)
+        body (create-kinematic-body position rotation scale)
+        root-name (first (find-if #(in? part-name %) groups))
+        root (get-in parts [root-name])
+        part-transform (:transform part)
+        root-transform (:transform root)
+        relative-transform (remove-transform part-transform
+                                             root-transform)]
+    {:body body
+     :transform relative-transform
+     :root root-name}))
 
-;; (defn create-hinge-constraint [body-a body-b point axis]
-;;   (let [pivot-a (make-vector3f (body-local-point body-a point))
-;;         axis-a (make-vector3f (body-local-axis body-a axis))
-;;         pivot-b (make-vector3f (body-local-point body-b point))
-;;         axis-b (make-vector3f (body-local-axis body-b axis))
-;;         constraint (new HingeConstraint body-a body-b
-;;                         pivot-a pivot-b axis-a axis-b)]
-;;     (.addConstraint @planet constraint)
-;;     constraint))
+(defn compute-kinematic-bodies [parts groups]
+  (let [physical-part-names (map first (filter is-physical-part? parts))]
+    (map #(compute-kinematic-body % parts groups)
+         physical-part-names)))
 
-;; ;; (defn create-slider-constraint [world object-a-name object-b-name
-;; ;;                                 pivot-a axis-a
-;; ;;                                 pivot-b axis-b]
-;; ;;   (let [body-a (get-in world [:objects object-a-name :body])
-;; ;;         body-b (get-in world [:objects object-b-name :body])
-;; ;;         frame-a (make-transform pivot-a (conj axis-a 0))
-;; ;;         frame-b (make-transform pivot-b (conj axis-b 0))
-;; ;;         constraint (new SliderConstraint body-a body-b frame-a frame-b true)]
-;; ;;     (.addConstraint @planet constraint)
-;; ;;     constraint))
+(defn remove-all-bodies [world]
+  (doseq [{:keys [body]} (:bodies world)]
+    (remove-body (:planet world) body))
+  (assoc-in world [:bodies] []))
+
+(defn create-kinematic-bodies [world parts groups]
+  (let [world (remove-all-bodies world)
+        kinematic-bodies (compute-kinematic-bodies parts groups)]
+    (doseq [{:keys [body]} kinematic-bodies]
+      (add-body-to-planet (:planet world) body))
+    (assoc-in world [:bodies] kinematic-bodies)))
+
+(defn recompute-body-transforms! [world]
+  (doseq [b (:bodies world)]
+    (let [body (:body b)
+          parent (get-in world [:weld-groups (:root b)])
+          relative-transform (:transform b)
+          parent-transform (:transform parent)
+          transform (combine-transforms relative-transform
+                                        parent-transform)]
+      (set-body-transform body transform))))
+
+(defn draw-spheres! [world]
+  (let [mesh (:sphere-mesh world)]
+    (doseq [body (:spheres world)]
+      (let [transform (get-body-transform body)
+            mesh (assoc-in mesh [:transform] transform)]
+        (draw-mesh! world mesh)))))

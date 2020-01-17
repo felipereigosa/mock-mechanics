@@ -23,9 +23,14 @@
     (Matrix/scaleM matrix 0 x y z)
     matrix))
 
-(defn get-look-at-matrix [[eye-x eye-y eye-z] [look-x look-y look-z] [up-x up-y up-z]]
+(defn get-look-at-matrix [[eye-x eye-y eye-z]
+                          [look-x look-y look-z]
+                          [up-x up-y up-z]]
   (let [matrix (get-identity-matrix)]
-    (Matrix/setLookAtM matrix 0 eye-x eye-y eye-z look-x look-y look-z up-x up-y up-z)
+    (Matrix/setLookAtM matrix 0
+                       eye-x eye-y eye-z
+                       look-x look-y look-z
+                       up-x up-y up-z)
     matrix))
 
 (defn multiply-matrices [a b]

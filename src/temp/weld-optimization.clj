@@ -1,12 +1,14 @@
 
 (ns temp.core)
 
+
 (defn get-limited-tree [parts root-name all-root-names]
   (let [root (get-in parts [root-name])
         children (filter (fn [name]
                            (not (in? name all-root-names)))
                          (keys (get-in root [:children])))
-        descendents (map #(get-limited-tree parts % all-root-names) children)]
+        descendents (map #(get-limited-tree parts % all-root-names)
+                         children)]
     (vec (apply concat [root-name] descendents))))
 
 (declare get-parts-with-type)
@@ -52,22 +54,31 @@
     {:vertices (vec (flatten vertices))
      :colors (vec (flatten (repeat (count vertices) color)))}))
 
+(defn get-tail-transform [track]
+  (let [track-transform (:transform track)
+        y-offset (* -0.5 (second (:scale track)))]
+    (combine-transforms
+     (make-transform [0 y-offset 0] [1 0 0 0])
+     track-transform)))
+
 (defn bake-part [info part property]
-  (let [model (get-in info [(:type part) :model])
-        type (:type part)
+  (let [type (:type part)
+        model (get-in info [type :model])
         color (if (or (= type :ground)
                       (nil? property))
-                (:color part)
+                (if (:hidden part)
+                  nil
+                  (:color part))
                 (if (get-in part [property])
                   :red
                   :white))
-        ;; color (if (= type :ground)
-        ;;         (:color part)
-        ;;         :purple)
         transform (if (= type :track)
                     (get-tail-transform part)
                     (:transform part))]
-    (bake-mesh model transform (:scale part) color)))
+    (if (nil? color)
+      {:vertices []
+       :colors []}
+      (bake-mesh model transform (:scale part) color))))
 
 (defn create-mesh-from-parts [parts names info edited-part property]
   (let [baked-parts (map (fn [name]
@@ -137,7 +148,7 @@
                                               (assoc-in [:parts] names))]
                                  {(first names) mesh}))
                              groups)]
-    (-> world
+     (-> world
         (create-kinematic-bodies parts groups)
         (assoc-in [:weld-groups] weld-groups)
         (compute-transforms :weld-groups))))

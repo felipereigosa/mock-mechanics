@@ -1,10 +1,9 @@
 
 (script
- [block]
+ [block pad]
  [down up]
 
  (fn [part-name]
-   (if (and (= part-name block)
-            (= (get-value block) 1))
+   (if (= (get-value part-name) 1)
      (activate down)
      (activate up))))

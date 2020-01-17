@@ -1,12 +1,10 @@
 
 (in-ns 'temp.core)
 
-;;###################################################### need's refactoring
-
 (defn line-get-point [[pl vl] k]
   (vector-add pl (vector-multiply vl k)))
 
-(defn line-plane-intersection [line plane] ;;######### reimplement with line-plane-distance
+(defn line-plane-intersection [line plane]
   (let [[pl vl] line
         [p0 p1 p2] plane
         v1 (vector-subtract p1 p0)
@@ -65,7 +63,6 @@
         to-point (vector-subtract point projected-point)]
     (vector-length to-point)))
 
-;;####################################################### reimplement with ^
 (defn point-above-plane? [point plane]
   (let [[a b c] plane
         v1 (vector-subtract b a)
@@ -76,7 +73,7 @@
         to-point (vector-subtract point projected-point)]
     (> (vector-dot-product normal to-point) 0.0)))
 
-(defn line-plane-distance [line plane] ;;######### use to reimplement line-triangle-distance
+(defn line-plane-distance [line plane]
   (let [[pl vl] line
         [p0 p1 p2] plane
         v1 (vector-subtract p1 p0)

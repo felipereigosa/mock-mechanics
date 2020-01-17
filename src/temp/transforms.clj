@@ -3,7 +3,9 @@
 
 (import javax.vecmath.Matrix4f)
 (import javax.vecmath.Quat4f)
+(import javax.vecmath.Vector3f)
 (import javax.vecmath.AxisAngle4f)
+(import com.bulletphysics.linearmath.Transform)
 
 (defn get-transform-matrix [transform]
   (let [matrix (into-array Float/TYPE (range 16))]
@@ -53,6 +55,14 @@
         m (multiply-matrices ma imb)]
     (matrix->transform m)))
 
+(defn make-transform [[x y z] [ax ay az angle]]
+  (let [transform (new Transform)
+        orientation (new Quat4f)]
+    (.set (.origin transform) (new Vector3f x y z))
+    (.set orientation (axis-angle->quaternion [ax ay az] angle))
+    (.setRotation transform orientation)
+    transform))
+
 (defn translate-transform [transform displacement]
   (combine-transforms transform (make-transform displacement [1 0 0 0])))
 
@@ -68,14 +78,6 @@
   (let [rotation (get-transform-rotation transform)
         rotation-transform (make-transform [0 0 0] rotation)]
     (apply-transform rotation-transform point)))
-
-(defn make-transform [[x y z] [ax ay az angle]]
-  (let [transform (new Transform)
-        orientation (new Quat4f)]
-    (.set (.origin transform) (new Vector3f x y z))
-    (.set orientation (axis-angle->quaternion [ax ay az] angle))
-    (.setRotation transform orientation)
-    transform))
 
 (defn get-transform-position [transform]
   (let [vec (.-origin transform)]

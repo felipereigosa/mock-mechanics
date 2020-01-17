@@ -169,11 +169,6 @@
 (defn ends-with? [str end]
   (.endsWith str end))
 
-;; get-combined-rotation
-;; (get-transform-rotation (combine-transforms (make-transform [0 0 0] [1 0 0 180])
-;;                                             (make-transform [0 0 0] [0 1 0 -90]
-;;                                                             )))
-
 (defn float-equals? [a b]
   (< (abs (- a b)) 0.0001))
 
