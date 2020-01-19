@@ -27,6 +27,51 @@
 (do
 1
 
+(defn project-point [world point]
+  (let [p-matrix (:projection-matrix world)
+        v-matrix (:view-matrix world)
+        matrix (multiply-matrices v-matrix p-matrix)
+        point (into-array Float/TYPE (conj point 1.0))
+        point-2d (vec (multiply-matrix-vector matrix point))
+        [x y _ _] (map #(/ % (nth point-2d 3)) point-2d)]
+    [(int (* (/ (inc x) 2) window-width))
+     (int (* (/ (inc (- y)) 2) window-height))]))
+
+(defn get-grid-cell [x y n]
+  (let [width window-width
+        height (- window-height 100)
+        c (int (/ x (/ width n)))
+        r (int (/ y (/ height n)))]
+    [r c]))
+
+(defn get-closest-snap-point [world x y]
+  (let [cell (get-grid-cell x y (:snap-grid-size world))
+        cell-specs (get (:snap-grid world) cell)
+        line (unproject-point world [x y])
+        close-points (filter (fn [spec]
+                               (< (point-line-distance (:position spec) line) 0.2))
+                             cell-specs)
+        eye (get-in world [:camera :eye])]
+    (first (sort-by (fn [spec]
+                      (distance (:position spec) eye)) close-points))))
+
+(defn prepare-tree [world]
+  (-> world
+      (compute-transforms :parts)
+      (create-snap-grid)
+      (create-weld-groups)))
+
+(defn set-cell [world snap-spec]
+  (let [[x y] (project-point world (:position snap-spec))]
+    (assoc-in snap-spec [:cell]
+              (get-grid-cell x y (:snap-grid-size world)))))
+
+(defn create-snap-grid [world]
+  (let [world (assoc-in world [:snap-grid-size] 10)
+        snap-specs (map #(set-cell world %) (get-snap-specs world))]
+    (println! (count (get-snap-specs world)))
+    (assoc-in world [:snap-grid] (group-by :cell snap-specs))))
+  
 (defn create-world []
   (let [world (create-gl-world)
         r 0.2]
@@ -74,6 +119,13 @@
 
         (reset-undo! [:ground-children :planet :spheres :parts])
         (prepare-tree)
+
+        (assoc-in [:meshes 0]
+                  (create-cube-mesh [0.25 0 0.25] [1 0 0 0] [0.1 0.1 0.1] :red))
+        (assoc-in [:meshes 1]
+                  (create-cube-mesh [1.75 0 0.25] [1 0 0 0] [0.1 0.1 0.1] :red))
+        (assoc-in [:meshes 2]
+                  (create-cube-mesh [-1.75 0 0.25] [1 0 0 0] [0.1 0.1 0.1] :red))
     )))
 (reset-world!)
 )
@@ -129,13 +181,31 @@
   (draw-debug-meshes!)
   )
 
+(do
+1
+
 (defn draw-2d! [world]
   (clear!)
   (draw-text-box! world)
   (if-let [fun (get-function (:mode world) :draw)]
     (fun world))
   (draw-output!)
+
+  ;; (let [positions (map :position (get-snap-specs world))]
+  ;;   (doseq [[x y] (map #(project-point world %) positions)]
+  ;;     (fill-circle! :yellow x y 1)
+  ;;   ))
+  ;; (let [width window-width
+  ;;       height (- window-height 100)
+  ;;       ]
+  ;;   (doseq [i (range 0 1 0.05)]
+  ;;     (draw-line! :white (* width i) 0 (* width i) height)
+  ;;     (draw-line! :white 0 (* height i) width (* height i))
+  ;;   ))
   )
+(redraw!))
+
+
 
 (defn mouse-scrolled [world event]
   (if (and (= (:mode world) :graph)

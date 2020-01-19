@@ -170,7 +170,7 @@
   (if (inserting? world)
     (let [x (:x event)
           y (:y event)
-          snap-spec (get-closest-snap-point world x y (:snap-specs world))
+          snap-spec (get-closest-snap-point world x y)
           [snap-point snap-rotation color snapped]
           (if (nil? snap-spec)
             [(get-ground-camera-point world x y 0) [0 1 0 0] :black false]

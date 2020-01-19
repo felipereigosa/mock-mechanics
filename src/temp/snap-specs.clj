@@ -21,24 +21,28 @@
 ;;---
 
 (defn get-snap-specs [world]
-  (let [;; grid-specs (if (> (get-in world [:camera :x-angle]) 0)
-        ;;              (vec (map (fn [[a b]]
-        ;;                          (let [x (- (* a 0.5) 5.75)
-        ;;                                y (- (* b 0.5) 5.75)]
-        ;;                            {:position [x 0 y]
-        ;;                             :rotation [1 0 0 0]
-        ;;                             :part :ground-part}))
-        ;;                        (create-combinations (range 24) (range 24))))
-        ;;              [])
+  (let [grid-specs (if (> (get-in world [:camera :x-angle]) 0)
+                     (vec (map (fn [[a b]]
+                                 (let [x (- (* a 0.5) 5.75)
+                                       y (- (* b 0.5) 5.75)]
+                                   {:position [x 0 y]
+                                    :rotation [1 0 0 0]
+                                    :part :ground-part}))
+                               (create-combinations (range 24) (range 24))))
+                     [])
 
-        grid-specs [{:position [0.25 0 0.25]
-                     :rotation [1 0 0 0]
-                     :part :ground-part}
+        ;; grid-specs [{:position [0.25 0 0.25]
+        ;;              :rotation [1 0 0 0]
+        ;;              :part :ground-part}
 
-                    {:position [0.75 0 0.25]
-                     :rotation [1 0 0 0]
-                     :part :ground-part}
-                    ]
+        ;;             {:position [1.75 0 0.25]
+        ;;              :rotation [1 0 0 0]
+        ;;              :part :ground-part}
+
+        ;;             {:position [-1.75 0 0.25]
+        ;;              :rotation [1 0 0 0]
+        ;;              :part :ground-part}
+        ;;             ]
         
         face-specs (vec
                     (remove-nil

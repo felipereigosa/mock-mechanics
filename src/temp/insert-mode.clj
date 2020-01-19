@@ -5,7 +5,7 @@
   (let [part (create-part type color (:info world))
         name (gen-keyword type)
         offset (get-part-offset part)
-        spec (get-closest-snap-point world x y (:snap-specs world))
+        spec (get-closest-snap-point world x y)
         parent-name (:part spec)
         parent (get-in world [:parts parent-name])
         transform (spec->transform offset spec parent)]
@@ -48,7 +48,6 @@
 (defn insert-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
-    (println! "here")
     (case (:insert-type world)
       :block
       (insert-part world :block :white x y)
