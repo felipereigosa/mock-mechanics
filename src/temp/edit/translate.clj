@@ -1,15 +1,14 @@
 
 (ns temp.core)
 
+(do
+1
+
 (defn translate-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
     (if-let [part-name (:part-name (get-part-collision world x y))]
-      (let [specs (filter #(not= (:part %) part-name)
-                          (:snap-specs world))]
-        (-> world
-            (assoc-in [:edited-part] part-name)
-            (assoc-in [:translate-specs] specs)))
+      (assoc-in world [:edited-part] part-name)
       world)))
 
 (defn translate-mode-moved [world event]
@@ -19,16 +18,16 @@
           part (get-in world [:parts part-name])]
       (if (= (:type part) :wagon)
         world
-        (if-let [spec (get-closest-snap-point world x y
-                                              (:translate-specs world))]
-          (let [offset (get-part-offset part)
-                parent-name (:part spec)
-                parent (get-in world [:parts parent-name])
-                transform (spec->transform offset spec parent)]
-            (-> world
-                (assoc-in [:parts part-name :transform] transform)
-                (assoc-in [:parent-name] parent-name)))
-          world)))
+        (let [subtree (get-limited-tree (:parts world) part-name [])]
+          (if-let [spec (get-closest-snap-point world x y subtree)]
+            (let [offset (get-part-offset part)
+                  parent-name (:part spec)
+                  parent (get-in world [:parts parent-name])
+                  transform (spec->transform offset spec parent)]
+              (-> world
+                  (assoc-in [:parts part-name :transform] transform)
+                  (assoc-in [:parent-name] parent-name)))
+            world))))
     world))
 
 (declare set-wagon-loop)
@@ -54,3 +53,4 @@
               (set-wagon-loop part-name track-name)))
         (create-relative-transform world part-name new-parent-name)))
     world))
+)

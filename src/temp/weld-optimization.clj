@@ -1,7 +1,6 @@
 
 (ns temp.core)
 
-
 (defn get-limited-tree [parts root-name all-root-names]
   (let [root (get-in parts [root-name])
         children (filter (fn [name]

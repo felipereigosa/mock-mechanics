@@ -38,12 +38,18 @@
   (instance? java.awt.image.BufferedImage object))
 
 (defn quaternion-from-normal [normal]
-  (let [normal (vector-normalize normal)
-        axis (vector-cross-product [0 1 0] normal)
-        angle (vector-angle normal [0 1 0])]
-    (if (= axis [0.0 0.0 0.0])
-      [0 1 0 0]
-      (conj axis angle))))
+  (let [normal (vector-normalize normal)]
+    (cond
+      (vector= normal [0 1 0])
+      [1 0 0 0]
+
+      (vector= normal [0 -1 0])
+      [1 0 0 180]
+
+      :else
+      (let [axis (vector-cross-product [0 1 0] normal)
+            angle (vector-angle normal [0 1 0])]
+        (conj axis angle)))))
 
 (defn point-mesh-towards [mesh direction]
   (let [position (get-mesh-position mesh)

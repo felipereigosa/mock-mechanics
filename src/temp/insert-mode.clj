@@ -1,6 +1,16 @@
 
 (ns temp.core)
 
+(defn insert-mode-draw [world]
+  (let [{:keys [image x y]} (:insert-menu world)]
+    (draw-image! image x y))
+
+  (let [box (get-in world [:insert-menu :regions
+                           (:insert-type world)])
+        {:keys [x y w h]} box]
+    (dotimes [i 3]
+      (draw-rect! :black x y (- w i) (- h i 1)))))
+
 (defn insert-part [world type color x y]
   (let [part (create-part type color (:info world))
         name (gen-keyword type)
@@ -48,33 +58,54 @@
 (defn insert-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
-    (case (:insert-type world)
-      :block
-      (insert-part world :block :white x y)
+    (if-let [region (get-region-at (:insert-menu world) x y)]
+      (assoc-in world [:insert-type] region)
+      (case (:insert-type world)
+        :block
+        (insert-part world :block :white x y)
 
-      :cylinder
-      (insert-part world :cylinder :orange x y)
+        :cylinder
+        (insert-part world :cylinder :orange x y)
 
-      :cone
-      (insert-part world :cone :green x y)
+        :cone
+        (insert-part world :cone :green x y)
 
-      :track
-      (insert-part world :track :red x y)
+        :track
+        (insert-part world :track :red x y)
 
-      :wagon
-      (insert-wagon world :yellow x y)
+        :wagon
+        (insert-wagon world :yellow x y)
 
-      :chip
-      (insert-part world :chip :gray x y)
+        :chip
+        (insert-part world :chip :gray x y)
 
-      :cpu
-      (insert-part world :cpu :blue x y)
+        :cpu
+        (insert-part world :cpu :blue x y)
 
-      :probe
-      (insert-part world :probe :purple x y)
+        :probe
+        (insert-part world :probe :purple x y)
 
-      :button
-      (insert-part world :button :black x y)
+        :button
+        (insert-part world :button :black x y)
 
-      :sphere
-      (insert-sphere world x y))))
+        :sphere
+        (insert-sphere world x y)))))
+
+(defn insert-mode-moved [world event]
+  (let [x (:x event)
+        y (:y event)
+        spec (get-closest-snap-point world x y)
+        color (if (= (get-in world [:parts (:part spec) :type]) :track)
+                :yellow
+                :black)
+        transform (make-transform (:position spec) (:rotation spec))]
+    (update-in world [:cursor] (fn [cursor]
+                                 (-> cursor
+                                     (assoc-in [:transform] transform)
+                                     (set-mesh-color color))))))
+
+(defn draw-cursor! [world]
+  (when (and
+         (= (:mode world) :insert)
+         (not= (:insert-type world) :wagon))
+    (draw-mesh! world (:cursor world))))

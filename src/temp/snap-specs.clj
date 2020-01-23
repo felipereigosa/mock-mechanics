@@ -18,60 +18,65 @@
                          (make-transform [0 0 0] rotation)))]
     [p final-rotation]))
 
-;;---
-
 (defn get-snap-specs [world]
-  (let [grid-specs (if (> (get-in world [:camera :x-angle]) 0)
-                     (vec (map (fn [[a b]]
-                                 (let [x (- (* a 0.5) 5.75)
-                                       y (- (* b 0.5) 5.75)]
-                                   {:position [x 0 y]
-                                    :rotation [1 0 0 0]
-                                    :part :ground-part}))
-                               (create-combinations (range 24) (range 24))))
-                     [])
+  (vec
+   (remove-nil
+    (mapcat (fn [[name part]]
+              (let [part (get-in world [:parts name])]
+                (if (= (:type part) :track)
+                  (let [transform (:transform part)
+                        position (get-transform-position transform)
+                        rotation (get-transform-rotation transform)
+                        points (get-in world [:info (:type part) :points])
+                        [sa sb sc] (if (= (:type part) :track)
+                                     [1 1 1]
+                                     (:scale part))
+                        points (map (fn [[a b c]]
+                                      [(* sa a) (* sb b) (* sc c)])
+                                    points)]
+                    (map (fn [p]
+                           (let [[pos rot] (make-spec position rotation p)]
+                             {:position pos
+                              :rotation rot
+                              :part name}))
+                         points))
+                  nil)))
+            (:parts world)))))
 
-        ;; grid-specs [{:position [0.25 0 0.25]
-        ;;              :rotation [1 0 0 0]
-        ;;              :part :ground-part}
+(defn get-block-snap-spec [world collision]
+  (let [{:keys [part-name point index]} collision
+        centered false ;;#################################
+        part (get-in world [:parts part-name])
+        part-transform (:transform part)
+        normal (get-collision-normal world collision)
+        normal-transform (make-transform [0 0 0] (quaternion-from-normal normal))
+        transform (combine-transforms normal-transform part-transform)]
+    {:position point
+     :rotation (get-transform-rotation transform)
+     :part part-name}))
 
-        ;;             {:position [1.75 0 0.25]
-        ;;              :rotation [1 0 0 0]
-        ;;              :part :ground-part}
-
-        ;;             {:position [-1.75 0 0.25]
-        ;;              :rotation [1 0 0 0]
-        ;;              :part :ground-part}
-        ;;             ]
-        
-        face-specs (vec
-                    (remove-nil
-                     (mapcat (fn [[name part]]
-                               (let [part (get-in world [:parts name])
-                                     transform (:transform part)
-                                     position (get-transform-position transform)
-                                     rotation (get-transform-rotation transform)
-                                     points (get-in world [:info (:type part) :points])
-                                     [sa sb sc] (if (= (:type part) :track)
-                                                  [1 1 1]
-                                                  (:scale part))
-                                     points (map (fn [[a b c]]
-                                                   [(* sa a) (* sb b) (* sc c)])
-                                                 points)]
-                                 (map (fn [p]
-                                        (let [[pos rot] (make-spec position rotation p)]
-                                          {:position pos
-                                           :rotation rot
-                                           :part name}))
-                                      points)))
-                             (:parts world))))]
-    (vec (concat grid-specs face-specs))))
-
-(defn get-closest-snap-point [world x y snap-specs]
+(defn get-closest-snap-point [world x y & rest]
   (let [line (unproject-point world [x y])
-        close-points (filter (fn [spec]
-                               (< (point-line-distance (:position spec) line) 0.2))
-                             snap-specs)
-        eye (get-in world [:camera :eye])]
+        close-snap-specs (filter (fn [spec]
+                                   (< (point-line-distance (:position spec) line) 0.2))
+                                 (:snap-specs world))
+        plane [[0 0 0] [1 0 0] [0 0 1]]
+        ground-spec {:position (line-plane-intersection line plane)
+                     :rotation [1 0 0 0]
+                     :part :ground-part}
+        block-spec (if-let [collision (get-part-collision world x y)]
+                     (let [part (get-in world [:parts (:part-name collision)])]
+                       (if (in? (:type part) [:block :wagon])
+                         (get-block-snap-spec world collision)
+                         nil))
+                     nil)
+        specs (filter not-nil? (conj (vec close-snap-specs) ground-spec block-spec))
+        excluded-parts (first rest)
+        specs (filter (fn [spec]
+                        (not (in? (:part spec) excluded-parts)))
+                      specs)
+        eye (get-in world [:camera :eye])
+        ]
     (first (sort-by (fn [spec]
-                      (distance (:position spec) eye)) close-points))))
+                      (distance eye (:position spec)))
+                    specs))))

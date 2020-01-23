@@ -8,14 +8,6 @@
 (load "edit/paste")
 (load "edit/sink")
 
-(defn set-object-color [world x y]
-  (let [[r g b] (get-in world [:color-palette :regions
-                               (:current-color world) :color])
-        color (new Color r g b)]
-    (if-let [part-name (get-part-at world x y)]
-      (assoc-in world [:parts part-name :color] color)
-      world)))
-
 (defn rotate-part [world event]
   (if-let [part-name (get-part-at world (:x event) (:y event))]
     (let [part (get-in world [:parts part-name])
@@ -28,34 +20,26 @@
           (create-relative-transform part-name parent-name)))
     world))
 
+(do
+1
 (defn edit-mode-draw [world]
-  (let [{:keys [image x y]} (:color-palette world)]
-    (draw-image! image x y))
-
-  (let [color-box (get-in world [:color-palette
-                                 :regions (:current-color world)])
-        {:keys [x y w h]} color-box
-        color (if (< x 230)
-                :red
-                :black)]
-    (dotimes [i 3]
-      (draw-rect! color x y (- w i) (- h i 1)))))
+  (fill-rect! :gray 100 555 100 100)
+  (draw-text! :black "edit" 70 560 30)
+  )
+(redraw!))
 
 (defn edit-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
-    (if-let [color-name (get-region-at (:color-palette world) x y)]
-      (assoc-in world [:current-color] color-name)
-      (case (:edit-subcommand world)
-        :color (set-object-color world x y)
-        :move (move-mode-pressed world event)
-        :sink (sink-mode-pressed world event)
-        :translate (translate-mode-pressed world event)
-        :paste (paste-mode-pressed world event)
-        :scale (scale-mode-pressed world event)
-        :delete (delete-mode-pressed world event)
-        :rotate (rotate-part world event)
-        world))))
+    (case (:edit-subcommand world)
+      :move (move-mode-pressed world event)
+      :sink (sink-mode-pressed world event)
+      :translate (translate-mode-pressed world event)
+      :paste (paste-mode-pressed world event)
+      :scale (scale-mode-pressed world event)
+      :delete (delete-mode-pressed world event)
+      :rotate (rotate-part world event)
+      world)))
 
 (defn edit-mode-moved [world event]
   (case (:edit-subcommand world)

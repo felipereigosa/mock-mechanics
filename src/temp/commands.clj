@@ -5,9 +5,7 @@
 1
 
 (defn get-bindings []
-  {"C-x i" #(-> %
-                (change-mode :insert)
-                (assoc-in [:insert-type] :block))
+  {"C-i" #(change-mode % :insert)
    ":insert b" #(assoc-in % [:insert-type] :block)
    ":insert w" #(assoc-in % [:insert-type] :wagon)
    ":insert t" #(assoc-in % [:insert-type] :track)
@@ -19,11 +17,8 @@
    ":insert h" #(assoc-in % [:insert-type] :cylinder)
    ":insert v" #(assoc-in % [:insert-type] :cone)
 
-   "C-x e" #(-> %
-                (change-mode :edit)
-                (assoc-in [:edit-subcommand] :move))
+   "C-e" #(change-mode % :edit)
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)
-   ":edit c" #(assoc-in % [:edit-subcommand] :color)
    ":edit s" #(assoc-in % [:edit-subcommand] :scale)
    ":edit m" #(assoc-in % [:edit-subcommand] :move)
    ":edit t" #(assoc-in % [:edit-subcommand] :translate)
@@ -31,7 +26,7 @@
    ":edit r" #(assoc-in % [:edit-subcommand] :rotate)
    ":edit y" #(assoc-in % [:edit-subcommand] :sink)
 
-   "C-x g" #(change-mode % :graph)
+   "C-w" #(change-mode % :graph)
    ":graph m" #(assoc-in % [:graph-subcommand] :move)
    ":graph x" #(assoc-in % [:graph-subcommand] :set-x)
    ":graph y" #(assoc-in % [:graph-subcommand] :set-y)
@@ -45,10 +40,21 @@
    ":graph C-c s" #(set-snap-value %)
    ":graph l" #(assoc-in % [:graph-subcommand] :print-lengths)
 
-   "C-x m" #(change-mode % :cpu)
+   "C-m" #(change-mode % :cpu)
    ":cpu s" #(dissoc-in % [:selected-cpu])
    ":cpu r" #(run-selected-cpu %)
    ":cpu l" #(load-script %)
+
+   "C-c" #(change-mode % :color)
+   ":color r" #(assoc-in % [:current-color] :red)
+   ":color g" #(assoc-in % [:current-color] :green)
+   ":color b" #(assoc-in % [:current-color] :blue)
+   ":color y" #(assoc-in % [:current-color] :yellow)
+   ":color w" #(assoc-in % [:current-color] :white)
+   ":color d" #(assoc-in % [:current-color] :black)
+
+   "C-v" #(change-mode % :set-value)
+   "C-t" #(change-mode % :toggle)
 
    "." #(change-mode % :pivot)
 
@@ -60,9 +66,6 @@
    "C-x C-s" #(save-version %)
    "C-x l" #(read-input % load-machine-callback)
    "C-x C-l" #(read-input % load-last-version-callback)
-
-   "C-x v" #(change-mode % :set-value)
-   "C-x t" #(change-mode % :toggle)
 
    "C-/" #(undo! %)
    "C-x /" #(redo! %)

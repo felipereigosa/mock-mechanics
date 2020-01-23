@@ -80,10 +80,10 @@
 (defn get-svg-regions [document]
   (let [[dx dy] (get-svg-dimensions document)
         g (get-child-if document :g {:inkscape:label "regions"})
-        translation (get-in g [:attrs :transform])
-        [tx ty] (split (apply str (butlast (subs translation 10))) #",")
-        tx (parse-float tx)
-        ty (parse-float ty)
+        [tx ty] (if-let [translation (get-in g [:attrs :transform])]
+                  (let [[tx ty] (split (apply str (butlast (subs translation 10))) #",")]
+                    [(parse-float tx) (parse-float ty)])
+                  [0 0])
         rects (vec (:content g))]
     (apply merge (map (fn [rect]
                         (let [name (keyword (get-in rect [:attrs :id]))

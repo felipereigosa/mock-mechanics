@@ -160,30 +160,6 @@
             (get-camera-plane world (get-in world [:camera :pivot]))))
 
 (declare get-closest-snap-point)
-
-(defn inserting? [world]
-  (and
-   (= (:mode world) :insert)
-   (not (= (:insert-type world) :wagon))))
-
-(defn move-cursor [world event]
-  (if (inserting? world)
-    (let [x (:x event)
-          y (:y event)
-          snap-spec (get-closest-snap-point world x y)
-          [snap-point snap-rotation color snapped]
-          (if (nil? snap-spec)
-            [(get-ground-camera-point world x y 0) [0 1 0 0] :black false]
-            [(:position snap-spec) (:rotation snap-spec) :yellow true])
-          transform (make-transform snap-point snap-rotation)]
-      (-> world
-          (update-in [:cursor] (fn [cursor]
-                                 (-> cursor
-                                     (assoc-in [:transform] transform)
-                                     (set-mesh-color color))))
-          (assoc-in [:cursor-snapped] snapped)))
-    world))
-
 (declare get-part-at)
 
 (defn get-function-value [function t interpolator]
@@ -350,5 +326,6 @@
   (if (= (:type part) :track)
     (second (:scale part))
     (* 0.5 (second (:scale part)))))
+
 
 

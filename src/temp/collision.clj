@@ -1,6 +1,16 @@
 
 (ns temp.core)
 
+(defn project-point [world point]
+  (let [p-matrix (:projection-matrix world)
+        v-matrix (:view-matrix world)
+        matrix (multiply-matrices v-matrix p-matrix)
+        point (into-array Float/TYPE (conj point 1.0))
+        point-2d (vec (multiply-matrix-vector matrix point))
+        [x y _ _] (map #(/ % (nth point-2d 3)) point-2d)]
+    [(int (* (/ (inc x) 2) window-width))
+     (int (* (/ (inc (- y)) 2) window-height))]))
+
 (defn unproject-point [world [x y]]
   (let [dx (dec (/ x (/ window-width 2)))
         dy (- (dec (/ y (/ window-height 2))))
