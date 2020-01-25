@@ -10,6 +10,7 @@
 (load "transforms")
 (load "keymap")
 (load "window")
+(load "debug")
 (load "meshes")
 
 (load "miscellaneous")
@@ -19,10 +20,11 @@
 (load "mechanical-tree")
 (load "undo")
 (load "persistence")
-(load "snap-specs")
+(load "place-specs")
 (load "value-force")
 (load "modes")
 (load "commands")
+(load "track-loop")
 
 (do
 1
@@ -38,11 +40,11 @@
         (assoc-in [:walls]
                   (create-cube-mesh [0 -0.1 0] [1 0 0 0] [12 0.2 12]
                                     (make-color 40 40 40)))
-        (assoc-in [:graph-box] {:x 343 :y 540
+        (assoc-in [:graph-box] {:x 343 :y 530
                                 :w 685 :h 150
                                 :buffer (new-image 685 150)
                                 })
-        (assoc-in [:cpu-box] {:x 343 :y 540 :w 685 :h 150})
+        (assoc-in [:cpu-box] {:x 343 :y 530 :w 685 :h 150})
         (update-move-plane)
         (assoc-in [:cursor] (create-cone-mesh [0 -5 0] [1 0 0 0]
                                               [0.05 0.1 0.05] :black))
@@ -51,9 +53,9 @@
         (assoc-in [:bindings] (get-bindings))
         (assoc-in [:current-color] :red)
         (assoc-in [:color-palette]
-                  (create-image "resources/colors.svg" 340 590 -1 40))
+                  (create-image "resources/colors.svg" 340 585 -1 40))
         (assoc-in [:insert-menu]
-                  (create-image "resources/insert.svg" 340 562 -1 85))
+                  (create-image "resources/insert.svg" 340 563 -1 85))
         (assoc-in [:insert-type] :block)
         (assoc-in [:selected-mesh]
                   (create-wireframe-cube [0 0.52 0] [1 0 0 0]
@@ -120,9 +122,12 @@
   (draw-buttons! world)
   (draw-spheres! world)
 
-  (if (and
-       (= (:mode world) :graph)
-       (:selected-chip world))
+  (if (or (and
+           (= (:mode world) :graph)
+           (:selected-chip world))
+          (and
+           (= (:mode world) :cpu)
+           (:selected-cpu world)))
     (draw-mesh! world (:selected-mesh world)))
 
   (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
@@ -185,3 +190,5 @@
         (prepare-tree)
         (save-checkpoint!)
         )))
+
+

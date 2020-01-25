@@ -28,5 +28,3 @@
     (if-let [color-name (get-region-at (:color-palette world) x y)]
       (assoc-in world [:current-color] color-name)
       (set-object-color world x y))))
-
-(println! (:current-color @world))

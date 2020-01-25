@@ -8,6 +8,8 @@
 (load "graph-mode")
 (load "cpu-mode")
 (load "insert-mode")
+(load "color-mode")
+(load "pivot-mode")
 
 (defn get-function [mode function]
   (resolve (symbol (str "temp.core/"
@@ -29,7 +31,9 @@
 
 (defn mode-mouse-pressed [world event]
   (if-let [fun (get-function (:mode world) :pressed)]
-    (fun world event)
+    (let [world (fun world event)]
+      (redraw!)
+      world)
     world))
 
 (defn mode-mouse-moved [world event]
@@ -39,5 +43,7 @@
 
 (defn mode-mouse-released [world event]
   (if-let [fun (get-function (:mode world) :released)]
-    (fun world event)
+    (let [world (fun world event)]
+      (redraw!)
+      world)
     world))

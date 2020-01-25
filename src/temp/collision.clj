@@ -60,11 +60,14 @@
       nil
       [(:i collision) (:d collision) (line-get-point line (:d collision))])))
 
-(defn get-part-collision [world px py]
+(defn get-part-collision [world px py & rest]
   (let [line (unproject-point world [px py])
+        excluded-parts (first rest)
         distances (map (fn [[name part]]
-                         (if (and (:hidden part)
-                                  (not (= (:mode world) :toggle)))
+                         (if (or
+                              (and (:hidden part)
+                                   (not (= (:mode world) :toggle)))
+                              (in? name excluded-parts))
                            nil
                            (let [type (:type part)
                                  info (get-in world [:info type])
@@ -87,8 +90,8 @@
                           distances)]
     (first (sort-by :distance distances))))
 
-(defn get-part-at [world px py]
-  (:part-name (get-part-collision world px py)))
+(defn get-part-at [world px py & rest]
+  (:part-name (get-part-collision world px py (first rest))))
 
 (defn get-collision-normal [world collision]
   (let [{:keys [part-name point index]} collision

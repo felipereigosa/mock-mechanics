@@ -58,7 +58,7 @@
           y (:y event)
           part (get-in world [:parts part-name])
           subtree (get-limited-tree (:parts world) part-name [])]
-      (if-let [spec (get-closest-snap-point world x y subtree)]
+      (if-let [spec (get-closest-spec world x y subtree)]
         (let [offset (get-part-offset part)
               parent-name (:part spec)
               parent (get-in world [:parts parent-name])

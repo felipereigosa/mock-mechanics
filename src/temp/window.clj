@@ -618,9 +618,6 @@
                          :pivot [0 0 0]})
     (compute-camera)))
 
-(defn reset-camera! []
-  (update-thing! [] (slots create-camera _ [0 0 1] 50 25 -45)))
-
 (defn get-camera-plane [world point]
   (let [camera (:camera world)
         to-camera (vector-subtract (:eye camera) (:pivot camera))
@@ -673,8 +670,6 @@
       (catch Exception e))
     (reset! redraw-flag false))
 
-  ;; (draw-close-snap-points! world)
-
   (GL11/glViewport 0 0 window-width window-height)
   (draw-ortho-mesh! world (:output world))
   )
@@ -690,6 +685,12 @@
   (window-init!)
   (reset! out *out*))
 
+(defn reset-camera [world]
+  (-> world
+      (create-camera [0 0 1] 40 25 -35)
+      (assoc-in [:camera :pivot] [0 0 0])
+      (compute-camera)))
+
 (defn create-gl-world []
   (GL11/glEnable GL11/GL_SCISSOR_TEST)
   (GL11/glClearColor 0 0.5 0.8 0)
@@ -703,9 +704,7 @@
       (assoc-in [:programs :colored] (create-program "colored"))
       (assoc-in [:projection-matrix] (get-perspective-matrix
                                       10 (/ window-width window-height) 3 1000))
-      (#(create-camera % [0 0 1] 40 25 -35))
-      (assoc-in [:camera :pivot] [0 0 0])
-      (compute-camera)
+      (reset-camera)
       (assoc-in [:output] (create-ortho-mesh))))
 
 (defn reset-world! []
@@ -714,39 +713,6 @@
      (swap! world (fn [w] (create-world))) ;;###########################
      (redraw!)
      (catch Exception e))))
-
-;;-------------------------------------------------------------------------------;;
-;; debug shapes
-
-(def debug-meshes (atom nil))
-
-(defn create-debug-meshes! []
-  (reset! debug-meshes
-          {:points {:red (create-cube-mesh
-                          [-100 0 0] [1 0 0 0]
-                          [0.05 0.05 0.05] :red)
-                    :yellow (create-cube-mesh
-                             [-100 0 0] [1 0 0 0]
-                             [0.05 0.05 0.05] :yellow)
-                    :green (create-cube-mesh
-                             [-100 0 0] [1 0 0 0]
-                             [0.05 0.05 0.05] :green)
-                    :blue (create-cube-mesh
-                             [-100 0 0] [1 0 0 0]
-                             [0.05 0.05 0.05] :blue)
-                    }}))
-
-(defn draw-debug-meshes! []
-  (let [points (:points @debug-meshes)]
-    (doseq [mesh (vals points)]
-      (draw-mesh! @world mesh))))
-
-(defn set-point! [color position]
-  (swap! debug-meshes
-         (fn [dm]
-           (update-in dm [:points color]
-                      #(set-mesh-position % position))))
-  nil)
 
 ;;-------------------------------------------------------------------------------;;
 ;; camera manipulation

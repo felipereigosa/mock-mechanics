@@ -5,7 +5,9 @@
 1
 
 (defn get-bindings []
-  {"C-i" #(change-mode % :insert)
+  {"C-d" #(change-mode % :debug)
+   
+   "C-i" #(change-mode % :insert)
    ":insert b" #(assoc-in % [:insert-type] :block)
    ":insert w" #(assoc-in % [:insert-type] :wagon)
    ":insert t" #(assoc-in % [:insert-type] :track)
@@ -44,6 +46,7 @@
    ":cpu s" #(dissoc-in % [:selected-cpu])
    ":cpu r" #(run-selected-cpu %)
    ":cpu l" #(load-script %)
+   ":cpu p" #(print-script-name %)
 
    "C-c" #(change-mode % :color)
    ":color r" #(assoc-in % [:current-color] :red)
@@ -57,6 +60,7 @@
    "C-t" #(change-mode % :toggle)
 
    "." #(change-mode % :pivot)
+   "C-s" #(change-mode % :idle)
 
    "C-x r" (fn [w]
              (println! "reset world")
@@ -69,6 +73,8 @@
 
    "C-/" #(undo! %)
    "C-x /" #(redo! %)
+
+   "C-z" #(reset-camera %)
    })
 
 (set-thing! [:bindings] (get-bindings)))
@@ -133,7 +139,8 @@
             (assoc-in [:command] "")
             (assoc-in [:text] "")
             (assoc-in [:text-input] false)
-            (change-mode :idle))
+            ;; (change-mode :idle)
+            )
 
         (:text-input world)
         (text-input-key-pressed world event)

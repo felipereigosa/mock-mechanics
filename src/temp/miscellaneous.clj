@@ -159,7 +159,6 @@
   (assoc-in world [:move-plane]
             (get-camera-plane world (get-in world [:camera :pivot]))))
 
-(declare get-closest-snap-point)
 (declare get-part-at)
 
 (defn get-function-value [function t interpolator]
@@ -235,20 +234,6 @@
                  (assoc-in [:scale] (:scale part))
                  (set-mesh-color (:color part)))]
     (draw-mesh! world mesh)))
-
-(defn pivot-mode-pressed [world event]
-  (let [x (:x event)
-        y (:y event)
-        part-name (get-part-at world x y)
-        pos (if (nil? part-name)
-              (let [line (unproject-point world [x y])
-                    ground-plane [[0 0 0] [1 0 0] [0 0 1]]]
-                (line-plane-intersection line ground-plane))
-              (get-part-position world part-name))]
-    (compute-camera (assoc-in world [:camera :pivot] pos))))
-
-
-
 
 (defn set-probe-values [world]
   (let [probe-names (get-parts-with-type (:parts world) :probe)
@@ -326,6 +311,3 @@
   (if (= (:type part) :track)
     (second (:scale part))
     (* 0.5 (second (:scale part)))))
-
-
-

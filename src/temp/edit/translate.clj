@@ -1,9 +1,6 @@
 
 (ns temp.core)
 
-(do
-1
-
 (defn translate-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
@@ -19,11 +16,12 @@
       (if (= (:type part) :wagon)
         world
         (let [subtree (get-limited-tree (:parts world) part-name [])]
-          (if-let [spec (get-closest-snap-point world x y subtree)]
+          (if-let [spec (get-closest-spec world x y subtree)]
             (let [offset (get-part-offset part)
                   parent-name (:part spec)
                   parent (get-in world [:parts parent-name])
                   transform (spec->transform offset spec parent)]
+              (println! spec)
               (-> world
                   (assoc-in [:parts part-name :transform] transform)
                   (assoc-in [:parent-name] parent-name)))
@@ -53,4 +51,3 @@
               (set-wagon-loop part-name track-name)))
         (create-relative-transform world part-name new-parent-name)))
     world))
-)

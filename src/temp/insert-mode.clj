@@ -15,7 +15,7 @@
   (let [part (create-part type color (:info world))
         name (gen-keyword type)
         offset (get-part-offset part)
-        spec (get-closest-snap-point world x y)
+        spec (get-closest-spec world x y)
         parent-name (:part spec)
         parent (get-in world [:parts parent-name])
         transform (spec->transform offset spec parent)]
@@ -94,7 +94,7 @@
 (defn insert-mode-moved [world event]
   (let [x (:x event)
         y (:y event)
-        spec (get-closest-snap-point world x y)
+        spec (get-closest-spec world x y)
         color (if (= (get-in world [:parts (:part spec) :type]) :track)
                 :yellow
                 :black)
