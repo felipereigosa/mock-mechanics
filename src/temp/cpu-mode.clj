@@ -1,6 +1,9 @@
 
 (ns temp.core)
 
+(do
+1
+
 (defn load-script [world]
   (if-let [selected-cpu (:selected-cpu world)]
     (read-input
@@ -55,51 +58,27 @@
 ;;          ~@other))))
 
 (defn run-script! [world cpu-name pin-name]
-  ;;   (let [cpu (get-in w [:parts cpu-name])
-  ;;         root (or (:root-filename cpu) "default")
-  ;;         filename (str "resources/scripts/" root ".clj")
-  ;;         inputs (keys (:inputs cpu))
-  ;;         outputs (keys (:outputs cpu))]
-  ;;     (if-let [text (try
-  ;;                     (read-string (slurp filename))
-  ;;                     (catch Exception e
-  ;;                       (println! "eof found on script")))]
-  ;;       (let [code (process-code text inputs outputs)]
-  ;;         (.start
-  ;;          (new Thread
-  ;;               (proxy [Runnable] []
-  ;;                 (run []
-  ;;                   (try
-  ;;                     ((eval code) pin-name)
-  ;;                     (catch Exception e
-  ;;                       (do
-  ;;                         (println! "script failed")
-  ;;                             (println! (.getMessage e)))))))))))))
-  )
-
-;; (defn input-value-changed [world cpu-name input-name]
-;;   (run-script! world cpu-name input-name)
-;;   world)
-
-;; (defn cpu-input-changes [world cpu-name]
-;;   (let [cpu (get-in world [:parts cpu-name])]
-;;     (reduce (fn [w [input-name old-value]]
-;;               (let [new-value (get-in world [:parts input-name :value])]
-;;                 (if (= new-value old-value)
-;;                   w
-;;                   (-> w
-;;                       (input-value-changed cpu-name input-name)
-;;                       (assoc-in [:parts cpu-name
-;;                                  :inputs input-name] new-value)))))
-;;             world
-;;             (:inputs cpu))))
-
-(defn cpus-input-changes [world]
-  ;; (reduce (fn [w cpu-name]
-  ;;           (cpu-input-changes w cpu-name))
-  ;;         world
-  ;;         (get-parts-with-type (:parts world) :cpu))
-  world
+  ;; (let [cpu (get-in world [:parts cpu-name])
+  ;;       root (or (:root-filename cpu) "default")
+  ;;       filename (str "resources/scripts/" root ".clj")
+  ;;       inputs (map first (:inputs cpu))
+  ;;       outputs (map first (:outputs cpu))]
+  ;;   (if-let [text (try
+  ;;                   (read-string (slurp filename))
+  ;;                   (catch Exception e
+  ;;                     (println! "eof found on script")))]
+  ;;     (let [code (process-code text inputs outputs)]
+  ;;       (.start
+  ;;        (new Thread
+  ;;             (proxy [Runnable] []
+  ;;               (run []
+  ;;                 (try
+  ;;                   ((eval code) pin-name)
+  ;;                   (catch Exception e
+  ;;                     (do
+  ;;                       (println! "script failed")
+  ;;                       (println! (.getMessage e))))))))))))
+  (println! "run script")
   )
 
 (defn run-selected-cpu [world]
@@ -109,27 +88,59 @@
       world)
     world))
 
-(defn draw-selected [world]
-  (if-let [index (:selected-index world)]
+;; (defn input-value-changed [world cpu-name input-name]
+;;   (run-script! world cpu-name input-name)
+;;   world)
+
+;; (defn cpu-input-changes [world cpu-name]
+;;   (let [cpu (get-in world [:parts cpu-name])]
+;;     ;; (reduce (fn [w [input-name old-value]]
+;;     ;;           (let [new-value (get-in world [:parts input-name :value])]
+;;     ;;             (if (= new-value old-value)
+;;     ;;               w
+;;     ;;               (-> w
+;;     ;;                   (input-value-changed cpu-name input-name)
+;;     ;;                   (assoc-in [:parts cpu-name
+;;     ;;                              :inputs input-name] new-value)))))
+;;     ;;         world
+;;     ;;         (:inputs cpu))
+;;     world
+;;     ))
+
+(defn cpus-input-changes [world]
+  ;; (reduce (fn [w cpu-name]
+  ;;           (cpu-input-changes w cpu-name))
+  ;;         world
+  ;;         (get-parts-with-type (:parts world) :cpu))
+  world
+  )
+
+(defn get-pin-list [cpu type]
+  (map first (sort-by #(:index (second %)) (get cpu type))))
+
+(defn draw-selected-pin [world]
+  (if-let [pin-name (:selected-pin world)]
     (let [cpu-name (:selected-cpu world)
-          type (:selected-type world)
-          values (get-in world [:parts cpu-name type])
-          index (within index 0 (dec (count values)))
-          part-name (first (nth values index))
+          cpu (get-in world [:parts cpu-name])
+          inputs (get-pin-list cpu :inputs)
+          outputs (get-pin-list cpu :outputs)
+          index (if (in? pin-name inputs)
+                  (.indexOf inputs pin-name)
+                  (.indexOf outputs pin-name))
           {:keys [y w h]} (:cpu-box world)
-          x1 (if (= type :inputs)
+          x1 (if (in? pin-name inputs)
                (+ (* 30 index) 37)
                (+ (* 30 index) 30 (/ w 2)))
           y1 (- y (/ h 2))
-          part (get-in world [:parts part-name])
-          
-          transform (if (= (:type part) :track)
-                      (get-tail-transform part)
-                      (:transform part))          
+          pin (get-in world [:parts pin-name])
+          transform (if (= (:type pin) :track)
+                      (get-tail-transform pin)
+                      (:transform pin))          
           position (get-transform-position transform)
           [x2 y2] (project-point world position)]
       (draw-line! :white x1 y1 x2 y2)
-      (fill-circle! :white x2 y2 5))))
+      (fill-circle! :white x1 y1 3)
+      (fill-circle! :white x2 y2 3))))
 
 (defn cpu-mode-draw [world]
   (let [cpu-box (:cpu-box world)
@@ -139,22 +150,25 @@
     (fill-rect! :black x y w h)
     (draw-rect! :dark-gray x y (- w 14) (- h 14))
     (draw-line! :dark-gray middle (- y (/ h 2)) middle (+ y (/ h 2)))
+
     (if-let [cpu-name (:selected-cpu world)]
-      (let [cpu (get-in world [:parts cpu-name])]
+      (let [cpu (get-in world [:parts cpu-name])
+            sorted-inputs (get-pin-list cpu :inputs)
+            sorted-outputs (get-pin-list cpu :outputs)]
         (draw-text! :gray "inputs:" 20 480 15)
         (draw-text! :gray "outputs:" (+ middle 13) 480 15)
 
-        (dotimes [i (count (:outputs cpu))]
-          (let [part-name (first (nth (:outputs cpu) i))
-                color (get-in world [:parts part-name :color])]
-            (fill-rect! color (+ middle 30 (* i 30)) 520 20 20)
-            (draw-rect! :gray (+ middle 30 (* i 30)) 520 20 20)))
-
-        (dotimes [i (count (:inputs cpu))]
-          (let [part-name (first (nth (:inputs cpu) i))
+        (dotimes [i (count sorted-inputs)]
+          (let [part-name (nth sorted-inputs i)
                 color (get-in world [:parts part-name :color])]
             (fill-rect! color (+ 37 (* i 30)) 520 20 20)
-            (draw-rect! :gray (+ 37 (* i 30)) 520 20 20))))
+            (draw-rect! :gray (+ 37 (* i 30)) 520 20 20)))
+
+        (dotimes [i (count sorted-outputs)]
+          (let [part-name (nth sorted-outputs i)
+                color (get-in world [:parts part-name :color])]
+            (fill-rect! color (+ middle 30 (* i 30)) 520 20 20)
+            (draw-rect! :gray (+ middle 30 (* i 30)) 520 20 20))))
 
       (let [hw (* w 0.5)
             hh (* h 0.5)
@@ -166,7 +180,7 @@
         (draw-line! :dark-gray x1 y1 x2 y2)
         (draw-line! :dark-gray x1 y2 x2 y1)))
 
-    (draw-selected world)))
+    (draw-selected-pin world)))
 
 (defn select-cpu [world x y]
   (if (inside-box? (:cpu-box world) x y)
@@ -180,15 +194,29 @@
           world))
       world)))
 
+(defn normalize-indices [world cpu-name which]
+  (let [cpu (get-in world [:parts cpu-name])
+        new-indices (apply merge (map (fn [a b]
+                                        {a b})
+                                      (get-pin-list cpu which)
+                                      (range)))]
+    (assoc-in world [:parts cpu-name which]
+              (map-map (fn [[name pin]]
+                         {name (assoc-in pin [:index]
+                                         (get new-indices name))})
+                       (get-in world [:parts cpu-name which])))))
+
 (defn add-remove [world cpu-name from part-name]
   (let [cpu (get-in world [:parts cpu-name])
-        index (.indexOf (map first (get cpu from)) part-name)
-        value (get-in world [:parts part-name :value])]
-    (if (= index -1)
-      (update-in world [:parts cpu-name from]
-                 #(vec (conj % [part-name value])))
-      (update-in world [:parts cpu-name from]
-                 #(vector-remove % index)))))
+        value (get-in world [:parts part-name :value])
+        pins (get-pin-list cpu from)]
+    (normalize-indices
+     (if (in? part-name pins)
+       (dissoc-in world [:parts cpu-name from part-name])
+       (assoc-in world [:parts cpu-name from part-name]
+                 {:value value
+                  :index (count pins)}))
+     cpu-name from)))
 
 (defn cpu-change-part [world x y]
   (if-let [part-name (get-part-at world x y)]
@@ -214,34 +242,87 @@
         y (:y event)]
     (if-let [selected-cpu (:selected-cpu world)]
       (if (inside-box? (:cpu-box world) x y)
-        (let [mid (* (get-in world [:cpu-box :w]) 0.5)]
-          (if (< x mid)
-            (-> world
-                (assoc-in [:selected-index] (int (/ (- x 27) 30)))
-                (assoc-in [:selected-type] :inputs))
-            (-> world
-                (assoc-in [:selected-index] (int (/ (- x mid 20) 30)))
-                (assoc-in [:selected-type] :outputs))))
+        (let [mid (* (get-in world [:cpu-box :w]) 0.5)
+              cpu (get-in world [:parts selected-cpu])
+              inputs (get-pin-list cpu :inputs)
+              outputs (get-pin-list cpu :outputs)
+              index (if (< x mid)
+                      (within (int (/ (- x 27) 30)) 0 (dec (count inputs)))
+                      (within (int (/ (- x mid 20) 30)) 0 (dec (count outputs))))
+              pin (if (< x mid)
+                    (nth inputs index)
+                    (nth outputs index))]
+          (assoc-in world [:selected-pin] pin))
         (cpu-change-part world x y))
       (select-cpu world x y))))
 
 (defn rearrange-selected [world event]
-  (let [mid (* (get-in world [:cpu-box :w]) 0.5)
-        type (:selected-type world)
-        index (if (= type :inputs)
-                (int (/ (- (:x event) 30) 30))
-                (int (/ (- (:x event) 30 mid) 30)))
-        cpu-name (:selected-cpu world)
-        names (keys (get-in world [:parts cpu-name type]))
-        to-index (within index 0 (dec (count names)))
-        from-index (:selected-index world)
-        vector (get-in world [:parts cpu-name type])]
-    (assoc-in world [:parts cpu-name type]
-              (vector-insert (vector-remove vector from-index)
-                             (nth vector from-index) to-index))))
+  (if-let [selected-pin (:selected-pin world)]
+    (let [x (:x event)
+          y (:y event)
+          cpu-name (:selected-cpu world)
+          cpu (get-in world [:parts cpu-name])
+          mid (* (get-in world [:cpu-box :w]) 0.5)
+          type (if (< x mid) :inputs :outputs)
+          ;; index (if (= type :inputs)
+          ;;         (int (/ (- (:x event) 30) 30))
+          ;;         (int (/ (- (:x event) 30 mid) 30)))
+          ;; cpu-name (:selected-cpu world)
+          ;; names (keys (get-in world [:parts cpu-name type]))
+          ;; to-index (within index 0 (dec (count names)))
+          ;; from-index (:selected-index world)
+          ;; vector (get-in world [:parts cpu-name type])
+          
+          from-index (get-in cpu [type selected-pin :index])
+          to-index 0 ;;#################################
+          ]
+      ;; (assoc-in world [:parts cpu-name type]
+      ;;           (vector-insert (vector-remove vector from-index)
+      ;;                          (nth vector from-index) to-index))
+      
+      (println! "rearrange" selected-pin from-index)
+      world)
+    world))
 
 (defn cpu-mode-released [world event]
   (-> world
       (rearrange-selected event)
-      (dissoc-in [:selected-index])
-      (dissoc-in [:selected-type])))
+      (dissoc-in [:selected-pin])))
+
+(redraw!)
+)
+
+;; (do
+;;   (clear-output!)
+;;   (println! (get-thing! [:parts :cpu8685 :inputs])))
+
+;; (set-thing! [:parts :cpu8685 :inputs]
+;;             {:button8684 {:value 0
+;;                           :index 1}
+;;              :probe8682 {:value 0
+;;                          :index 0}})
+
+;; (set-thing! [:parts :cpu8685 :outputs]
+;;             {:chip8669 {:value 0
+;;                           :index 0}
+;;              :chip8670 {:value 0
+;;                          :index 1}
+;;              })
+
+
+;; (set-thing! [:selected-pin] :chip8670)
+
+
+;; (do
+;; 1
+
+
+;; (set-thing! [:parts :cpu8685 :inputs]
+;;             {:button8684 {:value 0
+;;                           :index 20}
+;;              :probe8682 {:value 0
+;;                          :index 7}})
+
+;; (println! (get-in (normalize-indices @world :cpu8685 :inputs)
+;;                   [:parts :cpu8685 :inputs]))
+;; nil)

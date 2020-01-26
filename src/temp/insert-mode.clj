@@ -93,16 +93,19 @@
 
 (defn insert-mode-moved [world event]
   (let [x (:x event)
-        y (:y event)
-        spec (get-closest-spec world x y)
-        color (if (= (get-in world [:parts (:part spec) :type]) :track)
-                :yellow
-                :black)
-        transform (make-transform (:position spec) (:rotation spec))]
-    (update-in world [:cursor] (fn [cursor]
-                                 (-> cursor
-                                     (assoc-in [:transform] transform)
-                                     (set-mesh-color color))))))
+        y (:y event)]
+    (if-let [spec (get-closest-spec world x y)]
+      (let [color (if (= (get-in world [:parts (:part spec) :type]) :track)
+                    :yellow
+                    :black)
+            transform (make-transform (:position spec) (:rotation spec))]
+        (update-in world [:cursor] (fn [cursor]
+                                     (-> cursor
+                                         (assoc-in [:transform] transform)
+                                         (set-mesh-color color)))))
+
+      (assoc-in world [:cursor :transform]
+                (make-transform [-1000 0 0] [1 0 0 0])))))
 
 (defn draw-cursor! [world]
   (when (and

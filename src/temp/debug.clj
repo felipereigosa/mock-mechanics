@@ -7,9 +7,20 @@
 (defn debug-mode-draw [world]
   (draw-rect! :red 340 300 670 550))
 
+(do
+1  
+
 (defn debug-mode-pressed [world event]
   (println! (get-part-at world (:x event) (:y event)))
   world)
+
+(defn debug-mode-moved [world event]
+  world)
+
+(defn debug-mode-released [world event]
+  world)
+)
+
 
 (def debug-meshes (atom nil))
 

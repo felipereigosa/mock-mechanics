@@ -45,14 +45,16 @@
                     (update-in [:outputs] #(clean-map % part-names)))})
              parts)))
 
-(defn paste-mode-pressed [world event]
+;;##################################################
+
+(defn copy-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
     (if-let [part-name (:part-name (get-part-collision world x y))]
       (assoc-in world [:edited-part] part-name)
       world)))
 
-(defn paste-mode-moved [world event]
+(defn copy-mode-moved [world event]
   (if-let [part-name (:edited-part world)]
     (let [x (:x event)
           y (:y event)
@@ -69,7 +71,7 @@
         world))
     world))
 
-(defn paste-mode-released [world event]
+(defn copy-mode-released [world event]
   (if-let [part-name (:edited-part world)]
     (let [parent-name (:parent-name world)
           suffix (gen-keyword :copy)

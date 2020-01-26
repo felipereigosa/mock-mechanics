@@ -4,8 +4,7 @@
 (load "edit/delete")
 (load "edit/move")
 (load "edit/scale")
-(load "edit/translate")
-(load "edit/paste")
+(load "edit/copy")
 (load "edit/sink")
 
 (defn rotate-part [world event]
@@ -34,8 +33,7 @@
     (case (:edit-subcommand world)
       :move (move-mode-pressed world event)
       :sink (sink-mode-pressed world event)
-      :translate (translate-mode-pressed world event)
-      :paste (paste-mode-pressed world event)
+      :copy (copy-mode-pressed world event)
       :scale (scale-mode-pressed world event)
       :delete (delete-mode-pressed world event)
       :rotate (rotate-part world event)
@@ -45,8 +43,7 @@
   (case (:edit-subcommand world)
     :move (move-mode-moved world event)
     :sink (sink-mode-moved world event)
-    :translate (translate-mode-moved world event)
-    :paste (paste-mode-moved world event)
+    :copy (copy-mode-moved world event)
     :scale (scale-mode-moved world event)
     world))
 
@@ -54,7 +51,6 @@
   (case (:edit-subcommand world)
     :move (move-mode-released world event)
     :sink (sink-mode-released world event)
-    :translate (translate-mode-released world event)
-    :paste (paste-mode-released world event)
+    :copy (copy-mode-released world event)
     :scale (scale-mode-released world event)
     world))

@@ -101,15 +101,15 @@
 (defn create-mouse-motion-handler! [window]
   (let [mouse-motion-handler (proxy [GLFWCursorPosCallback] []
                                (invoke [window x y]
-                                 (let [x-offset -2 ;;####### window manager problem
-                                       y-offset -2]
-                                   (reset! mouse-x (+ x x-offset))
-                                   (reset! mouse-y (+ y y-offset)))
                                  (try
-                                   (swap! world
-                                          (fn [w]
-                                            (mouse-moved w {:x x :y y
-                                                            :button @mouse-button})))
+                                   (let [x (+ x -2) ;;####### window manager problem
+                                         y (+ y -2)]
+                                     (reset! mouse-x x)
+                                     (reset! mouse-y y)
+                                     (swap! world
+                                            (fn [w]
+                                              (mouse-moved w {:x x :y y
+                                                              :button @mouse-button}))))
                                    (catch Exception e))))]
 
     (GLFW/glfwSetCursorPosCallback window mouse-motion-handler)

@@ -4,58 +4,51 @@
 (defn move-mode-pressed [world event]
   (let [x (:x event)
         y (:y event)]
-    (if-let [{:keys [part-name point index]} (get-part-collision world x y)]
-      (let [w (set-value-0-transform world part-name)
-            part (get-in w [:parts part-name])
-            v1 (apply-rotation (:transform part) [1 0 0])
-            v2 (apply-rotation (:transform part) [0 0 1])
-            plane [point (vector-add point v1) (vector-add point v2)]
-            part-position (get-part-position world part-name)
-            offset (vector-subtract part-position point)]
-        (-> world
-            (assoc-in [:edited-part] part-name)
-            (create-weld-groups)
-            (assoc-in [:plane] plane)
-            (assoc-in [:offset] offset)
-            (assoc-in [:original-position] part-position)))
+    (if-let [part-name (:part-name (get-part-collision world x y))]
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (create-weld-groups))
       world)))
 
 (defn move-mode-moved [world event]
   (if-let [part-name (:edited-part world)]
-    (let [line (unproject-point world [(:x event) (:y event)])
-          touch-point (line-plane-intersection line (:plane world))
-          position (vector-add touch-point (:offset world))
-          [a b c] (:plane world)
-          v1 (vector-subtract b a)
-          v2 (vector-subtract c a)
-          origin (:original-position world)
-          s (point-line-coordinate position [origin v1])
-          t (point-line-coordinate position [origin v2])
-          grain-size 0.05
-          s (* grain-size (round (/ s grain-size)))
-          t (* grain-size (round (/ t grain-size)))
-          snapped-position (reduce vector-add [origin
-                                               (vector-multiply v1 s)
-                                               (vector-multiply v2 t)])
-          part (get-in world [:parts part-name])
-          rotation (get-transform-rotation (:transform part))
-          transform (make-transform snapped-position rotation)]
-      (-> world
-          (assoc-in [:parts part-name :transform] transform)
-          (assoc-in [:snapped-position] snapped-position)))
+    (let [x (:x event)
+          y (:y event)
+          part (get-in world [:parts part-name])]
+      (if (= (:type part) :wagon)
+        world
+        (let [subtree (get-limited-tree (:parts world) part-name [])]
+          (if-let [spec (get-closest-spec world x y subtree)]
+            (let [offset (get-part-offset part)
+                  parent-name (:part spec)
+                  parent (get-in world [:parts parent-name])
+                  transform (spec->transform offset spec parent)]
+              (-> world
+                  (assoc-in [:parts part-name :transform] transform)
+                  (assoc-in [:parent-name] parent-name)))
+            world))))
     world))
+
+(declare set-wagon-loop)
 
 (defn move-mode-released [world event]
   (if-let [part-name (:edited-part world)]
-    (let [parent-name (get-parent-part world part-name)
-          world (set-value-0-transform world part-name)
+    (let [x (:x event)
+          y (:y event)
           part (get-in world [:parts part-name])
-          rotation (get-transform-rotation (:transform part))
-          snapped-position (:snapped-position world)
-          transform (make-transform snapped-position rotation)]
-      (-> world
-          (assoc-in [:parts part-name :transform] transform)
-          (create-relative-transform part-name parent-name)
-          (dissoc-in [:edited-part])))
+          new-parent-name (:parent-name world)
+          old-parent-name (get-parent-part world part-name)
+          world (-> world
+                    (dissoc-in [:parts old-parent-name
+                                :children part-name])
+                    (dissoc-in [:edited-part]))]
+      (if (= (:type part) :wagon)
+        (let [track-name (get-part-at world x y)
+              transform (get-in world [:parts track-name :transform])]
+          (-> world
+              (assoc-in [:parts part-name :transform] transform)
+              (assoc-in [:parts track-name :children part-name]
+                        (make-transform [0 0 0] [1 0 0 0]))
+              (set-wagon-loop part-name track-name)))
+        (create-relative-transform world part-name new-parent-name)))
     world))
-

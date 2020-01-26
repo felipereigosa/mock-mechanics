@@ -82,7 +82,10 @@
               normal-transform (make-transform [0 0 0] (quaternion-from-normal normal))
               transform (combine-transforms normal-transform part-transform)
               face-plane (get-block-plane part normal)
-              point (get-normalized-plane-point face-plane point 0.2)]
+              grain (if (:shift-pressed world)
+                      0.05
+                      0.2)
+              point (get-normalized-plane-point face-plane point grain)]
           {:position point
            :rotation (get-transform-rotation transform)
            :part part-name})
@@ -92,7 +95,10 @@
 (defn get-ground-spec [world line]
   (let [plane [[0.25 0 0.25] [1.25 0 0.25] [0.25 0 1.25]]
         point (line-plane-intersection line plane)
-        point (get-normalized-plane-point plane point 0.25)]
+        grain (if (:shift-pressed world)
+                0.05
+                0.25)
+        point (get-normalized-plane-point plane point grain)]
     {:position point
      :rotation [1 0 0 0]
      :part :ground-part}))
@@ -104,7 +110,9 @@
                                        (:position spec) line) 0.2))
                                  (:snap-specs world))
 
-        ground-spec (get-ground-spec world line)
+        ground-spec (if (> (get-in world [:camera :x-angle]) 0)
+                      (get-ground-spec world line)
+                      nil)
         excluded-parts (first rest)
         block-spec (get-block-spec world x y excluded-parts)        
         specs (filter not-nil? (conj (vec close-snap-specs)

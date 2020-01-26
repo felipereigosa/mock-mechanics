@@ -23,8 +23,7 @@
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)
    ":edit s" #(assoc-in % [:edit-subcommand] :scale)
    ":edit m" #(assoc-in % [:edit-subcommand] :move)
-   ":edit t" #(assoc-in % [:edit-subcommand] :translate)
-   ":edit p" #(assoc-in % [:edit-subcommand] :paste)
+   ":edit c" #(assoc-in % [:edit-subcommand] :copy)
    ":edit r" #(assoc-in % [:edit-subcommand] :rotate)
    ":edit y" #(assoc-in % [:edit-subcommand] :sink)
 
@@ -130,17 +129,21 @@
                    (apply str (concat text key)))))))
 
 (defn key-pressed [world event]
-  (if (in? (:code event) [341 345])
+  (cond
+    (in? (:code event) [341 345])
     (assoc-in world [:control-pressed] true)
+
+    (in? (:code event) [340 344])
+    (assoc-in world [:shift-pressed] true)
+
+    :else
     (if-let [key (get-key (:control-pressed world) (:code event))]
       (cond
         (= key "C-g")
         (-> world
             (assoc-in [:command] "")
             (assoc-in [:text] "")
-            (assoc-in [:text-input] false)
-            ;; (change-mode :idle)
-            )
+            (assoc-in [:text-input] false))
 
         (:text-input world)
         (text-input-key-pressed world event)
@@ -161,6 +164,12 @@
 (defn key-released [world event]
   (draw-2d! world)
 
-  (if (in? (:code event) [341 345])
+  (cond
+    (in? (:code event) [341 345])
     (assoc-in world [:control-pressed] false)
+
+    (in? (:code event) [340 344])
+    (assoc-in world [:shift-pressed] false)
+
+    :else
     world))
