@@ -71,26 +71,75 @@
                         (vector-multiply v1 s)
                         (vector-multiply v2 t)])))
 
+(do
+1
+
+(defn get-collision-with-part [world px py part-name]
+  (let [line (unproject-point world [px py])
+        part (get-in world [:parts part-name])
+        type (:type part)
+        info (get-in world [:info type])
+        mesh (:model info)
+        transform (:transform part)
+        scale (:scale part)
+        [i d p] (get-mesh-collision mesh transform scale line)]
+    {:part-name part-name
+     :distance d
+     :point p
+     :index i}))
+
+(defn draw-blocks-to-bitmap [world]
+  ;;############################################################
+  (let [block-names (filter not-nil?
+                            (map (fn [[name part]]
+                                   (if (in? (:type part) [:block :wagon])
+                                     name
+                                     nil))
+                                 (:parts world)))
+        ]
+    (println! block-names)
+
+    ;; save list of blocks/wagons
+    ;; update bitmap
+    ))
+
+(clear-output!)
+(draw-blocks-to-bitmap @world)
+
+(defn fast-get-block-at [world px py & rest]
+  ;;############################################################
+  ;; only blocks and wagons
+  ;; no hidden parts
+  ;; no excluded parts
+
+  ;; get value of bitmap pixel at px,py
+  ;; use value to get nth element from the list
+
+  (cond
+    (< (distance [px py] [205.0 318.0]) 40) :block11686-copy11891-copy11901    
+    (< (distance [px py] [301.0 292.0]) 40) :block11686-copy11901              
+    (< (distance [px py] [446.0 341.0]) 40) :block11686                        
+    ))
+
 (defn get-block-spec [world x y excluded-parts]
-  (if-let [collision (get-part-collision world x y excluded-parts)]
-    (let [part (get-in world [:parts (:part-name collision)])]
-      (if (in? (:type part) [:block :wagon])
-        (let [{:keys [part-name point index]} collision
-              part (get-in world [:parts part-name])
-              part-transform (:transform part)
-              normal (get-collision-normal world collision)
-              normal-transform (make-transform [0 0 0] (quaternion-from-normal normal))
-              transform (combine-transforms normal-transform part-transform)
-              face-plane (get-block-plane part normal)
-              grain (if (:shift-pressed world)
-                      0.05
-                      0.2)
-              point (get-normalized-plane-point face-plane point grain)]
-          {:position point
-           :rotation (get-transform-rotation transform)
-           :part part-name})
-        nil))
-    nil))
+  (if-let [block-name (fast-get-block-at world x y)]
+    (let [collision (get-collision-with-part world x y block-name)
+          part (get-in world [:parts (:part-name collision)])
+          {:keys [part-name point index]} collision
+          part-transform (:transform part)
+          normal (get-collision-normal world collision)
+          normal-transform (make-transform [0 0 0] (quaternion-from-normal normal))
+          transform (combine-transforms normal-transform part-transform)
+          face-plane (get-block-plane part normal)
+          grain (if (:shift-pressed world)
+                  0.05
+                  0.2)
+          point (get-normalized-plane-point face-plane point grain)]
+      {:position point
+       :rotation (get-transform-rotation transform)
+       :part part-name})
+    nil))      
+)
 
 (defn get-ground-spec [world line]
   (let [plane [[0.25 0 0.25] [1.25 0 0.25] [0.25 0 1.25]]
