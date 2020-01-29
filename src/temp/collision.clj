@@ -96,7 +96,7 @@
 (defn get-collision-normal [world collision]
   (let [{:keys [part-name point index]} collision
         part (get-in world [:parts part-name])
-        vertices (get-in world [:info :block :model :vertices])
+        vertices (get-in world [:info (:type part) :model :vertices])
         triangles (partition 3 (partition 3 vertices))
         [a b c] (nth triangles index)
         v1 (vector-subtract b a)

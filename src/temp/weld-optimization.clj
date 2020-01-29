@@ -82,8 +82,8 @@
 (defn create-mesh-from-parts [parts names info edited-part property]
   (let [baked-parts (map (fn [name]
                            (if (= name edited-part)
-                             {:vertices []
-                              :colors []}
+                               {:vertices []
+                                :colors []}
                              (bake-part info (get-in parts [name]) property)))
                          names)
         {:keys [vertices colors]} (reduce (fn [a b]

@@ -287,25 +287,12 @@
         (draw-mesh! world mesh)))))
 
 (declare create-weld-groups)
-(declare get-snap-specs)
 (declare compute-transforms)
 
 (defn prepare-tree [world]
   (-> world
       (compute-transforms :parts)
-      (#(assoc-in % [:snap-specs] (get-snap-specs %)))
       (create-weld-groups)))
-
-(defn spec->transform [offset spec parent]
-  (let [final-rotation (:rotation spec)
-        rotation-transform (make-transform [0 0 0] final-rotation)
-        offset [0 offset 0]
-        offset (apply-transform rotation-transform offset)
-        final-point (if (= (:type parent) :track)
-                      (get-transform-position (:transform parent))
-                      (:position spec))
-        final-point (vector-add final-point offset)]
-    (make-transform final-point final-rotation)))
 
 (defn get-part-offset [part]
   (if (= (:type part) :track)

@@ -12,17 +12,18 @@
       (draw-rect! :black x y (- w i) (- h i 1)))))
 
 (defn insert-part [world type color x y]
-  (let [part (create-part type color (:info world))
-        name (gen-keyword type)
-        offset (get-part-offset part)
-        spec (get-closest-spec world x y)
-        parent-name (:part spec)
-        parent (get-in world [:parts parent-name])
-        transform (spec->transform offset spec parent)]
-    (-> world
-        (assoc-in [:parts name] part)
-        (assoc-in [:parts name :transform] transform)
-        (create-relative-transform name parent-name))))
+  (if-let [anchor (get-anchor-point world x y)]
+    (let [part (create-part type color (:info world))
+          name (gen-keyword type)
+          offset (get-part-offset part)
+          parent-name (:part anchor)
+          parent (get-in world [:parts parent-name])
+          transform (anchor->transform offset anchor parent)]
+      (-> world
+          (assoc-in [:parts name] part)
+          (assoc-in [:parts name :transform] transform)
+          (create-relative-transform name parent-name)))
+    world))
 
 (defn insert-wagon [world color x y]
   (let [part-name (get-part-at world x y)]
@@ -91,24 +92,26 @@
         :sphere
         (insert-sphere world x y)))))
 
-(defn insert-mode-moved [world event]
-  (let [x (:x event)
-        y (:y event)]
-    (if-let [spec (get-closest-spec world x y)]
-      (let [color (if (= (get-in world [:parts (:part spec) :type]) :track)
-                    :yellow
-                    :black)
-            transform (make-transform (:position spec) (:rotation spec))]
-        (update-in world [:cursor] (fn [cursor]
-                                     (-> cursor
-                                         (assoc-in [:transform] transform)
-                                         (set-mesh-color color)))))
+;; (defn insert-mode-moved [world event]
+;;   ;; (let [x (:x event)
+;;   ;;       y (:y event)]
+;;   ;;   (if-let [spec (get-closest-spec world x y)]
+;;   ;;     (let [color (if (= (get-in world [:parts (:part spec) :type]) :track)
+;;   ;;                   :yellow
+;;   ;;                   :black)
+;;   ;;           transform (make-transform (:position spec) (:rotation spec))]
+;;   ;;       (update-in world [:cursor] (fn [cursor]
+;;   ;;                                    (-> cursor
+;;   ;;                                        (assoc-in [:transform] transform)
+;;   ;;                                        (set-mesh-color color)))))
 
-      (assoc-in world [:cursor :transform]
-                (make-transform [-1000 0 0] [1 0 0 0])))))
+;;   ;;     (assoc-in world [:cursor :transform]
+;;   ;;               (make-transform [-1000 0 0] [1 0 0 0]))))
+;;   world
+;;   )
 
-(defn draw-cursor! [world]
-  (when (and
-         (= (:mode world) :insert)
-         (not= (:insert-type world) :wagon))
-    (draw-mesh! world (:cursor world))))
+;; (defn draw-cursor! [world]
+;;   (when (and
+;;          (= (:mode world) :insert)
+;;          (not= (:insert-type world) :wagon))
+;;     (draw-mesh! world (:cursor world))))

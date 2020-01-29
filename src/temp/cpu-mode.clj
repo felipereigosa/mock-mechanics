@@ -27,59 +27,57 @@
       (println! "select a cpu")
       world)))
 
-;; (defn map-bindings [names values]
-;;   (flatten (vec (apply merge (map (fn [a b]
-;;                                     (if (= a '_)
-;;                                       nil
-;;                                       {a b}))
-;;                                   names values)))))
+(defn map-bindings [names values]
+  (flatten (vec (apply merge (map (fn [a b]
+                                    (if (= a '_)
+                                      nil
+                                      {a b}))
+                                  names values)))))
 
-;; (defn process-code [code inputs outputs]
-;;   (let [input-names (nth code 1)
-;;         output-names (nth code 2)
-;;         other (nthrest code 3)
-;;         input-bindings (map-bindings input-names inputs)
-;;         output-bindings (map-bindings output-names outputs)
-;;         helpers '[get-value (fn [name]
-;;                               (get-in @world [:parts name :value]))
-;;                   activate (fn [name]
-;;                              (update-thing! [] #(activate-chip % name)))
-;;                   chip-active? (fn [name]
-;;                                  (let [chip (get-thing! [:parts name])]
-;;                                    (not (= (:time chip) (:final-time chip)))))
-;;                   wait (fn [pred]
-;;                          (while (pred) (sleep 50)))]]
-;;     `(do
-;;        (require '[temp.core :refer :all])
+(defn process-code [code inputs outputs]
+  (let [input-names (nth code 1)
+        output-names (nth code 2)
+        other (nthrest code 3)
+        input-bindings (map-bindings input-names inputs)
+        output-bindings (map-bindings output-names outputs)
+        helpers '[get-value (fn [name]
+                              (get-in @world [:parts name :value]))
+                  activate (fn [name]
+                             (update-thing! [] #(activate-chip % name)))
+                  chip-active? (fn [name]
+                                 (let [chip (get-thing! [:parts name])]
+                                   (not (= (:time chip) (:final-time chip)))))
+                  wait (fn [pred]
+                         (while (pred) (sleep 50)))]]
+    `(do
+       (require '[temp.core :refer :all])
 
-;;        (let [~@input-bindings
-;;              ~@output-bindings
-;;              ~@helpers]
-;;          ~@other))))
+       (let [~@input-bindings
+             ~@output-bindings
+             ~@helpers]
+         ~@other))))
 
 (defn run-script! [world cpu-name pin-name]
-  ;; (let [cpu (get-in world [:parts cpu-name])
-  ;;       root (or (:root-filename cpu) "default")
-  ;;       filename (str "resources/scripts/" root ".clj")
-  ;;       inputs (map first (:inputs cpu))
-  ;;       outputs (map first (:outputs cpu))]
-  ;;   (if-let [text (try
-  ;;                   (read-string (slurp filename))
-  ;;                   (catch Exception e
-  ;;                     (println! "eof found on script")))]
-  ;;     (let [code (process-code text inputs outputs)]
-  ;;       (.start
-  ;;        (new Thread
-  ;;             (proxy [Runnable] []
-  ;;               (run []
-  ;;                 (try
-  ;;                   ((eval code) pin-name)
-  ;;                   (catch Exception e
-  ;;                     (do
-  ;;                       (println! "script failed")
-  ;;                       (println! (.getMessage e))))))))))))
-  (println! "run script")
-  )
+  (let [cpu (get-in world [:parts cpu-name])
+        root (or (:root-filename cpu) "default")
+        filename (str "resources/scripts/" root ".clj")
+        inputs (get-pin-list cpu :inputs)
+        outputs (get-pin-list cpu :outputs)]
+    (if-let [text (try
+                    (read-string (slurp filename))
+                    (catch Exception e
+                      (println! "eof found on script")))]
+      (let [code (process-code text inputs outputs)]
+        (.start
+         (new Thread
+              (proxy [Runnable] []
+                (run []
+                  (try
+                    ((eval code) pin-name)
+                    (catch Exception e
+                      (do
+                        (println! "script failed")
+                        (println! (.getMessage e)))))))))))))
 
 (defn run-selected-cpu [world]
   (if-let [selected-cpu (:selected-cpu world)]
@@ -88,32 +86,30 @@
       world)
     world))
 
-;; (defn input-value-changed [world cpu-name input-name]
-;;   (run-script! world cpu-name input-name)
-;;   world)
+(defn input-value-changed [world cpu-name input-name]
+  (run-script! world cpu-name input-name)
+  world)
 
-;; (defn cpu-input-changes [world cpu-name]
-;;   (let [cpu (get-in world [:parts cpu-name])]
-;;     ;; (reduce (fn [w [input-name old-value]]
-;;     ;;           (let [new-value (get-in world [:parts input-name :value])]
-;;     ;;             (if (= new-value old-value)
-;;     ;;               w
-;;     ;;               (-> w
-;;     ;;                   (input-value-changed cpu-name input-name)
-;;     ;;                   (assoc-in [:parts cpu-name
-;;     ;;                              :inputs input-name] new-value)))))
-;;     ;;         world
-;;     ;;         (:inputs cpu))
-;;     world
-;;     ))
+(defn cpu-input-changes [world cpu-name]
+  (let [cpu (get-in world [:parts cpu-name])]
+    (reduce (fn [w [name input]]
+              (let [old-value (get-in world [:parts cpu-name
+                                             :inputs name :value])
+                    new-value (get-in world [:parts name :value])]
+                (if (= new-value old-value)
+                  w
+                  (-> w
+                      (input-value-changed cpu-name name)
+                      (assoc-in [:parts cpu-name
+                                 :inputs name :value] new-value)))))
+            world
+            (:inputs cpu))))
 
 (defn cpus-input-changes [world]
-  ;; (reduce (fn [w cpu-name]
-  ;;           (cpu-input-changes w cpu-name))
-  ;;         world
-  ;;         (get-parts-with-type (:parts world) :cpu))
-  world
-  )
+  (reduce (fn [w cpu-name]
+            (cpu-input-changes w cpu-name))
+          world
+          (get-parts-with-type (:parts world) :cpu)))
 
 (defn get-pin-list [cpu type]
   (map first (sort-by #(:index (second %)) (get cpu type))))
@@ -194,17 +190,20 @@
           world))
       world)))
 
-(defn normalize-indices [world cpu-name which]
-  (let [cpu (get-in world [:parts cpu-name])
-        new-indices (apply merge (map (fn [a b]
+(defn set-order [m v]
+  (let [indices-map (apply merge (map (fn [a b]
                                         {a b})
-                                      (get-pin-list cpu which)
-                                      (range)))]
-    (assoc-in world [:parts cpu-name which]
-              (map-map (fn [[name pin]]
-                         {name (assoc-in pin [:index]
-                                         (get new-indices name))})
-                       (get-in world [:parts cpu-name which])))))
+                                      v
+                                      (range (count v))))]
+     (map-map (fn [[key value]]
+                (let [new-index (get indices-map key)]
+                  {key (assoc-in value [:index] new-index)}))
+              m)))
+
+(defn normalize-indices [world cpu-name which]
+  (let [cpu (get-in world [:parts cpu-name])]
+    (update-in world [:parts cpu-name which]
+               #(set-order % (get-pin-list cpu which)))))
 
 (defn add-remove [world cpu-name from part-name]
   (let [cpu (get-in world [:parts cpu-name])
@@ -256,6 +255,8 @@
         (cpu-change-part world x y))
       (select-cpu world x y))))
 
+
+
 (defn rearrange-selected [world event]
   (if-let [selected-pin (:selected-pin world)]
     (let [x (:x event)
@@ -264,24 +265,14 @@
           cpu (get-in world [:parts cpu-name])
           mid (* (get-in world [:cpu-box :w]) 0.5)
           type (if (< x mid) :inputs :outputs)
-          ;; index (if (= type :inputs)
-          ;;         (int (/ (- (:x event) 30) 30))
-          ;;         (int (/ (- (:x event) 30 mid) 30)))
-          ;; cpu-name (:selected-cpu world)
-          ;; names (keys (get-in world [:parts cpu-name type]))
-          ;; to-index (within index 0 (dec (count names)))
-          ;; from-index (:selected-index world)
-          ;; vector (get-in world [:parts cpu-name type])
-          
           from-index (get-in cpu [type selected-pin :index])
-          to-index 0 ;;#################################
-          ]
-      ;; (assoc-in world [:parts cpu-name type]
-      ;;           (vector-insert (vector-remove vector from-index)
-      ;;                          (nth vector from-index) to-index))
-      
-      (println! "rearrange" selected-pin from-index)
-      world)
+          values (get-in world [:parts cpu-name type])
+          to-index (if (= type :inputs)
+                     (within (int (/ (- (:x event) 27) 30)) 0 (dec (count values)))
+                     (within (int (/ (- (:x event) mid 20) 30)) 0 (dec (count values))))
+          new-order (vector-insert (vector-remove (get-pin-list cpu type) from-index)
+                                   selected-pin to-index)]
+      (update-in world [:parts cpu-name type] #(set-order % new-order)))
     world))
 
 (defn cpu-mode-released [world event]
@@ -289,40 +280,12 @@
       (rearrange-selected event)
       (dissoc-in [:selected-pin])))
 
+(clear-output!)
 (redraw!)
+(cpu-input-changes @world :cpu8685)
 )
 
-;; (do
-;;   (clear-output!)
-;;   (println! (get-thing! [:parts :cpu8685 :inputs])))
+(println! (get-thing! [:parts :cpu8685 :inputs]))
 
-;; (set-thing! [:parts :cpu8685 :inputs]
-;;             {:button8684 {:value 0
-;;                           :index 1}
-;;              :probe8682 {:value 0
-;;                          :index 0}})
+(set-thing! [:parts :cpu8685 :inputs] {})
 
-;; (set-thing! [:parts :cpu8685 :outputs]
-;;             {:chip8669 {:value 0
-;;                           :index 0}
-;;              :chip8670 {:value 0
-;;                          :index 1}
-;;              })
-
-
-;; (set-thing! [:selected-pin] :chip8670)
-
-
-;; (do
-;; 1
-
-
-;; (set-thing! [:parts :cpu8685 :inputs]
-;;             {:button8684 {:value 0
-;;                           :index 20}
-;;              :probe8682 {:value 0
-;;                          :index 7}})
-
-;; (println! (get-in (normalize-indices @world :cpu8685 :inputs)
-;;                   [:parts :cpu8685 :inputs]))
-;; nil)

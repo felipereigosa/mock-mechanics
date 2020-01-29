@@ -20,8 +20,8 @@
 (load "mechanical-tree")
 (load "undo")
 (load "persistence")
-(load "place-specs")
 (load "value-force")
+(load "anchors")
 (load "modes")
 (load "commands")
 (load "track-loop")
@@ -46,8 +46,6 @@
                                 })
         (assoc-in [:cpu-box] {:x 343 :y 530 :w 685 :h 150})
         (update-move-plane)
-        (assoc-in [:cursor] (create-cone-mesh [0 -5 0] [1 0 0 0]
-                                              [0.05 0.1 0.05] :black))
         (assoc-in [:command] "")
         (assoc-in [:mode] :idle)
         (assoc-in [:bindings] (get-bindings))
@@ -105,15 +103,15 @@
   (doseq [mesh (vals (:meshes world))]
     (draw-mesh! world mesh))
 
+  (if (> (get-in world [:camera :x-angle]) 0)
+    (draw-mesh! world (:walls world)))
+  
   (if (:use-weld-groups world)
     (doseq [group (vals (:weld-groups world))]
       (draw-mesh! world group))
     (doseq [part (vals (:parts world))]
       (draw-part! world part))
     )
-
-  (if (> (get-in world [:camera :x-angle]) 0)
-    (draw-mesh! world (:walls world)))
   
   (if-let [edited-part (:edited-part world)]
     (let [part (get-in world [:parts edited-part])]
@@ -131,7 +129,6 @@
     (draw-mesh! world (:selected-mesh world)))
 
   (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
-  (draw-cursor! world)
   (draw-debug-meshes!)
   )
 
@@ -160,7 +157,6 @@
     (cond
       (in? (:button event) [:middle :right])
       (assoc-in world [:last-point] [x y])
-
       :else
       (mode-mouse-pressed world event))))
 
@@ -171,7 +167,6 @@
       (= (:button event) :right) (mouse-rotate world event)
       (= (:button event) :middle) (mouse-pan world event)
       :else world)
-
     :else
     (mode-mouse-moved world event)))
 
@@ -181,14 +176,9 @@
                 (-> world
                     (dissoc-in [:last-point])
                     (update-move-plane))
-
                 :else
-                (mode-mouse-released world event)
-                )]
+                (mode-mouse-released world event))]
     (draw-2d! world)
     (-> world
         (prepare-tree)
-        (save-checkpoint!)
-        )))
-
-
+        (save-checkpoint!))))

@@ -7,7 +7,7 @@
 (defn get-bindings []
   {"C-d" #(change-mode % :debug)
    
-   "C-i" #(change-mode % :insert)
+   "C-a" #(change-mode % :insert)
    ":insert b" #(assoc-in % [:insert-type] :block)
    ":insert w" #(assoc-in % [:insert-type] :wagon)
    ":insert t" #(assoc-in % [:insert-type] :track)
@@ -23,6 +23,7 @@
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)
    ":edit s" #(assoc-in % [:edit-subcommand] :scale)
    ":edit m" #(assoc-in % [:edit-subcommand] :move)
+   ":edit t" #(assoc-in % [:edit-subcommand] :translate)
    ":edit c" #(assoc-in % [:edit-subcommand] :copy)
    ":edit r" #(assoc-in % [:edit-subcommand] :rotate)
    ":edit y" #(assoc-in % [:edit-subcommand] :sink)
