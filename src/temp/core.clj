@@ -153,7 +153,8 @@
 
 (defn mouse-pressed [world event]
   (let [x (:x event)
-        y (:y event)]
+        y (:y event)
+        world (assoc-in world [:press-time] (get-current-time))]
     (cond
       (in? (:button event) [:middle :right])
       (assoc-in world [:last-point] [x y])
@@ -171,7 +172,12 @@
     (mode-mouse-moved world event)))
 
 (defn mouse-released [world event]
-  (let [world (cond
+  (let [elapsed (- (get-current-time) (:press-time world))
+        world (if (and (< elapsed 200)
+                       (= (:button event) :right))
+                (set-pivot world event)
+                world)
+        world (cond
                 (not-nil? (:last-point world))
                 (-> world
                     (dissoc-in [:last-point])

@@ -43,25 +43,47 @@
 (defn get-block-anchor-point [world collision]
   (let [block-name (:part-name collision)
         block (get-in world [:parts block-name])
-        local-normal (get-collision-normal world collision)
-        plane (get-block-plane block local-normal)
+        normal (get-collision-normal world collision)
+        plane (get-block-plane block normal)
         transform (:transform block)
-        rotation-transform (get-rotation-component transform)
-        global-normal (apply-transform rotation-transform local-normal)
-        rotation (quaternion-from-normal global-normal)
-        point (get-normalized-plane-point plane (:point collision) 0.2)]
+        parent-rotation (get-rotation-component transform)
+        normal-rotation (make-transform [0 0 0]
+                                        (quaternion-from-normal normal))
+        point (get-normalized-plane-point plane (:point collision) 0.2)
+        rotation (get-transform-rotation
+                  (combine-transforms normal-rotation parent-rotation))]
     {:position point
      :rotation rotation
      :part block-name}))
 
+(defn get-cylinder-anchor-point [world collision]
+  (let [cylinder-name (:part-name collision)
+        cylinder (get-in world [:parts cylinder-name])
+        normal (get-collision-normal world collision)]
+    (if (vector= (vector-normalize normal) [0 1 0])
+      (let [plane (get-block-plane cylinder normal)
+            transform (:transform cylinder)
+            parent-rotation (get-rotation-component transform)
+            normal-rotation (make-transform [0 0 0]
+                                            (quaternion-from-normal normal))
+            point (get-normalized-plane-point plane (:point collision) 0.2)
+            rotation (get-transform-rotation
+                      (combine-transforms normal-rotation parent-rotation))]
+        {:position point
+         :rotation rotation
+         :part cylinder-name})
+      nil)))
+
 (defn get-track-anchor-point [world collision]
   (let [track-name (:part-name collision)
         track (get-in world [:parts track-name])
-        local-normal (get-collision-normal world collision)
+        normal (get-collision-normal world collision)
         transform (:transform track)
-        rotation-transform (get-rotation-component transform)
-        global-normal (apply-transform rotation-transform local-normal)
-        rotation (quaternion-from-normal global-normal)]
+        parent-rotation (get-rotation-component transform)
+        normal-rotation (make-transform [0 0 0]
+                                        (quaternion-from-normal normal))
+        rotation (get-transform-rotation
+                  (combine-transforms normal-rotation parent-rotation))]
     {:position [0 0 0]
      :rotation rotation
      :part track-name}))
@@ -82,6 +104,9 @@
       (cond
         (in? type [:wagon :block])
         (get-block-anchor-point world collision)
+
+        (= type :cylinder)
+        (get-cylinder-anchor-point world collision)
         
         (= type :track)
         (get-track-anchor-point world collision)))

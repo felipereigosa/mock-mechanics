@@ -1,9 +1,6 @@
 
 (ns temp.core)
 
-(do
-1
-
 (defn load-script [world]
   (if-let [selected-cpu (:selected-cpu world)]
     (read-input
@@ -56,6 +53,9 @@
              ~@output-bindings
              ~@helpers]
          ~@other))))
+
+(defn get-pin-list [cpu type]
+  (map first (sort-by #(:index (second %)) (get cpu type))))
 
 (defn run-script! [world cpu-name pin-name]
   (let [cpu (get-in world [:parts cpu-name])
@@ -110,9 +110,6 @@
             (cpu-input-changes w cpu-name))
           world
           (get-parts-with-type (:parts world) :cpu)))
-
-(defn get-pin-list [cpu type]
-  (map first (sort-by #(:index (second %)) (get cpu type))))
 
 (defn draw-selected-pin [world]
   (if-let [pin-name (:selected-pin world)]
@@ -279,13 +276,3 @@
   (-> world
       (rearrange-selected event)
       (dissoc-in [:selected-pin])))
-
-(clear-output!)
-(redraw!)
-(cpu-input-changes @world :cpu8685)
-)
-
-(println! (get-thing! [:parts :cpu8685 :inputs]))
-
-(set-thing! [:parts :cpu8685 :inputs] {})
-

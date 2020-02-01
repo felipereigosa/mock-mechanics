@@ -25,6 +25,9 @@
           (create-relative-transform name parent-name)))
     world))
 
+(declare create-sphere)
+(declare set-wagon-loop)
+
 (defn insert-wagon [world color x y]
   (let [part-name (get-part-at world x y)]
     (if (and (not-nil? part-name)
@@ -39,8 +42,6 @@
                       (make-transform [0 0 0] [1 0 0 0]))
             (set-wagon-loop name part-name)))
       world)))
-
-(declare create-sphere)
 
 (defn insert-sphere [world x y]
   (if-let [collision (get-part-collision world x y)]
@@ -91,27 +92,3 @@
 
         :sphere
         (insert-sphere world x y)))))
-
-;; (defn insert-mode-moved [world event]
-;;   ;; (let [x (:x event)
-;;   ;;       y (:y event)]
-;;   ;;   (if-let [spec (get-closest-spec world x y)]
-;;   ;;     (let [color (if (= (get-in world [:parts (:part spec) :type]) :track)
-;;   ;;                   :yellow
-;;   ;;                   :black)
-;;   ;;           transform (make-transform (:position spec) (:rotation spec))]
-;;   ;;       (update-in world [:cursor] (fn [cursor]
-;;   ;;                                    (-> cursor
-;;   ;;                                        (assoc-in [:transform] transform)
-;;   ;;                                        (set-mesh-color color)))))
-
-;;   ;;     (assoc-in world [:cursor :transform]
-;;   ;;               (make-transform [-1000 0 0] [1 0 0 0]))))
-;;   world
-;;   )
-
-;; (defn draw-cursor! [world]
-;;   (when (and
-;;          (= (:mode world) :insert)
-;;          (not= (:insert-type world) :wagon))
-;;     (draw-mesh! world (:cursor world))))
