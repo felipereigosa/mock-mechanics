@@ -18,6 +18,7 @@
              [0 0 0.5] [0 0 -0.5]]
     :scale [0.5 0.5 0.5]
     :direction :input
+    :color :white
     }
 
    :cylinder
@@ -27,6 +28,7 @@
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
     :direction :input
+    :color :orange
     }
 
    :cone
@@ -36,6 +38,7 @@
     :points []
     :scale [0.5 0.5 0.5]
     :direction :input
+    :color :green
     }
 
    :wagon
@@ -46,6 +49,7 @@
              [0 0 0.5] [0 0 -0.5]]
     :scale [0.5 0.5 0.5]
     :direction nil
+    :color :yellow
     }
 
    :probe
@@ -54,6 +58,7 @@
     :points []
     :scale [0.1 0.1 0.1]
     :direction :input
+    :color :purple
     }
 
    :track
@@ -65,6 +70,7 @@
              ]
     :scale [0.1 1 0.1]
     :direction :output
+    :color :red
     }
 
    :chip
@@ -73,6 +79,7 @@
     :points []
     :scale [0.3 0.1 0.3]
     :direction :output
+    :color :gray
     }
 
    :cpu
@@ -81,6 +88,7 @@
     :points []
     :scale [0.3 0.1 0.3]
     :direction :output
+    :color :blue
     }
 
    :button
@@ -89,8 +97,8 @@
     :points []
     :scale [0.5 0.2 0.5]
     :direction :input
+    :color :black
     }})
-
 
 (defn create-part [type color info]
   (let [part {:type type
@@ -290,11 +298,34 @@
 (declare compute-transforms)
 
 (defn prepare-tree [world]
-  (-> world
-      (compute-transforms :parts)
-      (create-weld-groups)))
+  (if (= (:mode world) :idle)
+    world
+    (-> world
+        (compute-transforms :parts)
+        (create-weld-groups))))
 
 (defn get-part-offset [part]
   (if (= (:type part) :track)
     (second (:scale part))
     (* 0.5 (second (:scale part)))))
+
+(defn set-pivot [world event]
+  (let [x (:x event)
+        y (:y event)
+        part-name (get-part-at world x y)
+        part (get-in world [:parts part-name])
+        pos (cond
+              (nil? part-name)
+              (let [line (unproject-point world [x y])
+                    ground-plane [[0 0 0] [1 0 0] [0 0 1]]]
+                (line-plane-intersection line ground-plane))
+
+              (= (:type part) :track)
+              (get-transform-position (get-tail-transform part))
+              
+              :else
+              (get-part-position world part-name))]
+    (compute-camera (assoc-in world [:camera :pivot] pos))))
+
+
+

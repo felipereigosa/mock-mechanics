@@ -1,55 +1,58 @@
 
 (ns temp.core)
 
-(load "edit/delete")
 (load "edit/move")
-(load "edit/translate")
+(load "edit/sink")
+(load "edit/rotate")
+(load "edit/delete")
 (load "edit/scale")
 (load "edit/copy")
-(load "edit/sink")
+(load "edit/translate")
 
 (defn edit-mode-draw [world]
-  (fill-rect! :gray 100 555 100 100)
-  (draw-text! :black "edit" 70 560 30)
-  )
+  (let [{:keys [image x y]} (:edit-menu world)]
+    (draw-image! image x y))
 
-(defn rotate-part [world event]
-  (if-let [part-name (get-part-at world (:x event) (:y event))]
-    (let [part (get-in world [:parts part-name])
-          transform (:transform part)
-          rotation (make-transform [0 0 0] [0 1 0 90])
-          transform (combine-transforms rotation transform)
-          parent-name (get-parent-part world part-name)]
-      (-> world
-          (assoc-in [:parts part-name :transform] transform)
-          (create-relative-transform part-name parent-name)))
-    world))
+  (let [box (get-in world [:edit-menu :regions
+                           (:edit-subcommand world)])
+        {:keys [x y w h]} box]
+    (dotimes [i 3]
+      (draw-rect! :black x y (- w i) (- h i)))))
 
 (defn edit-mode-pressed [world event]
-  (let [x (:x event)
-        y (:y event)]
-    (case (:edit-subcommand world)
-      :move (move-mode-pressed world event)
-      :translate (translate-mode-pressed world event)
-      :sink (sink-mode-pressed world event)
-      :copy (copy-mode-pressed world event)
-      :scale (scale-mode-pressed world event)
-      :delete (delete-mode-pressed world event)
-      :rotate (rotate-part world event)
-      world)))
+  (let [{:keys [x y]} event]
+    (if-let [region (get-region-at (:edit-menu world) x y)]
+      (-> world
+          (assoc-in [:edit-subcommand] region)
+          (assoc-in [:region-pressed] true))
+      (case (:edit-subcommand world)
+        :move (move-mode-pressed world event)
+        :sink (sink-mode-pressed world event)
+        :rotate (rotate-mode-pressed world event)
+        :delete (delete-mode-pressed world event)
+        :scale (scale-mode-pressed world event)
+        :copy (copy-mode-pressed world event)
+        :translate (translate-mode-pressed world event)
+        world))))
 
 (defn edit-mode-moved [world event]
-  (case (:edit-subcommand world)
-    :move (move-mode-moved world event)
-    :sink (sink-mode-moved world event)
-    :scale (scale-mode-moved world event)
-    world))
+  (if (:region-pressed world)
+    world
+    (case (:edit-subcommand world)
+      :move (move-mode-moved world event)
+      :rotate (rotate-mode-moved world event)
+      :sink (sink-mode-moved world event)
+      :scale (scale-mode-moved world event)
+      world)))
 
 (defn edit-mode-released [world event]
-  (case (:edit-subcommand world)
-    :move (move-mode-released world event)
-    :translate (translate-mode-released world event)
-    :sink (sink-mode-released world event)
-    :copy (copy-mode-released world event)
-    :scale (scale-mode-released world event)
-    world))
+  (if (:region-pressed world)
+    (dissoc-in world [:region-pressed])
+    (case (:edit-subcommand world)
+      :move (move-mode-released world event)
+      :rotate (rotate-mode-released world event)
+      :translate (translate-mode-released world event)
+      :sink (sink-mode-released world event)
+      :copy (copy-mode-released world event)
+      :scale (scale-mode-released world event)
+      world)))

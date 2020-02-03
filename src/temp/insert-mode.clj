@@ -62,33 +62,13 @@
         y (:y event)]
     (if-let [region (get-region-at (:insert-menu world) x y)]
       (assoc-in world [:insert-type] region)
-      (case (:insert-type world)
-        :block
-        (insert-part world :block :white x y)
+      (let [type (:insert-type world)
+            color (get-in world [:info type :color])]
+        (case (:insert-type world)
+          :wagon
+          (insert-wagon world color x y)
 
-        :cylinder
-        (insert-part world :cylinder :orange x y)
-
-        :cone
-        (insert-part world :cone :green x y)
-
-        :track
-        (insert-part world :track :red x y)
-
-        :wagon
-        (insert-wagon world :yellow x y)
-
-        :chip
-        (insert-part world :chip :gray x y)
-
-        :cpu
-        (insert-part world :cpu :blue x y)
-
-        :probe
-        (insert-part world :probe :purple x y)
-
-        :button
-        (insert-part world :button :black x y)
-
-        :sphere
-        (insert-sphere world x y)))))
+          :sphere
+          (insert-sphere world x y)
+          
+          (insert-part world type color x y))))))

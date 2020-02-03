@@ -26,7 +26,7 @@
    ":edit t" #(assoc-in % [:edit-subcommand] :translate)
    ":edit c" #(assoc-in % [:edit-subcommand] :copy)
    ":edit r" #(assoc-in % [:edit-subcommand] :rotate)
-   ":edit y" #(assoc-in % [:edit-subcommand] :sink)
+   ":edit y" #(assoc-in % [:edit-subcommand] :sink)          
 
    "C-w" #(change-mode % :graph)
    ":graph m" #(assoc-in % [:graph-subcommand] :move)

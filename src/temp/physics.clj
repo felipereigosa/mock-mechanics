@@ -132,10 +132,10 @@
                         (distance position eye)))
                     spheres))))
 
-(defn is-physical-part? [[name part]] ;;###########################
+(defn is-physical-part? [[name part]]
   (and
    (in? (:type part) [:block :wagon])
-   (= (:color part) :yellow)))
+   (:physics part)))
 
 (defn compute-kinematic-body [part-name parts groups]
   (let [part (get-in parts [part-name])

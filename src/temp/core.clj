@@ -53,8 +53,13 @@
         (assoc-in [:color-palette]
                   (create-image "resources/colors.svg" 340 585 -1 40))
         (assoc-in [:insert-menu]
-                  (create-image "resources/insert.svg" 340 563 -1 85))
+                  (create-image "resources/insert-menu.svg" 340 563 -1 85))
         (assoc-in [:insert-type] :block)
+
+        (assoc-in [:edit-menu]
+                  (create-image "resources/edit-menu.svg" 490 555 -1 120))
+        (assoc-in [:edit-subcommand] :move)
+        
         (assoc-in [:selected-mesh]
                   (create-wireframe-cube [0 0.52 0] [1 0 0 0]
                                          [0.3001 0.1001 0.3001] :white))

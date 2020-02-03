@@ -4,23 +4,12 @@
 (declare get-sphere-at)
 (declare delete-sphere)
 
-(defn remove-connections [world parent-name part-name from]
-  (let [parent (get-in world [:parts parent-name])]
-    (if (= (:type parent) :cpu)
-      (update-in world [:parts parent-name from]
-                 (fn [v]
-                   (let [index (.indexOf (map first v) part-name)]
-                     (if (not (= index -1))
-                       (vector-remove v index)
-                       v))))
-      world)))
-
 (defn forget-part [world parent-name part-name]
   (-> world
       (dissoc-in [:parts parent-name :children part-name])
-      (dissoc-in [:parts parent-name :functions part-name])
-      (remove-connections parent-name part-name :inputs)
-      (remove-connections parent-name part-name :outputs)))
+      (dissoc-in [:parts parent-name :inputs part-name])
+      (dissoc-in [:parts parent-name :outputs part-name])
+      (dissoc-in [:parts parent-name :functions part-name])))
 
 (defn unselect-part [world part-name]
   (cond

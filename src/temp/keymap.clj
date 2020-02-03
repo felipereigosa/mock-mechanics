@@ -6,7 +6,7 @@
 (def keymap {GLFW/GLFW_KEY_SPACE                   nil
              GLFW/GLFW_KEY_APOSTROPHE              nil
              GLFW/GLFW_KEY_COMMA                   ","
-             GLFW/GLFW_KEY_MINUS                   nil
+             GLFW/GLFW_KEY_MINUS                   "-"
              GLFW/GLFW_KEY_PERIOD                  "."
              GLFW/GLFW_KEY_SLASH                   "/"
              GLFW/GLFW_KEY_0                       "0"

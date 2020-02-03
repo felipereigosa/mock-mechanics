@@ -9,7 +9,6 @@
 (load "cpu-mode")
 (load "insert-mode")
 (load "color-mode")
-(load "pivot-mode")
 
 (defn get-function [mode function]
   (resolve (symbol (str "temp.core/"

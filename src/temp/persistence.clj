@@ -42,10 +42,11 @@
                          {name (get-simple-part part)})
                        (:parts world))]
     (spit filename {:ground-children ground-children
-                    :parts parts})))
+                    :parts parts
+                    :camera (:camera world)})))
 
 (defn load-machine [world filename]
-  (let [{:keys [ground-children parts graph-box]} (read-string (slurp filename))
+  (let [{:keys [ground-children parts camera]} (read-string (slurp filename))
         ground-children (map-map (fn [[name transform]]
                                    {name (get-complex-transform transform)})
                                  ground-children)
@@ -55,6 +56,8 @@
     (-> world
         (assoc-in [:ground-children] ground-children)
         (assoc-in [:parts] parts)
+        (assoc-in [:camera] camera)
+        (compute-camera)
         (compute-transforms :parts)
         (create-weld-groups))))
 
