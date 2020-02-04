@@ -6,7 +6,11 @@
                                (:current-color world) :color])
         color (new Color r g b)]
     (if-let [part-name (get-part-at world x y)]
-      (assoc-in world [:parts part-name :color] color)
+      (let [part (get-in world [:parts part-name])]
+        (if (in? (:type part) [:button :lamp])
+          (assoc-in world [:parts part-name :other-color]
+                    [(/ r 255.0) (/ g 255.0) (/ b 255.0) 1])
+          (assoc-in world [:parts part-name :color] color)))
       world)))
 
 (defn color-mode-draw [world]

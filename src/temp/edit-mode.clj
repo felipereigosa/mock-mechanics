@@ -29,7 +29,6 @@
         :move (move-mode-pressed world event)
         :sink (sink-mode-pressed world event)
         :rotate (rotate-mode-pressed world event)
-        :delete (delete-mode-pressed world event)
         :scale (scale-mode-pressed world event)
         :copy (copy-mode-pressed world event)
         :translate (translate-mode-pressed world event)
@@ -55,4 +54,5 @@
       :sink (sink-mode-released world event)
       :copy (copy-mode-released world event)
       :scale (scale-mode-released world event)
+      :delete (delete-mode-released world event)              
       world)))

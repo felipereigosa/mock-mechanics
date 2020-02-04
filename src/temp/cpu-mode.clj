@@ -39,6 +39,10 @@
         output-bindings (map-bindings output-names outputs)
         helpers '[get-value (fn [name]
                               (get-in @world [:parts name :value]))
+
+                  set-value (fn [name value]
+                              (set-thing! [:parts name :value] value))
+                  
                   activate (fn [name]
                              (update-thing! [] #(activate-chip % name)))
                   chip-active? (fn [name]

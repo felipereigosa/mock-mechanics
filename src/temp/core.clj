@@ -59,12 +59,12 @@
         (assoc-in [:edit-menu]
                   (create-image "resources/edit-menu.svg" 490 555 -1 120))
         (assoc-in [:edit-subcommand] :move)
-        
+
         (assoc-in [:selected-mesh]
                   (create-wireframe-cube [0 0.52 0] [1 0 0 0]
                                          [0.3001 0.1001 0.3001] :white))
         (assoc-in [:use-weld-groups] true)
-        
+
         (assoc-in [:planet] (create-planet))
         (update-in [:planet] create-ground)
         (assoc-in [:sphere-radius] r)
@@ -73,6 +73,10 @@
         (assoc-in [:spheres] [])
         (assoc-in [:button-mesh] (create-cylinder-mesh [0 0 0] [1 0 0 0]
                                                        [0.2 0.2 0.2] :red))
+
+        (assoc-in [:lamp-mesh] (create-model-mesh "resources/lamp.obj"
+                                                  [0 0 0] [1 0 0 0]
+                                                  [0.3 0.3 0.3] :red))
 
         (assoc-in [:graph-snap-value] 0.1)
 
@@ -110,19 +114,20 @@
 
   (if (> (get-in world [:camera :x-angle]) 0)
     (draw-mesh! world (:walls world)))
-  
+
   (if (:use-weld-groups world)
     (doseq [group (vals (:weld-groups world))]
       (draw-mesh! world group))
     (doseq [part (vals (:parts world))]
       (draw-part! world part))
     )
-  
+
   (if-let [edited-part (:edited-part world)]
     (let [part (get-in world [:parts edited-part])]
       (draw-part! world part)))
 
   (draw-buttons! world)
+  (draw-lamps! world)
   (draw-spheres! world)
 
   (if (or (and
@@ -163,6 +168,7 @@
     (cond
       (in? (:button event) [:middle :right])
       (assoc-in world [:last-point] [x y])
+
       :else
       (mode-mouse-pressed world event))))
 

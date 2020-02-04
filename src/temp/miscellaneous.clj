@@ -98,7 +98,17 @@
     :scale [0.5 0.2 0.5]
     :direction :input
     :color :black
-    }})
+    }
+
+   :lamp
+   {:model (create-cylinder-mesh [0 0 0] [1 0 0 0]
+                                 [1 1 1] :white)
+    :points []
+    :scale [0.2 0.2 0.2]
+    :direction :output
+    :color :black
+    }
+   })
 
 (defn create-part [type color info]
   (let [part {:type type
@@ -285,12 +295,33 @@
             property (nth (get-in world [:properties])
                           (:selected-property world))
             color (if (not= (:mode world) :toggle)
-                    [1 0 0 1]
+                    (or (:other-color button) [1 0 0 1])
                     (if (get-in button [property])
                       [1 0 0 1]
                       [1 1 1 1]))
             mesh (-> (:button-mesh world)
                      (assoc-in [:transform] transform)
+                     (assoc-in [:color] color))]
+        (draw-mesh! world mesh)))))
+
+(defn draw-lamps! [world]
+  (let [lamp-names (get-parts-with-type (:parts world) :lamp)]
+    (doseq [lamp-name lamp-names]
+      (let [lamp (get-in world [:parts lamp-name])
+            base-transform (:transform lamp)
+            property (nth (get-in world [:properties])
+                          (:selected-property world))
+            other-color (or (:other-color lamp) [1 0 0 1])
+            other-color (if (= (:value lamp) 1)
+                          other-color
+                          (darker-color other-color))
+            color (if (not= (:mode world) :toggle)
+                    other-color                      
+                    (if (get-in lamp [property])
+                      [1 0 0 1]
+                      [1 1 1 1]))
+            mesh (-> (:lamp-mesh world)
+                     (assoc-in [:transform] base-transform)
                      (assoc-in [:color] color))]
         (draw-mesh! world mesh)))))
 

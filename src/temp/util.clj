@@ -101,6 +101,20 @@
 (defn get-blue [color]
   (.getBlue color))
 
+(defn get-color-vector [color-name]
+  (let [color (get-color color-name)
+        r (/ (get-red color) 255.0)
+        g (/ (get-green color) 255.0)
+        b (/ (get-blue color) 255.0)]
+    [r g b 1.0]))
+
+(defn darker-color [[r g b _]]
+  (let [factor 0.4]
+    [(within (* r factor) 0 1)
+     (within (* g factor) 0 1)
+     (within (* b factor) 0 1)
+     1]))
+
 (defn near-zero? [value]
   (< (abs value) 0.001))
 

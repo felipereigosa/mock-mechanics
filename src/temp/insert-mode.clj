@@ -57,12 +57,15 @@
           position (vector-add point offset)]
       (create-sphere world position))))
 
-(defn insert-mode-pressed [world event]
+(defn insert-mode-released [world event]
   (let [x (:x event)
         y (:y event)]
     (if-let [region (get-region-at (:insert-menu world) x y)]
       (assoc-in world [:insert-type] region)
       (let [type (:insert-type world)
+            type (if (= type :cone)
+                   :lamp
+                   type) ;;#########################
             color (get-in world [:info type :color])]
         (case (:insert-type world)
           :wagon

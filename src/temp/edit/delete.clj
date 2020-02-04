@@ -34,7 +34,7 @@
         (unselect-part part-name)
         (dissoc-in [:parts part-name]))))
 
-(defn delete-mode-pressed [world event]
+(defn delete-mode-released [world event]
   (let [x (:x event)
         y (:y event)]
     (if-let [sphere (get-sphere-at world x y)]
