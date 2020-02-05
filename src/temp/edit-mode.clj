@@ -10,6 +10,8 @@
 (load "edit/translate")
 
 (defn edit-mode-draw [world]
+  (fill-rect! (make-color 70 70 70) 330 580 800 150)
+  
   (let [{:keys [image x y]} (:edit-menu world)]
     (draw-image! image x y))
 

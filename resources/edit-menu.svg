@@ -9,9 +9,9 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="629.70837mm"
-   height="76.351196mm"
-   viewBox="0 0 629.70837 76.351196"
+   width="415.01788mm"
+   height="52.160713mm"
+   viewBox="0 0 415.01788 52.160713"
    version="1.1"
    id="svg8"
    inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
@@ -20,17 +20,17 @@
      id="defs2">
     <inkscape:perspective
        sodipodi:type="inkscape:persp3d"
-       inkscape:vp_x="-13.214106 : 84.700725 : 1"
-       inkscape:vp_y="0 : 1000 : 0"
-       inkscape:vp_z="595.55159 : 173.47614 : 1"
-       inkscape:persp3d-origin="309.56251 : 79.500996 : 1"
+       inkscape:vp_x="-13.214106 : 84.700722 : 1"
+       inkscape:vp_y="0 : 999.99997 : 0"
+       inkscape:vp_z="595.55161 : 173.47613 : 1"
+       inkscape:persp3d-origin="309.56252 : 79.500994 : 1"
        id="perspective1501" />
     <inkscape:perspective
        id="perspective1501-7"
-       inkscape:persp3d-origin="309.56251 : 79.500996 : 1"
-       inkscape:vp_z="595.55159 : 173.47614 : 1"
-       inkscape:vp_y="0 : 1000 : 0"
-       inkscape:vp_x="-13.214106 : 84.700725 : 1"
+       inkscape:persp3d-origin="309.56252 : 79.500994 : 1"
+       inkscape:vp_z="595.55161 : 173.47613 : 1"
+       inkscape:vp_y="0 : 999.99997 : 0"
+       inkscape:vp_x="-13.214106 : 84.700722 : 1"
        sodipodi:type="inkscape:persp3d" />
   </defs>
   <sodipodi:namedview
@@ -41,8 +41,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.35"
-     inkscape:cx="923.50041"
-     inkscape:cy="197.08213"
+     inkscape:cx="974.92894"
+     inkscape:cy="151.36783"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -66,7 +66,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -74,15 +74,8 @@
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
      id="layer1"
-     transform="translate(80.130943,-60.386906)"
+     transform="translate(63.499981,-72.482147)"
      style="display:inline">
-    <rect
-       style="fill:#666666;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="rect815"
-       width="541.26196"
-       height="63.500004"
-       x="-80.130943"
-       y="67.190475" />
     <rect
        style="fill:#999999;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        id="rect817"
@@ -701,7 +694,8 @@
      inkscape:groupmode="layer"
      id="layer2"
      inkscape:label="regions"
-     style="display:none;opacity:0.5270004">
+     style="display:none;opacity:0.5270004"
+     transform="translate(-16.630962,-12.095241)">
     <rect
        style="fill:#ff0000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        id="move"

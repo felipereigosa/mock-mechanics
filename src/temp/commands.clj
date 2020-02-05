@@ -18,6 +18,7 @@
    ":insert s" #(assoc-in % [:insert-type] :sphere)
    ":insert h" #(assoc-in % [:insert-type] :cylinder)
    ":insert v" #(assoc-in % [:insert-type] :cone)
+   ":insert l" #(assoc-in % [:insert-type] :lamp)
 
    "C-e" #(change-mode % :edit)
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)
