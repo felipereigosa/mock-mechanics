@@ -53,13 +53,11 @@
         (assoc-in [:color-palette]
                   (create-image "resources/colors.svg" 340 585 -1 40))
         (assoc-in [:insert-menu]
-                  (create-image "resources/insert-menu.svg" 520 555 -1 50))
+                  (create-image "resources/insert-menu.svg" 326 575 -1 50))
         (assoc-in [:insert-type] :block)
-        (assoc-in [:insert-offset] 0)
-        (assoc-in [:insert-min-offset] -350)
-        
+
         (assoc-in [:edit-menu]
-                  (create-image "resources/edit-menu.svg" 340 555 -1 50))
+                  (create-image "resources/edit-menu.svg" 210 575 -1 50))
         (assoc-in [:edit-subcommand] :move)
 
         (assoc-in [:selected-mesh]
@@ -125,7 +123,12 @@
     )
 
   (if-let [edited-part (:edited-part world)]
-    (let [part (get-in world [:parts edited-part])]
+    (let [part (get-in world [:parts edited-part])
+          part (if (in? (:type part) [:button :lamp])
+                 (assoc-in part [:color] :black)
+                 part)
+          part (assoc-in part [:color] :red)
+          ]
       (draw-part! world part)))
 
   (draw-buttons! world)

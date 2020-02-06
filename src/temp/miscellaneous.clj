@@ -97,7 +97,7 @@
     :points []
     :scale [0.5 0.2 0.5]
     :direction :input
-    :color :black
+    :color :red
     }
 
    :lamp
@@ -106,7 +106,7 @@
     :points []
     :scale [0.2 0.2 0.2]
     :direction :output
-    :color :black
+    :color :red
     }
    })
 
@@ -156,6 +156,12 @@
 (defn get-part-position [world name]
   (let [transform (get-in world [:parts name :transform])]
     (get-transform-position transform)))
+
+(defn set-part-position [part position]
+  (let [transform (:transform part)
+        rotation (get-transform-rotation transform)]
+    (assoc-in part [:transform]
+              (make-transform position rotation))))
 
 (defn get-parent-part [world child-name]
   (if (in? child-name (keys (:ground-children world)))
@@ -295,13 +301,13 @@
             property (nth (get-in world [:properties])
                           (:selected-property world))
             color (if (not= (:mode world) :toggle)
-                    (or (:other-color button) [1 0 0 1])
+                    (:color button)
                     (if (get-in button [property])
-                      [1 0 0 1]
-                      [1 1 1 1]))
+                      :red
+                      :white))
             mesh (-> (:button-mesh world)
                      (assoc-in [:transform] transform)
-                     (assoc-in [:color] color))]
+                     (assoc-in [:color] (get-color-vector color)))]
         (draw-mesh! world mesh)))))
 
 (defn draw-lamps! [world]
@@ -311,18 +317,19 @@
             base-transform (:transform lamp)
             property (nth (get-in world [:properties])
                           (:selected-property world))
-            other-color (or (:other-color lamp) [1 0 0 1])
-            other-color (if (= (:value lamp) 1)
-                          other-color
-                          (darker-color other-color))
+            color (if (and (= (:value lamp) 0)
+                           (= (:mode world) :idle))
+                    :gray
+                    (:color lamp))
+            
             color (if (not= (:mode world) :toggle)
-                    other-color                      
+                    color
                     (if (get-in lamp [property])
-                      [1 0 0 1]
-                      [1 1 1 1]))
+                      :red
+                      :white))
             mesh (-> (:lamp-mesh world)
                      (assoc-in [:transform] base-transform)
-                     (assoc-in [:color] color))]
+                     (assoc-in [:color] (get-color-vector color)))]
         (draw-mesh! world mesh)))))
 
 (declare create-weld-groups)

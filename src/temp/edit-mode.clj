@@ -9,8 +9,11 @@
 (load "edit/copy")
 (load "edit/translate")
 
+(do
+1
+
 (defn edit-mode-draw [world]
-  (fill-rect! (make-color 70 70 70) 330 580 800 150)
+  (fill-rect! (make-color 70 70 70) 330 580 800 70)
   
   (let [{:keys [image x y]} (:edit-menu world)]
     (draw-image! image x y))
@@ -20,6 +23,7 @@
         {:keys [x y w h]} box]
     (dotimes [i 3]
       (draw-rect! :black x y (- w i) (- h i)))))
+(redraw!))
 
 (defn edit-mode-pressed [world event]
   (let [{:keys [x y]} event]

@@ -256,8 +256,6 @@
         (cpu-change-part world x y))
       (select-cpu world x y))))
 
-
-
 (defn rearrange-selected [world event]
   (if-let [selected-pin (:selected-pin world)]
     (let [x (:x event)

@@ -67,7 +67,9 @@
                       (nil? property))
                 (if (:hidden part)
                   nil
-                  (:color part))
+                  (if (in? type [:button :lamp])
+                    :black
+                    (:color part)))
                 (if (get-in part [property])
                   :red
                   :white))

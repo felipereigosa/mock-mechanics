@@ -158,3 +158,15 @@
            (<= t 1.0)
            (<= (+ s t) 1.0)))
     false))
+
+(defn get-normalized-plane-point [plane point grain]
+  (let [[a b c] plane
+        v1 (vector-subtract b a)
+        v2 (vector-subtract c a)
+        s (point-line-coordinate point [a v1])
+        t (point-line-coordinate point [a v2])
+        s (* grain (round (/ s grain)))
+        t (* grain (round (/ t grain)))]
+    (reduce vector-add [a
+                        (vector-multiply v1 s)
+                        (vector-multiply v2 t)])))
