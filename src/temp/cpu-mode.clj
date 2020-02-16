@@ -41,7 +41,8 @@
                               (get-in @world [:parts name :value]))
 
                   set-value (fn [name value]
-                              (set-thing! [:parts name :value] value))
+                              (set-thing! [:parts name :value] value)
+                              (update-thing! [] prepare-tree))
                   
                   activate (fn [name]
                              (update-thing! [] #(activate-chip % name)))

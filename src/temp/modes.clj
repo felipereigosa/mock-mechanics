@@ -4,10 +4,10 @@
 (load "set-value-mode")
 (load "idle-mode")
 (load "toggle-mode")
+(load "insert-mode")
 (load "edit-mode")
 (load "graph-mode")
 (load "cpu-mode")
-(load "insert-mode")
 (load "color-mode")
 
 (defn get-function [mode function]

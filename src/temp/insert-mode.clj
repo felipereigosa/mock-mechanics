@@ -1,6 +1,10 @@
 
 (ns temp.core)
 
+(declare move-part-pressed)
+(declare move-part-moved)
+(declare move-part-released)
+
 (defn insert-mode-draw [world]
   (fill-rect! (make-color 70 70 70) 330 580 800 70)
 
@@ -45,95 +49,107 @@
           position (vector-add point offset)]
       (create-sphere world position))))
 
-(do
-1
+(defn get-ground-anchor [world part collision]
+  (let [offset [0 (get-part-offset part) 0]
+        position (vector-add offset (:point collision))]
+    (make-transform position [1 0 0 0])))
+
+(defn get-block-anchor [world part collision]
+  (let [parent-name (:part-name collision)
+        parent (get-in world [:parts parent-name])
+        parent-transform (:transform parent)
+        parent-rotation (get-rotation-component parent-transform)
+        local-normal (vector-normalize (get-collision-normal world collision))
+        global-normal (apply-transform parent-rotation local-normal)
+        offset (get-part-offset part)
+        position (vector-add (:point collision)
+                             (vector-multiply global-normal offset))
+        normal-rotation (make-transform [0 0 0]
+                                        (quaternion-from-normal local-normal))
+        rotation (get-transform-rotation
+                  (combine-transforms normal-rotation parent-rotation))]
+    (make-transform position rotation)))
+
+(defn get-track-anchor [world part collision]
+  (if (= (:type part) :track)
+    (let [normal (get-collision-normal world collision)
+          parent (get-in world [:parts (:part-name collision)])
+          parent-transform (:transform parent)
+          position (apply-transform parent-transform normal)
+          parent-rotation (get-rotation-component parent-transform)
+          normal-rotation (make-transform [0 0 0]
+                              (quaternion-from-normal normal))
+          final-rotation (combine-transforms normal-rotation parent-rotation)
+          rotation (get-transform-rotation final-rotation)]
+      (make-transform position rotation))    
+    (let [parent-name (:part-name collision)
+          parent (get-in world [:parts parent-name])
+          parent-transform (:transform parent)
+          parent-rotation (get-rotation-component parent-transform)
+          rotation (get-transform-rotation parent-transform)
+          position (apply-transform parent-transform
+                                  [0 (get-part-offset part) 0])]
+      (make-transform position rotation))))
+
+(defn get-cylinder-anchor [world part collision]
+  (let [normal (vector-normalize (get-collision-normal world collision))]
+    (if (or (vector= normal [0 1 0])
+            (vector= normal [0 -1 0]))
+      (get-block-anchor world part collision)
+      (make-transform [0 0 0] [1 0 0 0]))))
+
+(defn place-part-at [world part-name collision]
+  (let [parent-name (:part-name collision)
+        parent (get-in world [:parts parent-name])
+        part (get-in world [:parts part-name])
+        transform (case (:type parent)
+                    :ground (get-ground-anchor world part collision)
+                    :block (get-block-anchor world part collision)
+                    :wagon (get-block-anchor world part collision)
+                    :track (get-track-anchor world part collision)
+                    :cylinder (get-cylinder-anchor world part collision)
+                    (make-transform [0 0 0] [1 0 0 0]))]
+    (-> world
+        (assoc-in [:parts part-name :transform] transform)
+        (create-relative-transform part-name parent-name))))
 
 (defn insert-mode-pressed [world event]
-  ;; (let [{:keys [x y]} event]
-  ;;   (if (> (:y event) 545)
-  ;;     (if-let [region (get-region-at (:insert-menu world) x y)]
-  ;;       (assoc-in world [:insert-type] region)
-  ;;       world)
-  ;;     (let [type (:insert-type world)
-  ;;           color (get-in world [:info type :color])]
-  ;;       (case (:insert-type world)
-  ;;         :wagon
-  ;;         (insert-wagon world color x y)
+  (let [{:keys [x y]} event]
+    (if (> (:y event) 545)
+      (if-let [region (get-region-at (:insert-menu world) x y)]
+        (assoc-in world [:insert-type] region)
+        world)
+      (let [type (:insert-type world)
+            color (get-in world [:info type :color])]
+        (case (:insert-type world)
+          :wagon
+          (insert-wagon world color x y)
 
-  ;;         :sphere
-  ;;         (insert-sphere world x y)
-          
-  ;;         (if-let [anchor (get-anchor-point world x y)]
-  ;;           (let [part (create-part type color (:info world))
-  ;;                 part-name (gen-keyword type)
-  ;;                 offset (get-part-offset part)
-  ;;                 parent-name (:part anchor)
-  ;;                 parent (get-in world [:parts parent-name])
-  ;;                 transform (anchor->transform offset anchor parent)
-  ;;                 v1 (apply-rotation transform [1 0 0])
-  ;;                 v2 (apply-rotation transform [0 0 1])
-  ;;                 point (:position anchor)
-  ;;                 plane [point
-  ;;                        (vector-add point v1)
-  ;;                        (vector-add point v2)]]
-  ;;             (-> world
-  ;;                 (assoc-in [:parts part-name] part)
-  ;;                 (assoc-in [:parts part-name :transform] transform)
-  ;;                 (create-relative-transform part-name parent-name)
-  ;;                 (assoc-in [:plane] plane)
-  ;;                 (assoc-in [:edited-part] part-name)))
-  ;;           world)))))
-  (let [{:keys [x y]} event
-        type :block
-        color :white
-        ]
-    ;; (if-let [collision (get-part-collision world x y)]
-    ;;   (if-let [anchor (get-anchor-point world collision)]
-    ;;     (let [part (create-part type color (:info world))
-    ;;           part-name (gen-keyword type)
-    ;;           offset (get-part-offset part)
-    ;;           parent-name (:part anchor)
-    ;;           parent (get-in world [:parts parent-name])
-    ;;           transform (anchor->transform offset anchor parent)
-    ;;           ]
-    ;;       (println! part)
-    ;;       (-> world
-    ;;           ;; (assoc-in [:parts part-name] part)
-    ;;           ;; (assoc-in [:parts part-name :transform] transform)
-    ;;           ;; (create-relative-transform part-name parent-name)
-    ;;           ;; (assoc-in [:edited-part] part-name)
-    ;;           ;; (create-weld-groups)
-    ;;           ))
-    ;;     world)
-    ;;   world)
-    (println! "pressed")
-    world
-    ))
+          :sphere
+          (insert-sphere world x y)
+
+          (let [part (create-part type color (:info world))
+                part-name (gen-keyword type)
+                collision (get-collision world x y)
+                parent (get-in world [:parts (:part-name collision)])
+                world (-> world
+                          (assoc-in [:parts part-name] part)
+                          (place-part-at part-name collision))]
+            (if (= (:type parent) :track)
+              world
+              (-> world
+                  (assoc-in [:move-after-insert] true)
+                  (move-part-pressed part-name nil)
+                  (move-part-moved event :grain 0.25)))))))))
 
 (defn insert-mode-moved [world event]
-  ;; (if-let [part-name (:edited-part world)]
-  ;;   (let [{:keys [x y]} event
-  ;;         line (unproject-point world [x y])
-  ;;         touch-point (line-plane-intersection line (:plane world))
-  ;;         part (get-in world [:parts part-name])
-  ;;         rotation (get-transform-rotation (:transform part))
-  ;;         rotation-transform (get-rotation-component (:transform part))
-  ;;         offset (apply-transform rotation-transform [0 (get-part-offset part) 0])
-  ;;         transform (make-transform (vector-add offset touch-point) rotation)]
-  ;;     (-> world
-  ;;         (assoc-in [:parts part-name :transform] transform)))
-  ;;   world)
-  world
-  )
+  (if (:move-after-insert world)
+    (move-part-moved world event :grain 0.25)
+    world))
 
 (defn insert-mode-released [world event]
-  ;; (if-let [part-name (:edited-part world)]
-  ;;   (let [parent-name (get-parent-part world part-name)]
-  ;;     (-> world
-  ;;         (create-relative-transform part-name parent-name)
-  ;;         (dissoc-in [:edited-part])))
-  ;;   world)
-  world
-  )
-
-)
+  (if (:move-after-insert world)
+    (-> world
+        (move-part-released event)
+        (dissoc-in [:move-after-insert]))
+    world))

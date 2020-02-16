@@ -102,3 +102,11 @@
         v1 (vector-subtract b a)
         v2 (vector-subtract c a)]
     (vector-cross-product v1 v2)))
+
+(defn get-collision [world x y]
+  (or (get-part-collision world x y)
+      (let [plane [[0 0 0] [1 0 0] [0 0 1]]
+            line (unproject-point world [x y])]
+        {:part-name :ground-part
+         :point (line-plane-intersection line plane)})))
+

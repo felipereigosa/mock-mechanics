@@ -70,7 +70,7 @@
     (vec (map #(apply-transform inverse-transform %) points))))
 
 (defn is-extra-point? [a b c]
-  (float-equals?
+  (float=
    (vector-dot-product
     (vector-normalize (vector-subtract b a))
     (vector-normalize (vector-subtract c a)))

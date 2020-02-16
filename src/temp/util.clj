@@ -176,7 +176,7 @@
 (defn ends-with? [str end]
   (.endsWith str end))
 
-(defn float-equals? [a b]
+(defn float= [a b]
   (< (abs (- a b)) 0.0001))
 
 (def not-nil? (comp not nil?))

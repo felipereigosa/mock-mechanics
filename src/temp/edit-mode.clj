@@ -9,21 +9,15 @@
 (load "edit/copy")
 (load "edit/translate")
 
-(do
-1
-
 (defn edit-mode-draw [world]
   (fill-rect! (make-color 70 70 70) 330 580 800 70)
-  
   (let [{:keys [image x y]} (:edit-menu world)]
     (draw-image! image x y))
-
   (let [box (get-in world [:edit-menu :regions
                            (:edit-subcommand world)])
         {:keys [x y w h]} box]
     (dotimes [i 3]
       (draw-rect! :black x y (- w i) (- h i)))))
-(redraw!))
 
 (defn edit-mode-pressed [world event]
   (let [{:keys [x y]} event]
@@ -46,7 +40,9 @@
     (case (:edit-subcommand world)
       :move (move-mode-moved world event)
       :rotate (rotate-mode-moved world event)
+      :translate (translate-mode-moved world event)
       :sink (sink-mode-moved world event)
+      :copy (copy-mode-moved world event)
       :scale (scale-mode-moved world event)
       world)))
 

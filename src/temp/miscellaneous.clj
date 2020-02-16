@@ -336,11 +336,11 @@
 (declare compute-transforms)
 
 (defn prepare-tree [world]
-  (if (= (:mode world) :idle)
-    world
+  ;; (if (= (:mode world) :idle)
+  ;;   world
     (-> world
         (compute-transforms :parts)
-        (create-weld-groups))))
+        (create-weld-groups)))
 
 (defn get-part-offset [part]
   (if (= (:type part) :track)

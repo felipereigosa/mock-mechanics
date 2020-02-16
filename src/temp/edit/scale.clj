@@ -157,7 +157,7 @@
             local-point (apply-transform inverse-transform point)
             half-height (/ (second (:scale part)) 2)
             [lx ly lz] local-point
-            local-normal (if (float-equals? ly half-height)
+            local-normal (if (float= ly half-height)
                            [0 1 0]
                            (vector-normalize [lx 0 lz]))
             rotation-transform (get-rotation-component (:transform part))

@@ -146,7 +146,7 @@
        (/ (- (* v1v1 v2v2) (* v1v2 v1v2)) v1v2))))
 
 (defn point-inside-triangle [point triangle]
-  (if (float-equals? (point-plane-distance point triangle) 0.0)
+  (if (float= (point-plane-distance point triangle) 0.0)
     (let [[p0 p1 p2] triangle
           v1 (vector-subtract p1 p0)
           v2 (vector-subtract p2 p0)

@@ -92,14 +92,13 @@
     (vector-cross-product vector temp)))
 
 (defn vector= [a b]
-  (every? #(float-equals? % 0.0) (vector-subtract a b)))
+  (every? #(float= % 0.0) (vector-subtract a b)))
   
 (defn vector-interpolate [p1 p2 t]
   (vec (map (fn [a b]
               (+ (* a (- 1.0 t)) (* b t)))
             p1 p2)))
 
-(defn project-vector [v other]
-  (let [size (float (/ (vector-dot-product v other)
-                       (vector-dot-product other other)))]
-    (vector-multiply other size)))
+(defn vector-project [v other]
+  (let [length (vector-dot-product v (vector-normalize other))]
+    (vector-multiply other length)))

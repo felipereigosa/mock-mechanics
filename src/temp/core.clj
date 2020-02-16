@@ -21,7 +21,6 @@
 (load "undo")
 (load "persistence")
 (load "value-force")
-(load "anchors")
 (load "modes")
 (load "commands")
 (load "track-loop")
@@ -127,7 +126,7 @@
           part (if (in? (:type part) [:button :lamp])
                  (assoc-in part [:color] :black)
                  part)
-          part (assoc-in part [:color] :red)
+          part (assoc-in part [:color] :yellow)
           ]
       (draw-part! world part)))
 

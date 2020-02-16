@@ -84,7 +84,7 @@
           value (get-in world [:parts part-name :value])
           dt (* elapsed 0.001)
           dv (* acceleration dt)
-          dampening-factor 0.5
+          dampening-factor 0.7
           velocity (* (+ velocity dv) dampening-factor)
           dvalue (* velocity dt)
           value (+ value dvalue)]
