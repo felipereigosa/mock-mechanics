@@ -427,7 +427,7 @@
                                  :functions function-name :points]
                           new-points)]
       (println! "move node:" (apply format "%.2f, %.2f" coords))
-      (draw-2d! world)
+      (redraw!)
       world)
     world))
 
@@ -463,7 +463,7 @@
           world (assoc-in world [:parts chip-name :view :offset]
                           (vector-add (:saved-offset world)
                                       displacement))]
-      (draw-2d! world)
+      (redraw!)
       world)      
     world))
 
@@ -538,5 +538,5 @@
         chip-name (:selected-chip world)
         world (update-in world [:parts chip-name :view]
                          #(change-zoom % (:graph-box world) event))]
-    (draw-2d! world)
+    (redraw!)
     world))

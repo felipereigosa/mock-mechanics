@@ -48,7 +48,7 @@
              [0 0.5 0] [0 -0.5 0]
              [0 0 0.5] [0 0 -0.5]]
     :scale [0.5 0.5 0.5]
-    :direction nil
+    :direction :output
     :color :yellow
     }
 
@@ -87,7 +87,7 @@
                              [1 1 1] :white)
     :points []
     :scale [0.3 0.1 0.3]
-    :direction :output
+    :direction nil
     :color :blue
     }
 
@@ -115,15 +115,25 @@
               :color color
               :value 0
               :transform (make-transform [0 0.5 0] [0 1 0 0])
-              :scale (get-in info [type :scale])}]
-    (if (= type :chip)
-      (-> part
-          (assoc-in [:functions] {})
-          (assoc-in [:time] 1.0)
-          (assoc-in [:final-time] 0.0)
-          (assoc-in [:view] {:offset [0 0]
-                             :zoom 1}))
-      part)))
+              :scale (get-in info [type :scale])}
+
+        part (if (= type :lamp)
+               (assoc-in part [:dark-color] (get-dark-color color))
+               part)
+
+        part (if (= type :cpu)
+               (assoc-in part [:tab] 0)
+               part)
+
+        part (if (= type :chip)
+               (-> part
+                   (assoc-in [:functions] {})
+                   (assoc-in [:time] 1.0)
+                   (assoc-in [:final-time] 0.0)
+                   (assoc-in [:view] {:offset [0 0]
+                                      :zoom 1}))
+               part)]
+    part))
 
 (defn create-relative-transform [world child-name parent-name]
   (let [child (get-in world [:parts child-name])]
@@ -220,15 +230,23 @@
                     (inside-box? box x y))
                   (:regions image))))
 
-(defn draw-text-box! [world]
-  (let [[text color] (if (:text-input world)
-                       [(str (:text world)) :dark-gray]
-                       [(:command world) :black])]
-    (fill-rect! color 80 13 150 25)
-    (draw-text! :green text 15 17 14)))
+(defn draw-buffer! [world]
+  (let [y 693
+        helper (fn [text border]
+                 (fill-rect! :black 80 y 2000 25)
+                 (if border
+                   (draw-text! :red "=" 15 (+ y 4) 14))
+                 (draw-text! :blue text 30 (+ y 4) 14))]
+    (cond
+      (:text-input world)
+      (helper (str (:text world)) true)
+
+      (not (empty? (:command world)))
+      (helper (:command world) false))))
+
+(redraw!)
 
 (defn read-input [world callback]
-  (println! "listening for input:")
   (-> world
       (assoc-in [:input-callback] callback)
       (assoc-in [:text-input] true)))
@@ -319,7 +337,7 @@
                           (:selected-property world))
             color (if (and (= (:value lamp) 0)
                            (= (:mode world) :idle))
-                    :gray
+                    (:dark-color lamp)
                     (:color lamp))
             
             color (if (not= (:mode world) :toggle)
@@ -365,5 +383,21 @@
               (get-part-position world part-name))]
     (compute-camera (assoc-in world [:camera :pivot] pos))))
 
-
+(defn new-file [world]
+  ;; (let [ground-part ;; (assoc-in (:ground-part world) [:children] {})
+  ;;       (:ground-part world)
+  ;;       ]
+  ;;   (-> world
+  ;;       (assoc-in [:command] "")
+  ;;       (assoc-in [:mode] :idle)
+  ;;       (assoc-in [:parts] {:ground-part ground-part})
+  ;;       (assoc-in [:planet] (create-planet))
+  ;;       (update-in [:planet] create-ground)
+  ;;       (reset-camera)
+  ;;       (update-move-plane)
+  ;;       (prepare-tree)
+  ;;       (save-checkpoint!)))
+  (let [world (create-world)]
+    (redraw!) ;;#################################
+    world))
 

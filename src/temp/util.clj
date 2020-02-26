@@ -108,6 +108,13 @@
         b (/ (get-blue color) 255.0)]
     [r g b 1.0]))
 
+(defn get-dark-color [color]
+  (let [color (get-color color)
+        r (int (* (.getRed color) 0.7))
+        g (int (* (.getGreen color) 0.7))
+        b (int (* (.getBlue color) 0.7))]
+    (new Color r g b)))
+
 (defn near-zero? [value]
   (< (abs value) 0.001))
 
@@ -243,3 +250,6 @@
                                        (nthrest f (inc index))])]
                 (recur (concat prefix [a] suffix) fs))))]
     (helper argument functions)))
+
+(defn third [coll]
+  (nth coll 2))

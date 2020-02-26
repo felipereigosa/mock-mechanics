@@ -16,10 +16,7 @@
   (if-let [part-name (:edited-part world)]
     (let [{:keys [x y]} event
           d (distance [x y] (:start-point world))
-          grain (if (:shift-pressed world)
-                  45
-                  10)
-          angle (snap-value (map-between-ranges d 0 250 0 360) grain)
+          angle (snap-value (map-between-ranges d 0 250 0 250) 10)
           part (get-in world [:parts part-name])
           rotation (make-transform [0 0 0] [0 1 0 angle])
           original-transform (:original-transform world)          

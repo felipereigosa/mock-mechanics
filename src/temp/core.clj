@@ -59,6 +59,12 @@
                   (create-image "resources/edit-menu.svg" 210 575 -1 50))
         (assoc-in [:edit-subcommand] :move)
 
+        (assoc-in [:action-menu]
+                  (create-image "resources/action-menu.svg" 140 25 -1 40))
+
+        (assoc-in [:mode-menu]
+                  (create-image "resources/mode-menu.svg" 480 25 -1 40))
+
         (assoc-in [:selected-mesh]
                   (create-wireframe-cube [0 0.52 0] [1 0 0 0]
                                          [0.3001 0.1001 0.3001] :white))
@@ -123,10 +129,10 @@
 
   (if-let [edited-part (:edited-part world)]
     (let [part (get-in world [:parts edited-part])
-          part (if (in? (:type part) [:button :lamp])
-                 (assoc-in part [:color] :black)
-                 part)
-          part (assoc-in part [:color] :yellow)
+          ;; part (if (in? (:type part) [:button :lamp])
+          ;;        (assoc-in part [:color] :black)
+          ;;        part)
+          ;; part (assoc-in part [:color] :yellow)
           ]
       (draw-part! world part)))
 
@@ -151,10 +157,18 @@
 
 (defn draw-2d! [world]
   (clear!)
-  (draw-text-box! world)
+
+  (let [{:keys [image x y]} (:action-menu world)]
+    (fill-rect! (make-color 70 70 70) 330 y 800 50)
+    (draw-image! image x y))
+
+  (let [{:keys [image x y]} (:mode-menu world)]
+    (draw-image! image x y))
+  
   (if-let [fun (get-function (:mode world) :draw)]
     (fun world))
   (draw-output!)
+  (draw-buffer! world)
   )
 (redraw!))
 
@@ -165,11 +179,35 @@
     (let [amount (+ 1 (* (:amount event) -0.05))]
       (zoom-camera world amount))))
 
+(defn action-menu-pressed [world x y]
+  (if-let [region (get-region-at (:action-menu world) x y)]
+    (case region
+      :new (new-file world)
+      :view (reset-camera world)
+      :save (save-version world)
+      :load (read-input world load-last-version-callback)
+      :undo (undo! world)
+      :redo (redo! world))
+    world))
+
+(defn mode-menu-pressed [world x y]
+  (if-let [region (get-region-at (:mode-menu world) x y)]
+    (change-mode world region)
+    world))
+
 (defn mouse-pressed [world event]
   (let [x (:x event)
         y (:y event)
-        world (assoc-in world [:press-time] (get-current-time))]
+        world (-> world
+                  (assoc-in [:press-time] (get-current-time))
+                  (assoc-in [:press-point] [x y]))]
     (cond
+      (inside-box? (:action-menu world) x y)
+      (action-menu-pressed world x y)
+
+      (inside-box? (:mode-menu world) x y)
+      (mode-menu-pressed world x y)
+      
       (in? (:button event) [:middle :right])
       (assoc-in world [:last-point] [x y])
 
@@ -189,7 +227,9 @@
 (defn mouse-released [world event]
   (let [elapsed (- (get-current-time) (:press-time world))
         world (if (and (< elapsed 200)
-                       (= (:button event) :right))
+                       (= (:button event) :right)
+                       (< (distance (:press-point world)
+                                    [(:x event) (:y event)]) 10))
                 (set-pivot world event)
                 world)
         world (cond
@@ -199,7 +239,7 @@
                     (update-move-plane))
                 :else
                 (mode-mouse-released world event))]
-    (draw-2d! world)
+    (redraw!)
     (-> world
         (prepare-tree)
         (save-checkpoint!))))

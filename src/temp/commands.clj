@@ -12,7 +12,7 @@
    ":insert w" #(assoc-in % [:insert-type] :wagon)
    ":insert t" #(assoc-in % [:insert-type] :track)
    ":insert c" #(assoc-in % [:insert-type] :chip)
-   ":insert m" #(assoc-in % [:insert-type] :cpu)
+   ":insert q" #(assoc-in % [:insert-type] :cpu)
    ":insert p" #(assoc-in % [:insert-type] :probe)
    ":insert a" #(assoc-in % [:insert-type] :button)
    ":insert s" #(assoc-in % [:insert-type] :sphere)
@@ -43,11 +43,13 @@
    ":graph C-c s" #(set-snap-value %)
    ":graph l" #(assoc-in % [:graph-subcommand] :print-lengths)
 
-   "C-m" #(change-mode % :cpu)
+   "C-q" #(change-mode % :cpu)
    ":cpu s" #(dissoc-in % [:selected-cpu])
-   ":cpu r" #(run-selected-cpu %)
-   ":cpu l" #(load-script %)
-   ":cpu p" #(print-script-name %)
+   ":cpu a" #(assoc-in % [:cpu-subcommand] :and)
+   ":cpu o" #(assoc-in % [:cpu-subcommand] :or)
+   ":cpu n" #(assoc-in % [:cpu-subcommand] :not)
+   ":cpu d" #(assoc-in % [:cpu-subcommand] :delete)
+   ":cpu c" #(assoc-in % [:cpu-subcommand] :connect)
 
    "C-c" #(change-mode % :color)
    ":color r" #(assoc-in % [:current-color] :red)
@@ -59,32 +61,30 @@
 
    "C-v" #(change-mode % :set-value)
    "C-t" #(change-mode % :toggle)
-
-   "." #(change-mode % :pivot)
    "C-s" #(change-mode % :idle)
 
-   "C-x r" (fn [w]
-             (println! "reset world")
-             (create-world))
-
-   "C-x s" #(read-input % save-machine-callback)
-   "C-x C-s" #(save-version %)
-   "C-x l" #(read-input % load-machine-callback)
-   "C-x C-l" #(read-input % load-last-version-callback)
-
-   "C-/" #(undo! %)
-   "C-x /" #(redo! %)
-
-   "C-z" #(reset-camera %)
+   "A-n" #(new-file %)
+   "A-1" #(reset-camera %)
+   "A-s" #(save-version %)
+   "A-l" #(read-input % load-last-version-callback)
+   "A-left" #(undo! %)
+   "A-right" #(redo! %)
    })
 
 (set-thing! [:bindings] (get-bindings)))
 
-(defn get-key [control-pressed code]
+(do
+1
+
+(defn get-key [code control-pressed alt-pressed]
   (if-let [name (get-in keymap [code])]
-    (if control-pressed
-      (str "C-" name)
-      name)
+    (let [name (if (keyword? name)
+                 (subs (str name) 1)
+                 name)]
+      (cond
+        control-pressed (str "C-" name)
+        alt-pressed (str "A-" name)
+        :else name))
     nil))
 
 (defn find-binding [bindings command mode]
@@ -101,8 +101,8 @@
                              (:command world)
                              (:mode world))]
     (-> world
-        (assoc-in [:end-of-command] true)
-        (fun))
+        (fun)
+        (assoc-in [:command] ""))        
     world))
 
 (defn text-input-key-pressed [world event]
@@ -131,47 +131,50 @@
                    (apply str (concat text key)))))))
 
 (defn key-pressed [world event]
-  (cond
-    (in? (:code event) [341 345])
-    (assoc-in world [:control-pressed] true)
+  (let [key-name (get-in keymap [(:code event)])]
+    (cond
+        (= key-name :control) (assoc-in world [:control-pressed] true)
+        (= key-name :shift) (assoc-in world [:shift-pressed] true)
+        (= key-name :alt) (assoc-in world [:alt-pressed] true)
 
-    (in? (:code event) [340 344])
-    (assoc-in world [:shift-pressed] true)
+        (= key-name :esc)
+        (do
+          (reset! output "")
+          (-> world
+              (assoc-in [:command] "")
+              (assoc-in [:graph-subcommand] :move)
+              (assoc-in [:cpu-subcommand] :move)
+              (assoc-in [:text] "")
+              (assoc-in [:text-input] false)))
 
-    :else
-    (if-let [key (get-key (:control-pressed world) (:code event))]
-      (cond
-        (= key "C-g")
-        (-> world
-            (assoc-in [:command] "")
-            (assoc-in [:text] "")
-            (assoc-in [:text-input] false))
+        :else
+        (if-let [key (get-key (:code event)
+                              (:control-pressed world)
+                              (:alt-pressed world))]
+          (cond
+            (:text-input world)
+            (text-input-key-pressed world event)
 
-        (:text-input world)
-        (text-input-key-pressed world event)
-
-        (string? key)
-        (-> world
-            (update-in [:command] (fn [c]
-                                    (if (or (empty? c)
-                                            (:end-of-command world))
-                                      key
-                                      (str c " " key))))
-            (assoc-in [:end-of-command] false)
-            (execute-command))
-
-        :else world)
-      world)))
+            (string? key)
+            (-> world
+                (update-in [:command] (fn [c]
+                                        (if (empty? c)
+                                          key
+                                          (str c " " key))))
+                (execute-command)))
+          world))))
 
 (defn key-released [world event]
-  (draw-2d! world)
+  (redraw!)
 
-  (cond
-    (in? (:code event) [341 345])
-    (assoc-in world [:control-pressed] false)
+  (let [key-name (get-in keymap [(:code event)])]
+    (cond
+      (= key-name :control) (assoc-in world [:control-pressed] false)
+      (= key-name :shift) (assoc-in world [:shift-pressed] false)
+      (= key-name :alt) (assoc-in world [:alt-pressed] false)
+      :else world)))
 
-    (in? (:code event) [340 344])
-    (assoc-in world [:shift-pressed] false)
+;; (clear-output!)
+)
 
-    :else
-    world))
+(reset-world!)

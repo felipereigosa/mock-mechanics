@@ -50,16 +50,16 @@
              GLFW/GLFW_KEY_LEFT_BRACKET            nil
              GLFW/GLFW_KEY_BACKSLASH               nil
              GLFW/GLFW_KEY_RIGHT_BRACKET           nil
-             GLFW/GLFW_KEY_ESCAPE                  "esc"
+             GLFW/GLFW_KEY_ESCAPE                  :esc
              GLFW/GLFW_KEY_ENTER                   :enter
              GLFW/GLFW_KEY_TAB                     nil
              GLFW/GLFW_KEY_BACKSPACE               :backspace
              GLFW/GLFW_KEY_INSERT                  nil
              GLFW/GLFW_KEY_DELETE                  nil
-             GLFW/GLFW_KEY_RIGHT                   nil
-             GLFW/GLFW_KEY_LEFT                    nil
-             GLFW/GLFW_KEY_DOWN                    nil
-             GLFW/GLFW_KEY_UP                      nil
+             GLFW/GLFW_KEY_RIGHT                   :right
+             GLFW/GLFW_KEY_LEFT                    :left
+             GLFW/GLFW_KEY_DOWN                    :down
+             GLFW/GLFW_KEY_UP                      :up
              GLFW/GLFW_KEY_PAGE_UP                 nil
              GLFW/GLFW_KEY_PAGE_DOWN               nil
              GLFW/GLFW_KEY_HOME                    nil
@@ -83,5 +83,12 @@
              GLFW/GLFW_KEY_KP_ADD                  nil
              GLFW/GLFW_KEY_KP_ENTER                nil
              GLFW/GLFW_KEY_KP_EQUAL                nil
+             GLFW/GLFW_KEY_LEFT_SHIFT              :shift
+             GLFW/GLFW_KEY_RIGHT_SHIFT             :shift
+             GLFW/GLFW_KEY_LEFT_CONTROL            :control
+             GLFW/GLFW_KEY_RIGHT_CONTROL           :control
+             GLFW/GLFW_KEY_LEFT_ALT                :alt
+             GLFW/GLFW_KEY_RIGHT_ALT               :alt
+             GLFW/GLFW_KEY_LEFT_SUPER              :super
+             GLFW/GLFW_KEY_RIGHT_SUPER             :super
              })
-

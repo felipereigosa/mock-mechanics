@@ -17,7 +17,6 @@
                         (subs (str function) 1)))))
 
 (defn change-mode [world new-mode]
-  (println! "entering" new-mode "mode")
   (let [exit-fun (or (get-function (:mode world) :exited) identity)
         enter-fun (or (get-function new-mode :entered) identity)
         world (-> world
@@ -25,7 +24,7 @@
                   (assoc-in [:mode] new-mode)
                   (enter-fun)
                   (prepare-tree))]
-    (draw-2d! world)
+    (redraw!)
     world))
 
 (defn mode-mouse-pressed [world event]

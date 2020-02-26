@@ -80,9 +80,7 @@
                    (parse-int number))
           new-name (str root "." (format "%03d" (inc number)))]
       (save-machine-callback world new-name))
-    (do
-      (println! "you need to save first!")
-      world)))
+    (read-input world save-machine-callback)))
 
 (defn extract-number [name]
   (let [r-index (.indexOf name ".")
