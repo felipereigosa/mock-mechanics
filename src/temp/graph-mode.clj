@@ -42,7 +42,10 @@
         (assoc-in [:parts chip-name :final-time] final-time))))
 
 (defn graph-mode-entered [world]
-  (assoc-in world [:graph-subcommand] :move))
+  (let [world (assoc-in world [:graph-subcommand] :move)]
+    (if-let [chip-name (:selected-chip world)]
+      (show-selected-part world chip-name)
+      world)))
 
 (defn run-selected-chip [world]
   (if-let [selected-chip (:selected-chip world)]
@@ -208,7 +211,7 @@
       (let [part (get-in world [:parts part-name])]
         (if (= (:type part) :chip)
           (-> world
-              (assoc-in [:selected-mesh :transform] (:transform part))
+              (show-selected-part part-name)
               (assoc-in [:selected-chip] part-name))
           world))
       world)))

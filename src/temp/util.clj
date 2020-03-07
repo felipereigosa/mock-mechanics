@@ -110,9 +110,10 @@
 
 (defn get-dark-color [color]
   (let [color (get-color color)
-        r (int (* (.getRed color) 0.7))
-        g (int (* (.getGreen color) 0.7))
-        b (int (* (.getBlue color) 0.7))]
+        amount 0.5
+        r (int (* (.getRed color) amount))
+        g (int (* (.getGreen color) amount))
+        b (int (* (.getBlue color) amount))]
     (new Color r g b)))
 
 (defn near-zero? [value]
@@ -253,3 +254,6 @@
 
 (defn third [coll]
   (nth coll 2))
+
+(defn no-colon [keyword]
+  (subs (str keyword) 1))

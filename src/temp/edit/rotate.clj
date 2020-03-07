@@ -3,7 +3,8 @@
 
 (defn rotate-mode-pressed [world event]
   (let [{:keys [x y]} event]
-    (if-let [{:keys [part-name point index]} (get-part-collision world x y)]
+    (if-let [{:keys [part-name point index]}
+             (get-part-collision world x y)]
       (let [part (get-in world [:parts part-name])]
         (-> world
             (assoc-in [:edited-part] part-name)
@@ -14,21 +15,29 @@
 
 (defn rotate-mode-moved [world event]
   (if-let [part-name (:edited-part world)]
-    (let [{:keys [x y]} event
-          d (distance [x y] (:start-point world))
-          angle (snap-value (map-between-ranges d 0 250 0 250) 10)
-          part (get-in world [:parts part-name])
+    (let [dx (/ (- (:x event) (first (:start-point world))) window-width)
+          grain (if (:shift-pressed world)
+                  30
+                  10)
+          angle (snap-value (map-between-ranges dx -1 1 -1000 1000) grain)
           rotation (make-transform [0 0 0] [0 1 0 angle])
           original-transform (:original-transform world)          
           transform (combine-transforms rotation original-transform)]
       (-> world
-          (assoc-in [:parts part-name :transform] transform)))
+          (assoc-in [:parts part-name :transform] transform)
+          (assoc-in [:rotation-angle] angle)))
     world))
 
 (defn rotate-mode-released [world event]
   (if-let [part-name (:edited-part world)]
-    (let [parent-name (get-parent-part world part-name)]
+    (let [parent-name (get-parent-part world part-name)
+          angle (:rotation-angle world)
+          rotation (make-transform [0 0 0] [0 1 0 angle])
+          world (set-value-0-transform world part-name)
+          original-transform (get-in world [:parts part-name :transform])
+          transform (combine-transforms rotation original-transform)]
       (-> world
+          (assoc-in [:parts part-name :transform] transform)
           (create-relative-transform part-name parent-name)
           (dissoc-in [:edited-part])))
     world))

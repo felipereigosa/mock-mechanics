@@ -1,19 +1,124 @@
 
 (ns temp.core)
 
-(do
-1
-
 (defn cpu-mode-entered [world]
-  (assoc-in world [:cpu-subcommand] :move))
+  (let [world (assoc-in world [:cpu-subcommand] :move)]
+    (if-let [cpu-name (:selected-cpu world)]
+      (show-selected-part world cpu-name)
+      world)))
 
-(defn cpus-input-changes [world]
-  ;; (reduce (fn [w cpu-name]
-  ;;           (cpu-input-changes w cpu-name))
-  ;;         world
-  ;;         (get-parts-with-type (:parts world) :cpu))
-  world
-  )
+(declare get-element-value)
+
+(defn get-input-names [world cpu element-name]
+  (let [connections (filter (fn [[name connection]]
+                              (= (last (:points connection))
+                                 element-name))
+                            (:connections cpu))]
+    (map (comp first :points second) connections)))
+
+(defn get-input-pin-value [world cpu pin-name]
+  (get-in world [:parts pin-name :value]))
+
+(defn get-output-pin-value [world cpu pin-name]
+  (let [inputs (get-input-names world cpu pin-name)]
+    (if (= (count inputs) 1)
+      (get-element-value world cpu (first inputs))
+      0)))
+
+(defn get-pin-value [world cpu pin-name]
+  (let [part (get-in world [:parts pin-name])
+        direction (get-in world [:info (:type part) :direction])]
+    (if (= direction :output)
+      (get-output-pin-value world cpu pin-name)
+      (get-input-pin-value world cpu pin-name))))
+
+(defn get-and-value [world cpu gate-name]
+  (let [inputs (get-input-names world cpu gate-name)
+        values (map #(get-element-value world cpu %) inputs)]
+    (if (every? #(float= % 1.0) values)
+      1
+      0)))
+
+(defn get-or-value [world cpu gate-name]
+  (let [inputs (get-input-names world cpu gate-name)
+        values (map #(get-element-value world cpu %) inputs)]
+    (if (some #(float= % 1.0) values)
+      1
+      0)))
+
+(defn get-not-value [world cpu gate-name]
+  (let [inputs (get-input-names world cpu gate-name)]
+    (if (= (count inputs) 1)
+      (- 1 (get-element-value world cpu (first inputs)))
+      0)))
+
+(defn get-gate-value [world cpu gate-name]
+  (let [gate (get-in cpu [:gates gate-name])]
+    (case (:type gate)
+      :not (get-not-value world cpu gate-name)
+      :and (get-and-value world cpu gate-name)
+      :or (get-or-value world cpu gate-name)
+      0)))
+
+(defn get-element-value [world cpu element-name]
+  (cond
+    (in? element-name (keys (:pins cpu)))
+    (get-pin-value world cpu element-name)
+    
+    (in? element-name (keys (:gates cpu)))
+    (get-gate-value world cpu element-name)
+
+    :else 0))
+
+(defn get-cpu-outputs [world cpu]
+  (map (fn [pin-name]
+         (let [part (get-in world [:parts pin-name])
+               type (:type part)
+               direction (get-in world [:info type :direction])]
+           (if (= direction :output)
+             [pin-name type]
+             nil)))
+       (keys (:pins cpu))))
+
+(defn pin-value-changed [world cpu-name pin-name]
+  (let [part (get-in world [:parts pin-name])
+        cpu (get-in world [:parts cpu-name])
+        output-names (filter not-nil? (get-cpu-outputs world cpu))]
+    (reduce (fn [w [part-name type]]
+              (case type
+                :lamp
+                (assoc-in w [:parts part-name :value]
+                          (get-element-value world cpu part-name))
+
+                :chip
+                (let [value (get-element-value world cpu part-name)]
+                  (if (float= value 1.0)
+                    (activate-chip world part-name)
+                    w))
+                w))
+            world
+            output-names)))
+  
+(defn update-cpu [world cpu-name]
+  (let [cpu (get-in world [:parts cpu-name])]
+    (reduce (fn [w [pin-name pin]]
+              (if (:trigger pin)
+                (let [old-value (:value pin)
+                      new-value (get-in world [:parts pin-name :value])]
+                  (if (= new-value old-value)
+                    w
+                    (-> w
+                        (pin-value-changed cpu-name pin-name)
+                        (assoc-in [:parts cpu-name
+                                   :pins pin-name :value] new-value))))
+                w))
+            world (:pins cpu))))
+
+(defn update-cpus [world]
+  (reduce (fn [w cpu-name]
+            (update-cpu w cpu-name))
+          world
+          (get-parts-with-type (:parts world) :cpu)))
 
 (defn draw-cross [cpu-box]
   (let [{:keys [x y w h]} cpu-box
@@ -42,19 +147,37 @@
 
 (defn draw-connections [cpu]
   (doseq [connection (vals (:connections cpu))]
-    (if (= (:tab connection) (:tab cpu))
+    (when (= (:tab connection) (:tab cpu))
       (let [points (get-connection-points cpu connection)]
-        (if (> (count points) 1)
+        (when (> (count points) 1)
           (dotimes [i (dec (count points))]
             (let [[x1 y1] (nth points i)
                   [x2 y2] (nth points (inc i))]
-              (fill-rect! :yellow x1 y1 10 10)
-              (draw-line! :yellow x1 y1 x2 y2))))))))
+              (when (= i 0)
+                (let [start-name (first (:points connection))
+                      distance (if (in? start-name (keys (:gates cpu)))
+                                 14
+                                 (if (> (abs (- x2 x1))
+                                        (abs (- y2 y1)))
+                                   9
+                                   4))
+                      [ax ay] (-> (vector-subtract [x2 y2] [x1 y1])
+                                  (vector-normalize)
+                                  (vector-multiply distance)
+                                  (vector-add [x1 y1]))]
+                  (fill-circle! :yellow ax ay 5)))
+              (draw-line! :yellow x1 y1 x2 y2)))
+          (doseq [i (range 1 (dec (count points)))]
+            (let [[x y] (nth points i)]
+              (fill-rect! :black x y 10 10)
+              (draw-rect! :yellow x y 10 10))))))))
 
 (defn draw-pins [world cpu]
   (doseq [[name pin] (:pins cpu)]
     (let [part (get-in world [:parts name])]
-      (fill-rect! (:color part) (:x pin) 468 20 10))))
+      (fill-rect! (:color part) (:x pin) 468 20 10)
+      (when (:trigger pin)
+        (draw-circle! :blue (:x pin) 468 13)))))
 
 (defn draw-gates [cpu]
   (doseq [gate (vals (:gates cpu))]
@@ -120,7 +243,7 @@
       (let [part (get-in world [:parts part-name])]
         (if (= (:type part) :cpu)
           (-> world
-              (assoc-in [:selected-mesh :transform] (:transform part))
+              (show-selected-part part-name)
               (assoc-in [:selected-cpu] part-name))
           world))
       world)))
@@ -202,8 +325,12 @@
               (dissoc-in [:parts cpu-name :pins part-name])
               (update-in [:parts cpu-name] prune-connections))
 
-          (let [x (get-available-pin-spot cpu)]
-            (assoc-in world [:parts cpu-name :pins part-name] {:x x})))))
+          (let [x (get-available-pin-spot cpu)
+                part (get-in world [:parts part-name])]
+            (assoc-in world [:parts cpu-name :pins part-name]
+                      {:x x
+                       :trigger false
+                       :value (:value part)})))))
     world))
 
 (defn cpu-move-pressed [world {:keys [x y]}]
@@ -221,8 +348,8 @@
     (select-cpu world x y)))
 
 (defn snap-point [[x y]]
-  [(snap-value x 20)
-   (snap-value y 20)])
+  [(snap-value x 10)
+   (snap-value y 10)])
 
 (defn cpu-move-moved [world {:keys [x y]}]
   (if-let [moving-element (:moving-element world)]
@@ -298,6 +425,16 @@
                       {:points [element]
                        :tab (:tab cpu)}))))))
 
+(defn toggle-trigger-pin [cpu {:keys [x y]}]
+  (if-let [pin-name (get-pin-at cpu x y)]
+    (update-in cpu [:pins pin-name :trigger] not)
+    cpu))
+
+(defn run-chip-at [world event]
+  (let [cpu (get-in world [:parts (:selected-cpu world)])
+        chip-name (get-pin-at cpu (:x event) (:y event))]    
+  (activate-chip world chip-name)))
+
 (defn cpu-mode-pressed [world event]
   (let [cpu-name (:selected-cpu world)]
     (case (:cpu-subcommand world)
@@ -315,6 +452,13 @@
                   (update-in [:parts cpu-name] #(delete-element % event))
                   (assoc-in [:cpu-subcommand] :move))
       :connect (cpu-connect-pressed world event)
+      :toggle (-> world
+                  (update-in [:parts cpu-name] #(toggle-trigger-pin % event))
+                  (assoc-in [:cpu-subcommand] :move))
+
+      :run (-> world
+               (run-chip-at event)
+               (assoc-in [:cpu-subcommand] :move))
       world)))
 
 (defn cpu-mode-moved [world event]
@@ -326,8 +470,3 @@
   (case (:cpu-subcommand world)
     :move (cpu-move-released world event)
     world))
-
-;; (clear-output!)
-;; (redraw!)
-)
-

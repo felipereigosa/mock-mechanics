@@ -3,12 +3,13 @@
 
 (declare get-sphere-at)
 (declare delete-sphere)
+(declare prune-connections)
 
 (defn forget-part [world parent-name part-name]
   (-> world
       (dissoc-in [:parts parent-name :children part-name])
-      (dissoc-in [:parts parent-name :inputs part-name])
-      (dissoc-in [:parts parent-name :outputs part-name])
+      (dissoc-in [:parts parent-name :pins part-name])
+      (update-in [:parts parent-name] prune-connections)
       (dissoc-in [:parts parent-name :functions part-name])))
 
 (defn unselect-part [world part-name]

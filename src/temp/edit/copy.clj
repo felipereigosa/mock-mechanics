@@ -1,19 +1,22 @@
 
 (ns temp.core)
 
-(defn change-keys [map suffix]
-  (map-map (fn [[name value]]
-             {(join-keywords name suffix)
-              value})
-           map))
+(defn change-keys
+  ([map suffix]
+   (change-keys map suffix nil))
+  ([map suffix pred]
+   (map-map (fn [[key value]]
+              (let [key (if (or (nil? pred)
+                                (pred key))
+                          (join-keywords key suffix)
+                          key)]
+                {key value}))
+            map)))
 
 (defn copy-part [parts part-name suffix]
   (let [copy-name (join-keywords part-name suffix)
-        part (-> (get-in parts [part-name])
-                 (update-in [:children] #(change-keys % suffix))
-                 (update-in [:functions] #(change-keys % suffix))
-                 (update-in [:inputs] #(change-keys % suffix))
-                 (update-in [:outputs] #(change-keys % suffix)))]
+        part (get-in parts [part-name])
+        part (update-in part [:children] #(change-keys % suffix))]
     (assoc-in parts [copy-name] part)))
 
 (defn copy-tree [parts part-name suffix]
@@ -26,37 +29,62 @@
                       (keys (:children part)))]
     [parts copy-name]))
 
-(defn clean-map [map valid-keys]
-  (map-map (fn [[key value]]
-             (if (in? key valid-keys)
-               {key value}
-               (let [index (.indexOf (str key) "-")
-                     old-key (keyword (subs (str key) 1 index))]
-                 {old-key value})))
-           map))
+(defn fix-chip-references [chip copied-parts suffix]
+  (let [pred #(in? % copied-parts)]
+    (update-in chip [:functions] #(change-keys % suffix pred))))
 
-(defn change-missing-references [parts]
-  (let [part-names (keys parts)]
-    (map-map (fn [[name part]]
-               {name
-                (-> part
-                    (update-in [:functions] #(clean-map % part-names))
-                    (update-in [:inputs] #(clean-map % part-names))
-                    (update-in [:outputs] #(clean-map % part-names)))})
-             parts)))
+(defn fix-connections [connections copied-parts suffix]
+  (map-map (fn [[connection-name connection]]
+             (let [new-points (map (fn [point]
+                                     (if (in? point copied-parts)
+                                       (join-keywords point suffix)
+                                       point))
+                                   (:points connection))]
+               
+               {connection-name
+                (assoc-in connection [:points] new-points)}))
+           connections))
+
+(defn fix-cpu-references [cpu copied-parts suffix]
+  (let [pred #(in? % copied-parts)]
+    (-> cpu
+        (update-in [:pins] #(change-keys % suffix pred))
+        (update-in [:connections]
+                   #(fix-connections % copied-parts suffix)))))
+
+(defn fix-references [parts old-names suffix]
+  (let [new-names (map (fn [part-name]
+                         (join-keywords part-name suffix))
+                       old-names)]
+    (reduce (fn [ps new-name]
+              (let [part (get-in ps [new-name])]
+                (case (:type part)
+                  :cpu (update-in ps [new-name]
+                           #(fix-cpu-references % old-names suffix))
+                  :chip (update-in ps [new-name]
+                           #(fix-chip-references % old-names suffix))
+                  ps)))
+            parts new-names)))
+
+(declare get-tree-with-root)
 
 (defn copy-mode-pressed [world {:keys [x y]}]
   (if-let [collision (get-collision world x y)]
     (if (:control-pressed world)
       (assoc-in world [:selected-part] (:part-name collision))
       (if-let [selected-part (:selected-part world)]
-        (let [suffix (gen-keyword :copy)
-              [parts copy-part-name] (copy-tree (:parts world) selected-part suffix)
-              parts (change-missing-references parts)]
-          (-> world
-              (assoc-in [:parts] parts)
-              (place-part-at copy-part-name collision)
-              (move-part-pressed copy-part-name nil)))
+        (if (can-place-part-at? world collision)
+          (let [suffix (gen-keyword :copy)
+                [parts copy-part-name] (copy-tree (:parts world) selected-part suffix)
+                copied-parts (get-tree-with-root parts selected-part)
+                parts (fix-references parts copied-parts suffix)
+                new-parent-name (:part-name collision)
+                new-parent (get-in world [:parts new-parent-name])]
+            (-> world
+                (assoc-in [:parts] parts)
+                (place-part-at copy-part-name collision)
+                (move-part-pressed copy-part-name nil)))
+          world)
         world))
     world))
 

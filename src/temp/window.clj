@@ -544,28 +544,23 @@
     (gl-thread (reset-texture mesh)))
   nil)
 
-(do
-1  
 (defn draw-output! []
-  (if false
+  (if true
     (let [lines (split @output #"\n")
           last-lines (take-last 5 lines)
           hw (/ window-width 2)
           hh (/ window-height 2)
-        ]
-    (fill-rect! :black hw (- window-height 50) window-width 100)
-    (dotimes [i (count last-lines)]
-      (draw-text! :green (nth last-lines i)
-                  15 (+ (* i 15) (- window-height 80)) 14))
-    )
-
+          ]
+      (fill-rect! :black hw (- window-height 50) window-width 100)
+      (dotimes [i (count last-lines)]
+        (draw-text! :green (nth last-lines i)
+                    15 (+ (* i 15) (- window-height 80)) 14)))
     (let [y 693
           lines (split @output #"\n")
           ]
       (fill-rect! :black 80 y 2000 25)
       (draw-text! :green (last lines) 15 (+ y 4) 14))
-      ))
-(redraw!))
+    ))
 
 (defn println! [& args]
   (apply gl-println args)

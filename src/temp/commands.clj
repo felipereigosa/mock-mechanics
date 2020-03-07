@@ -11,7 +11,7 @@
    ":insert b" #(assoc-in % [:insert-type] :block)
    ":insert w" #(assoc-in % [:insert-type] :wagon)
    ":insert t" #(assoc-in % [:insert-type] :track)
-   ":insert c" #(assoc-in % [:insert-type] :chip)
+   ":insert g" #(assoc-in % [:insert-type] :chip)
    ":insert q" #(assoc-in % [:insert-type] :cpu)
    ":insert p" #(assoc-in % [:insert-type] :probe)
    ":insert a" #(assoc-in % [:insert-type] :button)
@@ -29,7 +29,7 @@
    ":edit r" #(assoc-in % [:edit-subcommand] :rotate)
    ":edit y" #(assoc-in % [:edit-subcommand] :sink)          
 
-   "C-w" #(change-mode % :graph)
+   "C-g" #(change-mode % :graph)
    ":graph m" #(assoc-in % [:graph-subcommand] :move)
    ":graph x" #(assoc-in % [:graph-subcommand] :set-x)
    ":graph y" #(assoc-in % [:graph-subcommand] :set-y)
@@ -50,6 +50,8 @@
    ":cpu n" #(assoc-in % [:cpu-subcommand] :not)
    ":cpu d" #(assoc-in % [:cpu-subcommand] :delete)
    ":cpu c" #(assoc-in % [:cpu-subcommand] :connect)
+   ":cpu t" #(assoc-in % [:cpu-subcommand] :toggle)
+   ":cpu r" #(assoc-in % [:cpu-subcommand] :run)
 
    "C-c" #(change-mode % :color)
    ":color r" #(assoc-in % [:current-color] :red)
@@ -59,16 +61,28 @@
    ":color w" #(assoc-in % [:current-color] :white)
    ":color d" #(assoc-in % [:current-color] :black)
 
+   "C-l" #(change-mode % :layer)
+   ":layer 1" #(number-pressed % 1)
+   ":layer 2" #(number-pressed % 2)
+   ":layer 3" #(number-pressed % 3)
+   ":layer 4" #(number-pressed % 4)
+   ":layer 5" #(number-pressed % 5)
+   ":layer 6" #(number-pressed % 6)
+   ":layer 7" #(number-pressed % 7)
+   ":layer 8" #(number-pressed % 8)
+
    "C-v" #(change-mode % :set-value)
    "C-t" #(change-mode % :toggle)
    "C-s" #(change-mode % :idle)
 
    "A-n" #(new-file %)
-   "A-1" #(reset-camera %)
+   "A-c" #(reset-camera %)
    "A-s" #(save-version %)
+   "C-x s" #(read-input % save-machine-callback)
    "A-l" #(read-input % load-last-version-callback)
    "A-left" #(undo! %)
    "A-right" #(redo! %)
+
    })
 
 (set-thing! [:bindings] (get-bindings)))
@@ -102,7 +116,8 @@
                              (:mode world))]
     (-> world
         (fun)
-        (assoc-in [:command] ""))        
+        (assoc-in [:command] "")
+        (prepare-tree)) 
     world))
 
 (defn text-input-key-pressed [world event]

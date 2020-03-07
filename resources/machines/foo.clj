@@ -1,0 +1,1 @@
+{:ground-children {:ground-part {:position [0.0 0.0 0.0], :rotation [-1.0 0.0 0.0 90.00000250447816]}}, :parts {:ground-part {:type :ground, :color [40 40 40], :value 0, :scale [12 12 1], :children nil}}, :camera {:vector [0 0 1], :distance 40, :x-angle 25, :y-angle -35, :pivot [0 0 0], :eye [20.793472290039062 16.90473175048828 29.696155548095703]}}

@@ -60,16 +60,19 @@
      (make-transform [0 y-offset 0] [1 0 0 0])
      track-transform)))
 
-(defn bake-part [info part property]
+(defn bake-part [info part property layers]
   (let [type (:type part)
         model (get-in info [type :model])
+        part-color (if (in? type [:button :lamp])
+                     :black
+                     (:color part))
         color (if (or (= type :ground)
                       (nil? property))
                 (if (:hidden part)
                   nil
-                  (if (in? type [:button :lamp])
-                    :black
-                    (:color part)))
+                  (if (in? (:layer part) layers)
+                    part-color
+                    nil))
                 (if (get-in part [property])
                   :red
                   :white))
@@ -81,12 +84,13 @@
        :colors []}
       (bake-mesh model transform (:scale part) color))))
 
-(defn create-mesh-from-parts [parts names info edited-part property]
+(defn create-mesh-from-parts [parts names info
+                              edited-part property layers]
   (let [baked-parts (map (fn [name]
                            (if (= name edited-part)
                                {:vertices []
                                 :colors []}
-                             (bake-part info (get-in parts [name]) property)))
+                             (bake-part info (get-in parts [name]) property layers)))
                          names)
         {:keys [vertices colors]} (reduce (fn [a b]
                                             (merge-with (comp vec concat) a b))
@@ -144,7 +148,8 @@
                    nil)
         weld-groups (map-map (fn [names]
                                (let [children (get-group-children parts names groups)
-                                     mesh (-> (create-mesh-from-parts parts names info (:edited-part world) property)
+                                     mesh (-> (create-mesh-from-parts parts names info (:edited-part world)
+                                                                      property (:visible-layers world))
                                               (assoc-in [:children] children)
                                               (assoc-in [:parts] names))]
                                  {(first names) mesh}))

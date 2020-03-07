@@ -5,22 +5,35 @@
   {:position (get-transform-position transform)
    :rotation (get-transform-rotation transform)})
 
+(defn get-simple-color [color]
+  (if (keyword? color)
+    color
+    [(.getRed color)
+     (.getGreen color)
+     (.getBlue color)]))
+
+(defn modify-field [object key function]
+  (if-let [value (get-in object [key])]
+    (update-in object [key] function)
+    object))
+
 (defn get-simple-part [part]
   (let [children (map-map (fn [[name transform]]
                             {name (get-simple-transform transform)})
                           (:children part))]
     (-> part
         (dissoc-in [:transform])
-        (update-in [:color] (fn [color]
-                              (if (keyword? color)
-                                color
-                                [(.getRed color)
-                                 (.getGreen color)
-                                 (.getBlue color)])))
+        (modify-field :color get-simple-color)
+        (modify-field :dark-color get-simple-color)
         (assoc-in [:children] children))))
 
 (defn get-complex-transform [transform]
   (make-transform (:position transform) (:rotation transform)))
+
+(defn get-complex-color [color]
+  (if (vector? color)
+    (apply make-color color)
+    color))
 
 (defn get-complex-part [part]
   (let [children (map-map (fn [[name transform]]
@@ -28,10 +41,8 @@
                           (:children part))]
     (-> part
         (assoc-in [:transform] (make-transform [0 0 0] [1 0 0 0]))
-        (update-in [:color] (fn [color]
-                              (if (vector? color)
-                                (apply make-color color)
-                                color)))
+        (modify-field :dark-color get-complex-color)
+        (modify-field :color get-complex-color)
         (assoc-in [:children] children))))
 
 (defn save-machine! [world filename]
@@ -67,10 +78,11 @@
   (assoc-in world [:last-saved-machine] text))
 
 (defn load-machine-callback [world text]
-  (println! "loaded machine" text)
-  (-> (create-world)
-      (load-machine (str "resources/machines/" text ".clj"))
-      (assoc-in [:last-saved-machine] text)))
+  (let [world (-> world
+                  (new-file)
+                  (load-machine (str "resources/machines/" text ".clj")))]
+    (println! "loaded machine" text)
+    (assoc-in world [:last-saved-machine] text)))
 
 (defn save-version [world]
   (if-let [last-saved (:last-saved-machine world)]

@@ -9,6 +9,7 @@
 (load "graph-mode")
 (load "cpu-mode")
 (load "color-mode")
+(load "layer-mode")
 
 (defn get-function [mode function]
   (resolve (symbol (str "temp.core/"

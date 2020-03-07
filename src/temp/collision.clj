@@ -67,7 +67,8 @@
                          (if (or
                               (and (:hidden part)
                                    (not (= (:mode world) :toggle)))
-                              (in? name excluded-parts))
+                              (in? name excluded-parts)
+                              (not (in? (:layer part) (:visible-layers world))))
                            nil
                            (let [type (:type part)
                                  info (get-in world [:info type])

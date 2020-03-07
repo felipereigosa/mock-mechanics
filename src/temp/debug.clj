@@ -80,3 +80,9 @@
   (set-line! :green [-1000 0 0] [-1000 1 0])
   (set-line! :blue [-1000 0 0] [-1000 1 0])
   (set-line! :yellow [-1000 0 0] [-1000 1 0]))
+
+(defn add-layer [parts]
+  (map-map (fn [[name value]]
+             {name (assoc-in value [:layer] 1)})
+           parts))
+

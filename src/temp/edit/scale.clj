@@ -53,30 +53,50 @@
           mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point adjust-line mouse-line)
           grain-size 0.1
-          d (* grain-size (round (/ d grain-size)))
+          d (snap-value d grain-size)
           scale (:original-scale world)
           center (:original-center world)
           normal (:normal world)
           l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
-          increase-vector (map * (:normal world) [l l l])]
+          increase-vector (map * (:normal world) [l l l])
+          scale-offset (vector-multiply (second adjust-line) d)]
       (println! (format "side: %.2f" l))
       (-> world
           (set-block-size block-name scale center increase-vector)
-          (assoc-in [:increase-vector] increase-vector)))
+          (assoc-in [:scale-offset] scale-offset)))
     world))
+
+(defn get-child-local-direction [world parent-name child-name]
+  (let [parent (get-in world [:parts parent-name])
+        relative-transform (get-in parent [:children child-name])
+        rotation (get-rotation-component relative-transform)]
+    (apply-transform rotation [0 1 0])))
+
+(defn move-children [world block-name]
+  (let [block (get-in world [:parts block-name])
+        children-names (keys (:children block))
+        offset-transform (make-transform (:scale-offset world) [1 0 0 0])
+        moving-children (filter (fn [child-name]
+                                  (let [direction (get-child-local-direction world block-name child-name)]
+                                    (vector= direction (:normal world))))                                
+                                children-names)]
+    (reduce (fn [w child-name]
+              (if (in? child-name moving-children)
+                (let [old-transform (get-in w [:parts child-name :transform])
+                      new-transform (combine-transforms old-transform offset-transform)]
+                  (-> w
+                      (assoc-in [:parts child-name :transform] new-transform)
+                      (create-relative-transform child-name block-name)))
+                (create-relative-transform w child-name block-name)))
+            world
+            children-names)))
 
 (defn scale-block-released [world event]
   (if-let [block-name (:edited-part world)]
-    (let [parent-name (get-parent-part world block-name)
-          scale (:original-scale world)
-          increase-vector (:increase-vector world)
-          world (-> world
-                    (assoc-in [:parts block-name :scale] scale)
-                    (set-value-0-transform block-name))
-          center (get-part-position world block-name)]
+    (let [parent-name (get-parent-part world block-name)]
       (-> world
-          (set-block-size block-name scale center increase-vector)
           (create-relative-transform block-name parent-name)
+          (move-children block-name)
           (dissoc-in [:edited-part])))
     world))
 
@@ -118,7 +138,7 @@
           mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point adjust-line mouse-line)
           grain-size 0.1
-          d (* grain-size (round (/ d grain-size)))
+          d (snap-value d grain-size)
           scale (:original-scale world)
           center (:original-center world)
           normal (second adjust-line)
@@ -144,9 +164,6 @@
           (dissoc-in [:edited-part])))
     world))
 
-(do
-1
-
 (defn scale-cylinder-pressed [world event]
   (let [x (:x event)
         y (:y event)]
@@ -163,7 +180,7 @@
             rotation-transform (get-rotation-component (:transform part))
             v (apply-transform rotation-transform local-normal)
             scale (:scale part)
-            center (get-transform-position (:transform part))]
+            center (get-transform-position (:transform part))]        
         (-> world
             (assoc-in [:edited-part] part-name)
             (create-weld-groups)
@@ -182,12 +199,15 @@
           center (:original-center world)]
       (if (= (:normal world) [0 1 0])
         (let [grain-size 0.1
-              d (* grain-size (round (/ d grain-size)))
-              l (max (+ d (second scale)) 0.1)]
+              d (snap-value d grain-size)
+              l (max (+ d (second scale)) 0.1)
+              scale-offset (vector-multiply (second adjust-line) d)]
           (println! (format "height: %.2f" l))
-          (set-block-size world part-name scale center [0 l 0]))
+          (-> world
+              (set-block-size part-name scale center [0 l 0])
+              (assoc-in [:scale-offset] scale-offset)))
         (let [grain-size 0.05
-              d (* grain-size (round (/ d grain-size)))          
+              d (snap-value d grain-size)
               d2 (max (+ (first scale) (* d 2)) 0.1)
               new-scale [d2 (second scale) d2]]
           (println! (format "diameter: %.2f" d2))
@@ -199,6 +219,7 @@
     (let [parent-name (get-parent-part world part-name)]
       (-> world
           (create-relative-transform part-name parent-name)
+          (move-children part-name)
           (dissoc-in [:edited-part])))
     world))
 
@@ -237,12 +258,12 @@
           center (:original-center world)]
       (if (= (:normal world) [0 1 0])
         (let [grain-size 0.1
-              d (* grain-size (round (/ d grain-size)))
+              d (snap-value d grain-size)
               l (max (+ d (second scale)) 0.1)]
           (println! (format "height: %.2f" l))
           (set-block-size world part-name scale center [0 l 0]))
         (let [grain-size 0.05
-              d (* grain-size (round (/ d grain-size)))          
+              d (snap-value d grain-size)
               d2 (max (+ (first scale) (* d 2)) 0.1)
               new-scale [d2 (second scale) d2]]
           (println! (format "diameter: %.2f" d2))
@@ -257,35 +278,63 @@
           (dissoc-in [:edited-part])))
     world))
 
+(defn scale-sphere-pressed [world {:keys [x y]}]
+  (if-let [{:keys [part-name point index]}
+           (get-part-collision world x y)]
+    (let [center (get-part-position world part-name)
+          v (vector-normalize (vector-subtract point center))]
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (create-weld-groups)
+          (assoc-in [:adjust-line] [center v])))
+    world))
+
+(defn scale-sphere-moved [world {:keys [x y]}]
+  (if-let [part-name (:edited-part world)]
+    (let [adjust-line (:adjust-line world)
+          mouse-line (unproject-point world [x y])
+          d (line-line-closest-point adjust-line mouse-line)
+          grain-size 0.05
+          d (snap-value d grain-size)
+          d2 (within (* d 2) 0.1 10)
+          new-scale (vec (repeat 3 d2))]
+      (println! (format "diameter: %.2f" d2))
+      (assoc-in world [:parts part-name :scale] new-scale))
+    world))
+
+(defn scale-sphere-released [world event]
+  (dissoc-in world [:edited-part]))
+
 (defn scale-mode-pressed [world event]
   (if-let [part-name (get-part-at world (:x event) (:y event))]
     (let [type (get-in world [:parts part-name :type])
           world (assoc-in world [:scale-type] type)]
       (case type
         :block (scale-block-pressed world event)
-        :wagon (scale-block-pressed world event)
         :track (scale-track-pressed world event)
         :cylinder (scale-cylinder-pressed world event)
         :cone (scale-cone-pressed world event)
-        world))
+        :sphere (scale-sphere-pressed world event)
+        (do
+          (println! "can't scale" (no-colon type))
+          world)))
     world))
 
 (defn scale-mode-moved [world event]
   (case (:scale-type world)
     :block (scale-block-moved world event)
-    :wagon (scale-block-moved world event)
     :track (scale-track-moved world event)
     :cylinder (scale-cylinder-moved world event)
     :cone (scale-cone-moved world event)
+    :sphere (scale-sphere-moved world event)
     world))
 
 (defn scale-mode-released [world event]
   (let [world (case (:scale-type world)
                 :block (scale-block-released world event)
-                :wagon (scale-block-released world event)
                 :track (scale-track-released world event)
                 :cylinder (scale-cylinder-released world event)
                 :cone (scale-cone-released world event)
+                :sphere (scale-sphere-released world event)
                 world)]
     (dissoc-in world [:scale-type])))
-)

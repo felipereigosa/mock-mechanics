@@ -14,6 +14,7 @@
 (load "meshes")
 
 (load "miscellaneous")
+(load "parts")
 (load "collision")
 (load "physics")
 (load "weld-optimization")
@@ -44,6 +45,8 @@
                                 :buffer (new-image 685 150)
                                 })
         (assoc-in [:cpu-box] {:x 343 :y 530 :w 685 :h 150})
+        (assoc-in [:layer-box] {:x 343 :y 575 :w 480 :h 60})
+        (assoc-in [:visible-layers] [1])
         (update-move-plane)
         (assoc-in [:command] "")
         (assoc-in [:mode] :idle)
@@ -104,10 +107,10 @@
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
-                    (cpus-input-changes)
+                    (update-cpus)
                     )]
-      (recompute-body-transforms! world)
-      (step-simulation! (:planet world) elapsed)
+      ;; (recompute-body-transforms! world)
+      ;; (step-simulation! (:planet world) elapsed)
       world)))
 
 (defn draw-3d! [world]
@@ -129,16 +132,16 @@
 
   (if-let [edited-part (:edited-part world)]
     (let [part (get-in world [:parts edited-part])
-          ;; part (if (in? (:type part) [:button :lamp])
-          ;;        (assoc-in part [:color] :black)
-          ;;        part)
-          ;; part (assoc-in part [:color] :yellow)
+          part (if (in? (:type part) [:button :lamp])
+                 (assoc-in part [:color] :black)
+                 part)
+          part (assoc-in part [:color] :yellow)
           ]
       (draw-part! world part)))
 
   (draw-buttons! world)
   (draw-lamps! world)
-  (draw-spheres! world)
+  ;; (draw-spheres! world)
 
   (if (or (and
            (= (:mode world) :graph)
@@ -152,8 +155,42 @@
   (draw-debug-meshes!)
   )
 
+(defn show-hint [world menu action]
+  (let [texts {:action {}
+               :mode {:insert "Ctrl + a,Add"
+                      :edit "Ctrl + e,Edit"
+                      }
+               :insert {}
+               :edit {}
+               :cpu {}
+               :chip {}
+               }
+        world (assoc-in world [:hint]
+                        {:text (get-in texts [menu action])
+                         :time (get-current-time)})]
+    (.start
+     (new Thread
+          (proxy [Runnable] []
+            (run []
+              (try
+                (sleep 2500)
+                (redraw!)
+                (catch Exception e))))))
+    (redraw!)
+    world))
+
 (do
 1
+
+(defn draw-hint [hint]
+  (let [elapsed (- (get-current-time) (:time hint))
+        [command description] (split (:text hint) #",")]
+    (if (< elapsed 2000)
+      (let [x (/ window-width 2)
+            y (- (/ window-height 2) 50)]
+        (fill-rect! :black x y 300 150)
+        (draw-text! :white command (+ (- x 150) 40) y 20)
+        (draw-text! :red description (+ x 30) y 20)))))
 
 (defn draw-2d! [world]
   (clear!)
@@ -169,6 +206,9 @@
     (fun world))
   (draw-output!)
   (draw-buffer! world)
+
+  (if-let [hint (:hint world)]
+    (draw-hint hint))
   )
 (redraw!))
 
@@ -192,7 +232,9 @@
 
 (defn mode-menu-pressed [world x y]
   (if-let [region (get-region-at (:mode-menu world) x y)]
-    (change-mode world region)
+    (-> world
+        (change-mode region)
+        (show-hint :mode region))
     world))
 
 (defn mouse-pressed [world event]
@@ -230,7 +272,10 @@
                        (= (:button event) :right)
                        (< (distance (:press-point world)
                                     [(:x event) (:y event)]) 10))
-                (set-pivot world event)
+                (do
+                  (println! "set pivot" elapsed (:press-point world)
+                            [(:x event) (:y event)])
+                  (set-pivot world event))
                 world)
         world (cond
                 (not-nil? (:last-point world))
@@ -243,3 +288,4 @@
     (-> world
         (prepare-tree)
         (save-checkpoint!))))
+

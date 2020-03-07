@@ -90,7 +90,12 @@
 
 (defn move-mode-pressed [world {:keys [x y]}]
   (if-let [{:keys [part-name point]} (get-part-collision world x y)]
-    (move-part-pressed world part-name point)
+    (let [type (get-in world [:parts part-name :type])]
+      (if (= type :wagon)
+        (do
+          (println! "can't move wagon")
+          world)
+        (move-part-pressed world part-name point)))
     world))
 
 (defn move-mode-moved [world event]
