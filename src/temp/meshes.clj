@@ -10,7 +10,14 @@
 (import java.nio.ByteOrder)
 
 (defn set-mesh-position [mesh position]
-  (assoc-in mesh [:transform] (make-transform position [1 0 0 0])))
+  (let [transform (:transform mesh)
+        rotation (get-transform-rotation transform)]
+    (assoc-in mesh [:transform] (make-transform position rotation))))
+
+(defn set-mesh-rotation [mesh rotation]
+  (let [transform (:transform mesh)
+        position (get-transform-position transform)]
+    (assoc-in mesh [:transform] (make-transform position rotation))))
 
 (defn get-mesh-position [mesh]
   (get-transform-position (:transform mesh)))
@@ -40,16 +47,11 @@
 (defn quaternion-from-normal [normal]
   (let [normal (vector-normalize normal)]
     (cond
-      (vector= normal [0 1 0])
-      [1 0 0 0]
-
-      (vector= normal [0 -1 0])
-      [1 0 0 180]
-
-      :else
-      (let [axis (vector-cross-product [0 1 0] normal)
-            angle (vector-angle normal [0 1 0])]
-        (conj axis angle)))))
+      (vector= normal [0 1 0]) [0 1 0 0]
+      (vector= normal [0 -1 0]) [1 0 0 180]
+      :else (let [axis (vector-cross-product [0 1 0] normal)
+                  angle (vector-angle normal [0 1 0])]
+              (conj axis angle)))))
 
 (defn point-mesh-towards [mesh direction]
   (let [position (get-mesh-position mesh)
@@ -151,7 +153,7 @@
   [])
 
 (defn parse-line [line]
-  (map read-string (into [] (.split (.trim (.substring line 1)) " "))))
+  (map read-string (rest (.split line " "))))
 
 (defn get-model-vertices [filename]
   (letfn [(parse-line [line]
@@ -421,67 +423,209 @@
 
     (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)))
 
-(defn create-mesh [vertices position rotation scale skin tex-coords]
-  (let [base-mesh {:vertices (into-array Double/TYPE (map double vertices))
+(defn draw-textured-mesh! [world mesh transform]
+  (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
+        program (get-in world [:programs (:program mesh)])
+        program-index (:index program)
+        attributes (:attributes program)
+        uniforms (:uniforms program)
+        model-matrix (multiply-matrices
+                      (apply get-scale-matrix (:scale mesh))
+                      (get-transform-matrix transform))
+        view-matrix (:view-matrix world)
+        projection-matrix (:projection-matrix world)
+        mv-matrix (multiply-matrices model-matrix view-matrix)
+        mvp-matrix (multiply-matrices mv-matrix projection-matrix)
+        itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
+    (GL20/glUseProgram program-index)
+    (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
+                             (get-float-buffer itmv-matrix))
+
+    (GL20/glUniformMatrix4fv (:mvp-matrix uniforms) false
+                             (get-float-buffer mvp-matrix))
+
+    (GL20/glVertexAttribPointer (:position attributes) 3 GL11/GL_FLOAT
+                                false 0 (:vertices-buffer mesh))
+    (GL20/glEnableVertexAttribArray (:position attributes))
+
+    (GL20/glVertexAttribPointer (:normal attributes) 3 GL11/GL_FLOAT
+                                false 0 (:normals-buffer mesh))
+    (GL20/glEnableVertexAttribArray (:normal attributes))
+
+    (GL20/glVertexAttribPointer
+     (:texture-coordinates attributes) 2 GL11/GL_FLOAT
+     false 0 (:texture-coordinates-buffer mesh))
+    (GL20/glEnableVertexAttribArray (:texture-coordinates attributes))
+    (GL13/glActiveTexture GL13/GL_TEXTURE0)
+    (GL11/glBindTexture GL11/GL_TEXTURE_2D (:texture-id mesh))
+    (GL20/glUniform1i (:texture-diffuse uniforms) 0)
+
+    (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)
+    ))
+
+(defn create-mesh [vertices position rotation
+                   scale skin tex-coords normals]
+  (let [vertices (vec (flatten vertices))
+        normals (if (empty? normals)
+                  (vec (compute-normals vertices))
+                  (vec (flatten normals)))
+        base-mesh {:vertices vertices
                    :vertices-buffer (get-float-buffer vertices)
-                   :normals-buffer (get-float-buffer (into [] (compute-normals vertices)))
+                   :normals normals
+                   :normals-buffer (get-float-buffer normals)
                    :transform (make-transform position rotation)
-                   :draw-fn draw-lighted-mesh!
                    :scale scale}]
-    (if (not (is-image? skin))
+    (cond
+      (string? skin)
+      (let [texture-id (GL11/glGenTextures)
+            tex-coords (vec (flatten tex-coords))]
+        (-> base-mesh
+            (assoc-in [:draw-fn] draw-textured-mesh!)
+            (assoc-in [:program] :textured)
+            (assoc-in [:image] (open-image skin))
+            (assoc-in [:texture-file] skin)
+            (assoc-in [:texture-coordinates] tex-coords)
+            (assoc-in [:texture-coordinates-buffer] (get-float-buffer tex-coords))
+            (assoc-in [:texture-id] texture-id)
+            (set-texture)))
+
+      (sequential? skin)
+      (let [colors (vec (flatten skin))]
+        (-> base-mesh
+            (assoc-in [:colors] colors)
+            (assoc-in [:colors-buffer] (get-float-buffer colors))
+            (assoc-in [:draw-fn] draw-colored-mesh!)
+            (assoc-in [:program] :colored)))
+
+      :else
       (let [color (get-color skin)
             r (/ (get-red color) 255.0)
             g (/ (get-green color) 255.0)
             b (/ (get-blue color) 255.0)]
         (-> base-mesh
             (assoc-in [:color] [r g b 1.0])
-            (assoc-in [:program] :flat)))
-      (let [texture-id (GL11/glGenTextures)]
-        (-> base-mesh
-            (assoc-in [:image] skin)
-            (assoc-in [:program] :textured)
-            (assoc-in [:texture-coordinates-buffer] (get-float-buffer tex-coords))
-            (assoc-in [:texture-id] texture-id)
-            (set-texture))))))
+            (assoc-in [:draw-fn] draw-lighted-mesh!)
+            (assoc-in [:program] :flat))))))
 
 (defn create-cube-mesh [position rotation scale skin]
   (create-mesh (get-cube-vertices)
-                   position rotation scale skin (get-cube-texture-coordinates)))
+               position rotation scale skin
+               (get-cube-texture-coordinates)
+               []))
 
 (defn create-plane-mesh [position rotation scale skin]
   (create-mesh (get-plane-vertices)
-                   position rotation scale skin (get-plane-texture-coordinates)))
+               position rotation scale skin
+               (get-plane-texture-coordinates)
+               []))
 
-(defn create-cone-mesh [position rotation scale skin]
-  (create-mesh (get-cone-vertices)
-               position rotation scale skin (get-cone-texture-coordinates)))
+(defn find-line [lines start]
+  (find-if #(.startsWith % start) lines))
 
-(defn create-sphere-mesh [position rotation scale skin]
-  (create-mesh (get-sphere-vertices 4)
-               position rotation scale skin (get-sphere-texture-coordinates)))
+(defn parse-material [lines]
+  (let [name (subs (find-line lines "newmtl") 7)
+        texture-line (find-line lines "map_Kd")]
+    {name {:diffuse (parse-line (find-line lines "Kd"))
+           :texture (if texture-line
+                      (str "resources/" (subs texture-line 7)))}}))
 
-(defn create-model-mesh [filename position rotation scale skin]
-  (create-mesh (get-model-vertices filename)
-               position rotation scale skin (get-model-texture-coordinates)))
+(defn parse-materials [filename]
+  (with-open [reader (clojure.java.io/reader filename)]
+    (let [lines (doall (line-seq reader))
+          lines (filter (fn [line]
+                          (or (.startsWith line "newmtl")
+                              (.startsWith line "Kd")
+                              (.startsWith line "map_Kd")))
+                        lines)
+          materials (create-groups [] #(.startsWith % "newmtl") lines)]
+      (apply merge (cons {"white" {:diffuse [1 1 1]
+                                   :texture nil}}
+                         (map parse-material materials))))))
+
+(defn parse-line-with-slashes [line]
+  (map (fn [item]
+         (map read-string (filter (comp not empty?)
+                                  (.split item "/"))))
+       (rest (.split line " "))))
+
+(defn use-indices [vector indices]
+  (let [min-index (apply min indices)
+        indices (map #(- % min-index) indices)]
+    (map (fn [v]
+           (nth vector v))
+         indices)))
+
+(defn create-colors [lines materials]
+  (let [material-lines (filter (fn [[index line]]
+                                 (.startsWith line "usemtl"))
+                               (map vector (range) lines))]
+    (mapcat (fn [[i material] [j _]]
+              (let [name (subs material 7)
+                    color (get-in materials [name :diffuse])]
+                (repeat (* (- j i 1) 3) (conj (vec color) 1))))
+            material-lines
+            (conj (vec (rest material-lines))
+                  [(count lines) nil]))))
+
+(defn create-model-mesh [filename position rotation scale color]
+  (with-open [reader (clojure.java.io/reader filename)]
+    (let [materials-filename (-> filename
+                                 (subs 0 (.lastIndexOf filename "."))
+                                 (str ".mtl"))
+          materials (parse-materials materials-filename)
+          lines (filter (fn [line]
+                          (or (.startsWith line "o")
+                              (.startsWith line "v")
+                              (.startsWith line "vn")
+                              (.startsWith line "f")
+                              (.startsWith line "usemtl")))
+                        (line-seq reader))
+          v (map parse-line (filter #(.startsWith % "v") lines))
+          n (map parse-line (filter #(.startsWith % "vn") lines))
+          faces (mapcat parse-line-with-slashes
+                        (filter #(.startsWith % "f") lines))
+          vertices (use-indices v (map first faces))
+          normals (use-indices n (map last faces))
+          skin (or color
+                   (create-colors lines materials))]
+      (create-mesh vertices position rotation scale
+                   skin [] normals))))
+
+;; (defn create-cone-mesh [position rotation scale skin]
+;;   (create-mesh (get-cone-vertices)
+;;                position rotation scale skin
+;;                (get-cone-texture-coordinates)
+;;                []))
+
+;; (defn create-sphere-mesh [position rotation scale skin]
+;;   (create-mesh (get-sphere-vertices 4)
+;;                position rotation scale skin (get-sphere-texture-coordinates)))
+
+;; (defn create-model-mesh [filename position rotation scale skin]
+;;   (create-mesh (get-model-vertices filename)
+;;                position rotation scale skin
+;;                (get-model-texture-coordinates) []))
 
 (defn create-cylinder-mesh [position rotation scale skin]
   (create-mesh (get-cylinder-vertices)
-               position rotation scale skin (get-cylinder-texture-coordinates)))
+               position rotation scale skin
+               (get-cylinder-texture-coordinates)
+               []))
 
-(defn create-torus-mesh [inner-radius outer-radius position rotation scale skin]
-  (let [mesh (create-mesh (get-torus-vertices inner-radius outer-radius)
-                          position rotation scale skin (get-torus-texture-coordinates))]
-    (-> mesh
-        (assoc-in [:inner-radius] inner-radius) ;;#####################################
-        (assoc-in [:outer-radius] outer-radius))))
+;; (defn create-torus-mesh [inner-radius outer-radius position rotation scale skin]
+;;   (let [mesh (create-mesh (get-torus-vertices inner-radius outer-radius)
+;;                           position rotation scale skin (get-torus-texture-coordinates))]
+;;     (-> mesh
+;;         (assoc-in [:inner-radius] inner-radius) ;;#####################################
+;;         (assoc-in [:outer-radius] outer-radius))))
 
-(defn create-disk-mesh [inner-radius outer-radius height position rotation scale skin]
-  (let [mesh (create-mesh (get-disk-vertices inner-radius outer-radius height)
-                          position rotation scale skin (get-disk-texture-coordinates))]
-    (-> mesh
-        (assoc-in [:inner-radius] inner-radius) ;;##########################################
-        (assoc-in [:outer-radius] outer-radius)
-        (assoc-in [:height] height))))
+;; (defn create-disk-mesh [inner-radius outer-radius height position rotation scale skin]
+;;   (let [mesh (create-mesh (get-disk-vertices inner-radius outer-radius height)
+;;                           position rotation scale skin (get-disk-texture-coordinates))]
+;;     (-> mesh
+;;         (assoc-in [:inner-radius] inner-radius) ;;##########################################
+;;         (assoc-in [:outer-radius] outer-radius)
+;;         (assoc-in [:height] height))))
 
 (defn draw-lines! [world mesh transform]
   (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
@@ -589,26 +733,26 @@
      :scale [1 1 1]
      :draw-fn draw-lines!}))
 
-(defn create-vector-mesh [world position direction color base-name
-                          & {:keys [width tip] :or {width 0.1 tip 1}}]
-  (let [direction (vector-multiply direction (- 1 (/ tip (vector-length direction))))
-        p1 (vector-add position (vector-multiply direction 0.5))
-        p2 (vector-add position direction)
-        rotation (quaternion-from-normal direction)
-        axis-name (join-keywords base-name :axis)
-        tip-name (join-keywords base-name :tip)]
-    (-> world
-        (assoc-in [:background-meshes axis-name]
-                  (create-cube-mesh p1 rotation
-                                    [width (vector-length direction) width] color))
-        (assoc-in [:background-meshes tip-name]
-                  (create-cone-mesh p2 rotation [(/ tip 3) tip (/ tip 3)] color)))))
+;; (defn create-vector-mesh [world position direction color base-name
+;;                           & {:keys [width tip] :or {width 0.1 tip 1}}]
+;;   (let [direction (vector-multiply direction (- 1 (/ tip (vector-length direction))))
+;;         p1 (vector-add position (vector-multiply direction 0.5))
+;;         p2 (vector-add position direction)
+;;         rotation (quaternion-from-normal direction)
+;;         axis-name (join-keywords base-name :axis)
+;;         tip-name (join-keywords base-name :tip)]
+;;     (-> world
+;;         (assoc-in [:background-meshes axis-name]
+;;                   (create-cube-mesh p1 rotation
+;;                                     [width (vector-length direction) width] color))
+;;         (assoc-in [:background-meshes tip-name]
+;;                   (create-cone-mesh p2 rotation [(/ tip 3) tip (/ tip 3)] color)))))
 
-(defn create-axis-mesh [world size thickness]
-  (-> world
-      (create-vector-mesh [0 0 0] [size 0 0] :red :x-axis)
-      (create-vector-mesh [0 0 0] [0 size 0] :green :y-axis)
-      (create-vector-mesh [0 0 0] [0 0 size] :blue :z-axis)))
+;; (defn create-axis-mesh [world size thickness]
+;;   (-> world
+;;       (create-vector-mesh [0 0 0] [size 0 0] :red :x-axis)
+;;       (create-vector-mesh [0 0 0] [0 size 0] :green :y-axis)
+;;       (create-vector-mesh [0 0 0] [0 0 size] :blue :z-axis)))
 
 (defn draw-ortho-mesh! [world mesh]
   (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
@@ -633,8 +777,8 @@
 
     (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)))
 
-(defn create-ortho-mesh []
-  (let [image (new-image window-width window-height)
+(defn create-ortho-mesh [width height]
+  (let [image (new-image width height)
         vertices [-1 -1  0   1 -1  0   -1  1  0
                    1 -1  0   1  1  0   -1  1  0]
         texture-coordinates [0 1   1 1   0 0

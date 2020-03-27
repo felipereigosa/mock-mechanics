@@ -4,20 +4,18 @@
 (declare move-part-pressed)
 (declare move-part-moved)
 (declare move-part-released)
+(declare set-wagon-loop)
 
 (defn insert-mode-draw [world]
-  (fill-rect! (make-color 70 70 70) 330 580 800 70)
-
-  (let [{:keys [image x y]} (:insert-menu world)]
+  (let [{:keys [image x y w h]} (:insert-menu world)]
+    (fill-rect! (make-color 70 70 70) x y (+ w 30) (+ h 20))
     (draw-image! image x y))
-
+  
   (let [box (get-in world [:insert-menu :regions
                            (:insert-type world)])
         {:keys [x y w h]} box]
     (dotimes [i 3]
       (draw-rect! :black x y (- w i) (- h i 1)))))
-
-(declare set-wagon-loop)
 
 (defn insert-wagon [world color x y]
   (let [part-name (get-part-at world x y)]
@@ -34,20 +32,6 @@
                       (make-transform [0 0 0] [1 0 0 0]))
             (set-wagon-loop name part-name)))
       world)))
-
-;; (defn insert-sphere [world x y]
-;;   (if-let [collision (get-part-collision world x y)]
-;;     (let [normal (get-collision-normal world collision)
-;;           offset (vector-multiply (vector-normalize normal)
-;;                                   (:sphere-radius world))
-;;           position (vector-add (:point collision) offset)]
-;;       (create-sphere world position))
-;;     (let [line (unproject-point world [x y])
-;;           ground-plane [[0 0 0] [1 0 0] [0 0 1]]
-;;           offset [0 (:sphere-radius world) 0]
-;;           point (line-plane-intersection line ground-plane)
-;;           position (vector-add point offset)]
-;;       (create-sphere world position))))
 
 (defn get-ground-anchor [world part collision]
   (let [offset [0 (get-part-offset part) 0]
@@ -131,7 +115,7 @@
 
 (defn insert-mode-pressed [world event]
   (let [{:keys [x y]} event]
-    (if (> (:y event) 545)
+    (if (inside-box? (:insert-menu world) x y)
       (if-let [region (get-region-at (:insert-menu world) x y)]
         (assoc-in world [:insert-type] region)
         world)

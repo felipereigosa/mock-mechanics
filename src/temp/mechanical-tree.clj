@@ -3,7 +3,7 @@
 (ns temp.core)
 
 (declare compute-subtree-transforms)
-
+  
 (defn compute-children-transforms [world part-name transform key]
   (reduce (fn [w [child-name relative-transform]]
             (let [new-transform (combine-transforms
@@ -58,10 +58,7 @@
     :wagon (wagon-compute-subtree-transforms world name transform key)
     (block-compute-subtree-transforms world name transform key)))
 
-;;---
-
 (defn compute-transforms [world key]
-  (reduce (fn [w [name relative-transform]]
-            (compute-subtree-transforms w name relative-transform key))
-          world
-          (:ground-children world)))
+  (let [ground (get-in world [:parts :ground-part])
+        transform (:transform ground)]
+    (compute-subtree-transforms world :ground-part transform key)))

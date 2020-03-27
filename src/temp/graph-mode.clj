@@ -42,10 +42,7 @@
         (assoc-in [:parts chip-name :final-time] final-time))))
 
 (defn graph-mode-entered [world]
-  (let [world (assoc-in world [:graph-subcommand] :move)]
-    (if-let [chip-name (:selected-chip world)]
-      (show-selected-part world chip-name)
-      world)))
+  (assoc-in world [:graph-subcommand] :move))
 
 (defn run-selected-chip [world]
   (if-let [selected-chip (:selected-chip world)]
@@ -76,7 +73,7 @@
     [(/ (- t to) zoom)
      (/ (- v vo) zoom)]))
 
-(defn draw-cross [graph-box]
+(defn draw-graph-cross [graph-box]
   (let [buffer (:buffer graph-box)
         {:keys [x y w h]} graph-box
         x1 7
@@ -153,7 +150,7 @@
           (let [color (get-in world [:parts function-name :color])
                 function (get-in chip [:functions function-name])]
             (draw-function! (:graph-box world) view function color))))
-      (draw-cross graph-box))
+      (draw-graph-cross graph-box))
 
     (let [color (if (= (:graph-subcommand world) :move)
                   :black
@@ -210,9 +207,7 @@
     (if-let [part-name (get-part-at world x y)]
       (let [part (get-in world [:parts part-name])]
         (if (= (:type part) :chip)
-          (-> world
-              (show-selected-part part-name)
-              (assoc-in [:selected-chip] part-name))
+          (assoc-in world [:selected-chip] part-name)
           world))
       world)))
 

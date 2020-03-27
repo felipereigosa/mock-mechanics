@@ -1,6 +1,18 @@
 
 (ns temp.core)
 
+(declare get-parts-with-type)
+(declare create-weld-groups)
+(declare compute-transforms)
+(declare get-tail-transform)
+(declare get-part-position)
+(declare save-version)
+(declare load-last-version-callback)
+(declare undo!)
+(declare redo!)
+(declare show-hint)
+(declare change-mode)
+
 (defn update-move-plane [world]
   (assoc-in world [:move-plane]
             (get-camera-plane world (get-in world [:camera :pivot]))))
@@ -59,93 +71,6 @@
       (assoc-in [:input-callback] callback)
       (assoc-in [:text-input] true)))
 
-(declare get-parts-with-type)
-
-(defn set-probe-values [world]
-  (let [probe-names (get-parts-with-type (:parts world) :probe)
-        positions (map (fn [probe-name]
-                         (let [probe (if (:use-weld-groups world)
-                                       (get-in world [:weld-groups probe-name])
-                                       (get-in world [:parts probe-name]))]
-                           (get-transform-position (:transform probe))))
-                       probe-names)
-        close-pairs (mapcat (fn [i]
-                              (map (fn [j]
-                                     (let [p1 (nth positions i)
-                                           p2 (nth positions j)
-                                           d (distance p1 p2)]
-                                       (if (< d 0.12)
-                                         [i j]
-                                         nil)))
-                                   (range (inc i) (count probe-names))))
-                            (range (dec (count probe-names))))
-        close-indices (flatten (filter not-nil? close-pairs))
-        close-probes (map #(nth probe-names %) close-indices)]
-    (reduce (fn [w probe-name]
-              (if (in? probe-name close-probes)
-                (assoc-in w [:parts probe-name :value] 1)
-                (assoc-in w [:parts probe-name :value] 0)))
-            world
-            probe-names)))
-
-(defn draw-buttons! [world]
-  (let [button-names (get-parts-with-type (:parts world) :button)]
-    (doseq [button-name button-names]
-      (let [button (get-in world [:parts button-name])
-            base-transform (:transform button)
-            rotation (get-transform-rotation (:transform button))
-            rotation-transform (make-transform [0 0 0] rotation)
-            up (apply-transform rotation-transform [0 1 0])
-            offset (if (= (:value button) 1)
-                     (make-transform (vector-multiply up 0.02) [1 0 0 0])
-                     (make-transform (vector-multiply up 0.1) [1 0 0 0]))
-            transform (combine-transforms base-transform offset)
-            property (nth (get-in world [:properties])
-                          (:selected-property world))
-            color (if (not= (:mode world) :toggle)
-                    (:color button)
-                    (if (get-in button [property])
-                      :red
-                      :white))
-            mesh (-> (:button-mesh world)
-                     (assoc-in [:transform] transform)
-                     (assoc-in [:color] (get-color-vector color)))]
-        (draw-mesh! world mesh)))))
-
-(defn draw-lamps! [world]
-  (let [lamp-names (get-parts-with-type (:parts world) :lamp)]
-    (doseq [lamp-name lamp-names]
-      (let [lamp (get-in world [:parts lamp-name])
-            base-transform (:transform lamp)
-            property (nth (get-in world [:properties])
-                          (:selected-property world))
-            color (if (and (= (:value lamp) 0)
-                           (in? (:mode world) [:idle :cpu]))
-                    (:dark-color lamp)
-                    (:color lamp))
-            
-            color (if (not= (:mode world) :toggle)
-                    color
-                    (if (get-in lamp [property])
-                      :red
-                      :white))
-            mesh (-> (:lamp-mesh world)
-                     (assoc-in [:transform] base-transform)
-                     (assoc-in [:color] (get-color-vector color)))]
-        (draw-mesh! world mesh)))))
-
-(declare create-weld-groups)
-(declare compute-transforms)
-(declare get-tail-transform)
-(declare get-part-position)
-
-(defn prepare-tree [world]
-  ;; (if (= (:mode world) :idle)
-  ;;   world
-    (-> world
-        (compute-transforms :parts)
-        (create-weld-groups)))
-
 (defn set-pivot [world event]
   (let [x (:x event)
         y (:y event)
@@ -182,3 +107,52 @@
     (redraw!) ;;#################################
     world))
 
+(defn action-menu-pressed [world x y]
+  (if-let [region (get-region-at (:action-menu world) x y)]
+    (case region
+      :new (new-file world)
+      :view (reset-camera world)
+      :save (save-version world)
+      :load (read-input world load-last-version-callback)
+      :undo (undo! world)
+      :redo (redo! world))
+    world))
+
+(defn mode-menu-pressed [world x y]
+  (if-let [region (get-region-at (:mode-menu world) x y)]
+    (-> world
+        (change-mode region)
+        (show-hint :mode region))
+    world))
+
+(defn place-box [world name & {:keys [rx ry wx wy]}]
+  (let [{:keys [x y w h]} (get-in world [name])
+        window-width (:window-width world)
+        window-height (:window-height world)
+
+        x (if (nil? rx)
+            (* window-width wx)
+            (let [n (neg? rx)
+                  rx (abs rx)
+                  x (* rx w)]
+              (if n
+                (- window-width x)
+                x)))
+
+        y (if (nil? ry)
+            (* window-height wy)
+            (let [n (neg? ry)
+                  ry (abs ry)
+                  y (* ry h)]
+              (println! (- window-height y))
+              (if n
+                (- window-height y)
+                y)))]
+    (-> world
+        (assoc-in [name :x] x)
+        (assoc-in [name :y] y)
+        ;; (assoc-in [name :regions] regions)))
+        ;; regions (get-absolute-svg-regions document menu)]
+        )))
+    
+  

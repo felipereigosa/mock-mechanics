@@ -174,13 +174,14 @@
             local-point (apply-transform inverse-transform point)
             half-height (/ (second (:scale part)) 2)
             [lx ly lz] local-point
-            local-normal (if (float= ly half-height)
-                           [0 1 0]
-                           (vector-normalize [lx 0 lz]))
+            local-normal (cond
+                           (float= ly half-height) [0 1 0]
+                           (float= ly (- half-height)) [0 -1 0]
+                           :else (vector-normalize [lx 0 lz]))
             rotation-transform (get-rotation-component (:transform part))
             v (apply-transform rotation-transform local-normal)
             scale (:scale part)
-            center (get-transform-position (:transform part))]        
+            center (get-transform-position (:transform part))]
         (-> world
             (assoc-in [:edited-part] part-name)
             (create-weld-groups)
@@ -196,15 +197,16 @@
           mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point adjust-line mouse-line)
           scale (:original-scale world)
-          center (:original-center world)]
-      (if (= (:normal world) [0 1 0])
+          center (:original-center world)
+          normal (:normal world)]
+      (if (vector= (vector-cross-product normal [0 1 0]) [0 0 0])
         (let [grain-size 0.1
               d (snap-value d grain-size)
               l (max (+ d (second scale)) 0.1)
               scale-offset (vector-multiply (second adjust-line) d)]
           (println! (format "height: %.2f" l))
           (-> world
-              (set-block-size part-name scale center [0 l 0])
+              (set-block-size part-name scale center [0 (* l (second normal)) 0])
               (assoc-in [:scale-offset] scale-offset)))
         (let [grain-size 0.05
               d (snap-value d grain-size)

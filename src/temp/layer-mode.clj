@@ -1,18 +1,8 @@
 
 (ns temp.core)
 
-(do
-1
-
 (defn layer-mode-entered [world]
   (dissoc-in world [:selected-part]))
-
-(defn number-pressed [world number]
-  (if-let [part-name (:selected-part world)]
-    (-> world
-        (assoc-in [:parts part-name :layer] number)
-        (dissoc-in [:selected-part]))
-    (set-layer world number)))
 
 (defn set-layer [world number]
   (if (:shift-pressed world)
@@ -29,10 +19,6 @@
   (let [layer-box (:layer-box world)
         {:keys [x y w h]} layer-box]    
     (fill-rect! :black x y w h)
-    
-    (when (:selected-part world)
-      (draw-rect! :white x y w h))
-    
     (dotimes [i 8]
       (let [cx (+ (* i 60) 30 (- x (/ w 2)))]
         (fill-rect! :dark-gray cx y 50 50)
@@ -40,17 +26,21 @@
         (when (in? (inc i) (:visible-layers world))
           (draw-rect! :white cx y 50 50))))))
 
-(defn layer-mode-pressed [world event]
-  (let [layer-box (:layer-box world)
-        px (:x event)
-        py (:y event)]    
-    (if (inside-box? layer-box px py)
-      (let [{:keys [x y w h]} layer-box
-            index (inc (int (/ (- px (- x (/ w 2))) 60)))]
-        (set-layer world index))
-      (assoc-in world [:selected-part] (get-part-at world px py)))))
+(defn get-layer-index [box x]
+  (inc (int (/ (- x (- (:x box) (/ (:w box) 2))) 60))))
 
-(clear-output!)
-(redraw!)
-)
+(defn layer-mode-pressed [world {:keys [x y]}]
+  (let [layer-box (:layer-box world)]
+    (if (inside-box? layer-box x y)
+      (set-layer world (get-layer-index layer-box x))
+      (assoc-in world [:selected-part] (get-part-at world x y)))))
 
+(defn layer-mode-released [world {:keys [x y]}]
+  (let [layer-box (:layer-box world)]    
+    (if (and (not (nil? (:selected-part world)))
+             (inside-box? layer-box x y))
+      (let [index (get-layer-index layer-box x)]
+        (-> world
+            (assoc-in [:parts (:selected-part world) :layer] index)
+            (dissoc-in [:selected-part])))
+      world)))

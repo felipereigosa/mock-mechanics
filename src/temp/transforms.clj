@@ -99,3 +99,6 @@
   (let [m (get-transform-matrix transform)
         im (get-inverse-matrix m)]
     (matrix->transform im)))
+
+(def identity-transform (make-transform [0 0 0] [1 0 0 0]))
+

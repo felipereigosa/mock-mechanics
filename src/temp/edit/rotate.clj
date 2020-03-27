@@ -15,10 +15,11 @@
 
 (defn rotate-mode-moved [world event]
   (if-let [part-name (:edited-part world)]
-    (let [dx (/ (- (:x event) (first (:start-point world))) window-width)
+    (let [dx (/ (- (:x event) (first (:start-point world)))
+                (:window-width world))
           grain (if (:shift-pressed world)
-                  30
-                  10)
+                  15
+                  5)
           angle (snap-value (map-between-ranges dx -1 1 -1000 1000) grain)
           rotation (make-transform [0 0 0] [0 1 0 angle])
           original-transform (:original-transform world)          

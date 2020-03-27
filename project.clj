@@ -7,11 +7,23 @@
   :dependencies [[org.clojure/clojure "1.10.0"]
                  [org.clojars.nakkaya/vecmath "1"]
                  [org.clojars.nakkaya/jbullet "20101010"]
-                 [lwjgl/lwjgl "3.0.0"]
                  [matrix/matrix "1.0.0"]
                  [batik/batik "1.7.1"]
                  ]
   :plugins [[cider/cider-nrepl "0.21.1"]]
   :main ^:skip-aot temp.core
   :target-path "target/%s"
+
+  :resource-paths ["libs/lwjgl.jar"
+                   "libs/lwjgl-natives-linux.jar"
+                   
+                   "libs/lwjgl-glfw.jar"
+                   "libs/lwjgl-glfw-natives-linux.jar"
+
+                   "libs/lwjgl-jemalloc.jar"
+                   "libs/lwjgl-jemalloc-natives-linux.jar"
+                   
+                   "libs/lwjgl-opengl.jar"
+                   "libs/lwjgl-opengl-natives-linux.jar"]
+  
   :profiles {:uberjar {:aot :all}})

@@ -13,6 +13,8 @@
 (import org.lwjgl.glfw.GLFWMouseButtonCallback)
 (import org.lwjgl.glfw.GLFWKeyCallback)
 (import org.lwjgl.glfw.GLFWScrollCallback)
+(import org.lwjgl.glfw.GLFWWindowSizeCallback)
+(import org.lwjgl.glfw.GLFWWindowMaximizeCallback)                       
 (import java.awt.image.BufferedImage)
 (import javax.imageio.ImageIO)
 (import java.io.File)
@@ -31,6 +33,16 @@
 (import java.nio.ByteBuffer)
 (import java.nio.ByteOrder)
 
+(declare draw-2d!)
+(declare draw-3d!)
+(declare draw-ortho-mesh!)
+(declare create-grid-mesh)
+(declare create-ortho-mesh)
+(declare create-cube-mesh)
+(declare draw-mesh!)
+(declare set-mesh-position)
+(declare redraw!)
+
 (defn create-world [])
 (defn draw-world! [world])
 (defn update-world [world elapsed] world)
@@ -40,6 +52,25 @@
 (defn mouse-moved [world event] world)
 (defn mouse-released [world event] world)
 (defn mouse-scrolled [world event] world)
+(defn window-changed [world event] world)
+
+;;###########################################
+(def window-width (atom 640))
+(def window-height (atom 480))
+
+(defn recompute-viewport [world width height]
+  (let [projection-matrix (get-perspective-matrix
+                           10 (/ width height) 3 1000)
+        world (-> world
+                  (assoc-in [:projection-matrix] projection-matrix)
+                  (assoc-in [:output] (create-ortho-mesh width height))
+                  (assoc-in [:window-width] width)
+                  (assoc-in [:window-height] height))]
+    (GL11/glViewport 0 0 width height)
+    (reset! window-width width)
+    (reset! window-height height)    
+    (redraw!)
+    world))
 
 (def to-run (atom nil))
 
@@ -48,6 +79,15 @@
                   (when (not (nil? tr))
                     (tr))
                   nil)))
+
+(def mouse-x (atom 0))
+(def mouse-y (atom 0))
+(def mouse-button (atom nil))
+
+(defn get-button-name [value]
+  (get {0 :left
+        1 :right
+        2 :middle} value))
 
 (defn create-key-handler! [window]
   (let [key-handler (proxy [GLFWKeyCallback] []
@@ -65,17 +105,6 @@
 
     (GLFW/glfwSetKeyCallback window key-handler)
     key-handler))
-
-(def window-width 685)
-(def window-height 705)
-(def mouse-x (atom 0))
-(def mouse-y (atom 0))
-(def mouse-button (atom nil))
-
-(defn get-button-name [value]
-  (get {0 :left
-        1 :right
-        2 :middle} value))
 
 (defn create-mouse-handler! [window]
   (let [mouse-handler (proxy [GLFWMouseButtonCallback] []
@@ -101,15 +130,13 @@
 (defn create-mouse-motion-handler! [window]
   (let [mouse-motion-handler (proxy [GLFWCursorPosCallback] []
                                (invoke [window x y]
+                                 (reset! mouse-x x)
+                                 (reset! mouse-y y)
                                  (try
-                                   (let [x (+ x -2) ;;####### window manager problem
-                                         y (+ y -2)]
-                                     (reset! mouse-x x)
-                                     (reset! mouse-y y)
-                                     (swap! world
-                                            (fn [w]
-                                              (mouse-moved w {:x x :y y
-                                                              :button @mouse-button}))))
+                                   (swap! world
+                                          (fn [w]
+                                            (mouse-moved w {:x x :y y
+                                                            :button @mouse-button})))
                                    (catch Exception e))))]
 
     (GLFW/glfwSetCursorPosCallback window mouse-motion-handler)
@@ -129,12 +156,24 @@
     (GLFW/glfwSetScrollCallback window mouse-scroll-handler)
     mouse-scroll-handler))
 
+(defn create-window-size-handler! [window]
+  (let [handler (proxy [GLFWWindowSizeCallback] []
+                  (invoke [window width height]
+                    (try
+                      (swap! world
+                             (fn [w]
+                               (window-changed w {:width width
+                                                  :height height})))
+                      (catch Exception e))))]
+    (GLFW/glfwSetWindowSizeCallback window handler)
+    handler))
+
 (defn loop! [window]
   (try
     (swap! world (fn [w] (create-world))) ;;################################
     (catch Exception e))
 
-  (while true
+  (while (not (GLFW/glfwWindowShouldClose window))
     (GL11/glClear (bit-or GL11/GL_COLOR_BUFFER_BIT
                           GL11/GL_DEPTH_BUFFER_BIT))
     (try
@@ -157,22 +196,25 @@
     (GLFW/glfwWindowHint GLFW/GLFW_VISIBLE GLFW/GLFW_FALSE)
     (GLFW/glfwWindowHint GLFW/GLFW_RESIZABLE GLFW/GLFW_TRUE)
     (GLFW/glfwWindowHint GLFW/GLFW_SAMPLES 8)
+    (GLFW/glfwWindowHint GLFW/GLFW_MAXIMIZED GLFW/GLFW_TRUE)
 
-    (let [window (GLFW/glfwCreateWindow window-width
-                                        window-height
-                                        "Window" MemoryUtil/NULL MemoryUtil/NULL)
-          key-handler (create-key-handler! window)
-          mouse-handler (create-mouse-handler! window)
-          mouse-motion-handler (create-mouse-motion-handler! window)
-          mouse-scroll-handler (create-mouse-scroll-handler! window)]
-
+    (let [width 640
+          height 480
+          window (GLFW/glfwCreateWindow width height "-"
+                                        MemoryUtil/NULL MemoryUtil/NULL)]
+      (create-key-handler! window)
+      (create-mouse-handler! window)
+      (create-mouse-motion-handler! window)
+      (create-mouse-scroll-handler! window)
+      (create-window-size-handler! window)
+          
       (GLFW/glfwMakeContextCurrent window)
       (GLFW/glfwSwapInterval 1)
       (GLFW/glfwShowWindow window)
 
       (GL/createCapabilities)
 
-      (GL11/glViewport 0 0 window-width window-height)
+      (GL11/glViewport 0 0 width height)
       (GL11/glClearColor 0.0 0.0 0.0 0.0)
 
       (GL11/glEnable GL11/GL_BLEND)
@@ -182,8 +224,11 @@
 
       (loop! window)
 
+      ;; (GLFW/glfwFreeCallbacks window)
       (GLFW/glfwDestroyWindow window)
-      (GLFW/glfwTerminate)))))))
+      (GLFW/glfwTerminate)
+      
+      ))))))
 
 ;;-------------------------------------------------------------------------------;;
 ;; opengl
@@ -358,9 +403,9 @@
 
 (defn draw-text [image color text x y size]
   (let [g (get-image-graphics image)]
-    (.setFont g (new Font "Dialog" Font/PLAIN (int size)))
+    (.setFont g (new Font "Dialog" Font/PLAIN size))
     (.setColor g (get-color color))
-    (.drawString g text (int x) (int y))))
+    (.drawString g text x y)))
 
 (defn draw-ellipse [image color rect]
   (let [g (get-image-graphics image)]
@@ -410,17 +455,12 @@
         y (if (first corner) y (- y (/ h 2)))]
     (.drawImage g image2 (int x) (int y) nil)))
 
-(def pixels (make-array Integer/TYPE (* window-width window-height)))
-(def bb (ByteBuffer/allocateDirect (* window-width window-height 4)))
-
-;;########################################################################
 (defn image->buffer [image]
-  (let [;; w (.getWidth image)
-        ;; h (.getHeight image)
-        ;; pixels (make-array Integer/TYPE (* w h))
-        ;; bb (ByteBuffer/allocateDirect (* w h 4))
-        ]
-    (.getRGB image 0 0 window-width window-height pixels 0 window-width)
+  (let [w (.getWidth image)
+        h (.getHeight image)
+        pixels (make-array Integer/TYPE (* w h))
+        bb (ByteBuffer/allocateDirect (* w h 4))]
+    (.getRGB image 0 0 w h pixels 0 w)
     (let [ib (.asIntBuffer bb)]
       (.put ib pixels)
       bb)))
@@ -445,7 +485,8 @@
         image (:image mesh)
         width (get-image-width image)
         height (get-image-height image)
-        buffer (image->buffer image)]
+        buffer (image->buffer image)
+        ]
     (GL13/glActiveTexture GL13/GL_TEXTURE0)
 
     (GL11/glBindTexture GL11/GL_TEXTURE_2D id)
@@ -545,22 +586,15 @@
   nil)
 
 (defn draw-output! []
-  (if true
-    (let [lines (split @output #"\n")
-          last-lines (take-last 5 lines)
-          hw (/ window-width 2)
-          hh (/ window-height 2)
-          ]
-      (fill-rect! :black hw (- window-height 50) window-width 100)
-      (dotimes [i (count last-lines)]
-        (draw-text! :green (nth last-lines i)
-                    15 (+ (* i 15) (- window-height 80)) 14)))
-    (let [y 693
-          lines (split @output #"\n")
-          ]
-      (fill-rect! :black 80 y 2000 25)
-      (draw-text! :green (last lines) 15 (+ y 4) 14))
-    ))
+  ;; (let [lines (split @output #"\n")
+  ;;       last-lines (take-last 5 lines)
+  ;;       hw (/ width 2)
+  ;;       hh (/ height 2)]
+  ;;   (fill-rect! :black hw (- height 40) width 100)
+  ;;   (dotimes [i (count last-lines)]
+  ;;     (draw-text! :green (nth last-lines i)
+  ;;                 15 (+ (* i 15) (- height 70)) 14)))
+  )
 
 (defn println! [& args]
   (apply gl-println args)
@@ -603,6 +637,13 @@
         (assoc-in [:camera] camera)
         (compute-camera))))
 
+(defn rotate-camera-free [world dx dy]
+  (let [rotation-matrix (:rotation-matrix world)
+        l (* 0.5 (vector-length [dx dy]))
+        rotation (get-rotation-matrix l dy dx 0)
+        new-rotation-matrix (multiply-matrices rotation-matrix rotation)]
+    (assoc-in world [:rotation-matrix] new-rotation-matrix)))
+
 (declare unproject-point)
 
 (defn pan-camera [world x1 y1 x2 y2]
@@ -625,6 +666,9 @@
                          :y-angle y-angle
                          :pivot [0 0 0]})
     (compute-camera)))
+
+(defn reset-camera []
+  (update-thing! [] (slots create-camera _ [0 0 1] 50 25 -45)))
 
 (defn get-camera-plane [world point]
   (let [camera (:camera world)
@@ -655,17 +699,6 @@
 
 (def redraw-flag (atom true))
 
-(defn redraw! []
-  (reset! redraw-flag true))
-
-(declare draw-2d!)
-(declare draw-3d!)
-(declare draw-ortho-mesh!)
-(declare create-ortho-mesh)
-(declare create-cube-mesh)
-(declare draw-mesh!)
-(declare set-mesh-position)
-
 (defn draw-world! [world]
   (try
     (draw-3d! world)
@@ -677,8 +710,6 @@
       (draw-2d! world)
       (catch Exception e))
     (reset! redraw-flag false))
-
-  (GL11/glViewport 0 0 window-width window-height)
   (draw-ortho-mesh! world (:output world))
   )
 
@@ -693,27 +724,23 @@
   (window-init!)
   (reset! out *out*))
 
-(defn reset-camera [world]
-  (-> world
-      (create-camera [0 0 1] 40 25 -35)
-      (assoc-in [:camera :pivot] [0 0 0])
-      (compute-camera)))
-
 (defn create-gl-world []
-  (GL11/glEnable GL11/GL_SCISSOR_TEST)
+  (GL/createCapabilities)
   (GL11/glClearColor 0 0.5 0.8 0)
   (GL11/glEnable GL11/GL_CULL_FACE)
   (GL11/glCullFace GL11/GL_BACK)
+
   (-> {}
       (assoc-in [:programs :basic] (create-program "basic"))
       (assoc-in [:programs :flat] (create-program "flat"))
       (assoc-in [:programs :textured] (create-program "textured"))
       (assoc-in [:programs :ortho] (create-program "ortho"))
       (assoc-in [:programs :colored] (create-program "colored"))
-      (assoc-in [:projection-matrix] (get-perspective-matrix
-                                      10 (/ window-width window-height) 3 1000))
-      (reset-camera)
-      (assoc-in [:output] (create-ortho-mesh))))
+      ;; (recompute-viewport {:width @window-width
+      ;;                      :height @window-height})
+      (#(create-camera % [0 0 1] 40 25 -35))
+      (compute-camera)
+      ))
 
 (defn reset-world! []
   (gl-thread
@@ -721,6 +748,32 @@
      (swap! world (fn [w] (create-world))) ;;###########################
      (redraw!)
      (catch Exception e))))
+
+;;-------------------------------------------------------------------------------;;
+;; debug shapes
+
+(def debug-meshes (atom nil))
+
+(defn create-debug-meshes! []
+  (reset! debug-meshes
+          {:points {:red (create-cube-mesh
+                          [-100 0 0] [1 0 0 0]
+                          [0.05 0.05 0.05] :red)
+                    :yellow (create-cube-mesh
+                             [-100 0 0] [1 0 0 0]
+                             [0.05 0.05 0.05] :yellow)}}))
+
+(defn draw-debug-meshes! []
+  (let [points (:points @debug-meshes)]
+    (doseq [mesh (vals points)]
+      (draw-mesh! @world mesh))))
+
+(defn set-point! [color position]
+  (swap! debug-meshes
+         (fn [dm]
+           (update-in dm [:points color]
+                      #(set-mesh-position % position))))
+  nil)
 
 ;;-------------------------------------------------------------------------------;;
 ;; camera manipulation
@@ -741,4 +794,14 @@
         (pan-camera x1 y1 x2 y2)
         (assoc-in [:last-point] [x2 y2]))))
 
-
+(defn mouse-zoom [world event]
+  (let [distance (:saved-distance world)
+        last-y (second (:last-point world))
+        new-distance (-> (:y event)
+                         (- last-y)
+                         (* 0.1)
+                         (+ distance)
+                         (within 10 500))]
+    (-> world
+        (assoc-in [:camera :distance] new-distance)
+        (compute-camera))))

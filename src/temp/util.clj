@@ -110,7 +110,7 @@
 
 (defn get-dark-color [color]
   (let [color (get-color color)
-        amount 0.5
+        amount 0.3
         r (int (* (.getRed color) amount))
         g (int (* (.getGreen color) amount))
         b (int (* (.getBlue color) amount))]
@@ -257,3 +257,15 @@
 
 (defn no-colon [keyword]
   (subs (str keyword) 1))
+
+(defn create-groups [acc header? lines]
+  (if (empty? lines)
+    acc
+    (let [line (first lines)]
+      (if (header? line)
+        (recur (conj acc [line])
+               header?
+               (rest lines))
+        (recur (update-in acc [(dec (count acc))] #(conj % line))
+               header?
+               (rest lines))))))

@@ -2,10 +2,7 @@
 (ns temp.core)
 
 (defn cpu-mode-entered [world]
-  (let [world (assoc-in world [:cpu-subcommand] :move)]
-    (if-let [cpu-name (:selected-cpu world)]
-      (show-selected-part world cpu-name)
-      world)))
+  (assoc-in world [:cpu-subcommand] :move))
 
 (declare get-element-value)
 
@@ -98,7 +95,7 @@
                 w))
             world
             output-names)))
-  
+
 (defn update-cpu [world cpu-name]
   (let [cpu (get-in world [:parts cpu-name])]
     (reduce (fn [w [pin-name pin]]
@@ -120,8 +117,8 @@
           world
           (get-parts-with-type (:parts world) :cpu)))
 
-(defn draw-cross [cpu-box]
-  (let [{:keys [x y w h]} cpu-box
+(defn draw-cross [box]
+  (let [{:keys [x y w h]} box
         hw (* w 0.5)
         hh (* h 0.5)
         o (- 7)
@@ -218,7 +215,7 @@
 (defn cpu-mode-draw [world]
   (let [cpu-box (:cpu-box world)
         {:keys [x y w h]} cpu-box
-        middle (int (/ window-width 2))
+        middle (int (/ (:window-width world) 2))
         border-color (if (= (:cpu-subcommand world) :move)
                        :black
                        :white)]
@@ -242,9 +239,7 @@
     (if-let [part-name (get-part-at world x y)]
       (let [part (get-in world [:parts part-name])]
         (if (= (:type part) :cpu)
-          (-> world
-              (show-selected-part part-name)
-              (assoc-in [:selected-cpu] part-name))
+          (assoc-in world [:selected-cpu] part-name)
           world))
       world)))
 

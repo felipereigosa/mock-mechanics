@@ -1,6 +1,9 @@
 
 (ns temp.core)
 
+(do
+
+
 (defn get-block-plane [block normal]
   (let [transform (:transform block)
         rotation-transform (get-rotation-component transform)
@@ -42,18 +45,15 @@
         parent (get-in world [:parts parent-name])
                 offset (vector-subtract part-position point)
         plane (case (:type parent)
-                :ground
-                [[0.25 0 0.25] [1.25 0 0.25] [0.25 0 1.25]]
-
-                :track
-                (get-track-plane parent)
-
+                :ground [[0.25 0 0.25] [1.25 0 0.25] [0.25 0 1.25]]
+                :track (get-track-plane parent)
                 (get-block-plane parent vy))
-        
         y-offset (vector-multiply vy (point-plane-distance point plane))
         plane (map #(vector-add % y-offset) plane)
         xz-offset (vector-subtract offset (vector-project offset vy))
         plane (map #(vector-subtract % xz-offset) plane)]
+    
+    ;; (println! (point-plane-distance point plane))
     (-> world
         (assoc-in [:edited-part] part-name)
         (create-weld-groups)
@@ -103,3 +103,4 @@
 
 (defn move-mode-released [world event]
   (move-part-released world event))
+)

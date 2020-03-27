@@ -46,43 +46,16 @@
         (assoc-in [:children] children))))
 
 (defn save-machine! [world filename]
-  (let [ground-children (map-map (fn [[name transform]]
-                                   {name (get-simple-transform transform)})
-                                 (:ground-children world))
-        parts (map-map (fn [[name part]]
+  (let [parts (map-map (fn [[name part]]
                          {name (get-simple-part part)})
                        (:parts world))]
-    (spit filename {:ground-children ground-children
-                    :parts parts
+    (spit filename {:parts parts
                     :camera (:camera world)})))
-
-(defn load-machine [world filename]
-  (let [{:keys [ground-children parts camera]} (read-string (slurp filename))
-        ground-children (map-map (fn [[name transform]]
-                                   {name (get-complex-transform transform)})
-                                 ground-children)
-        parts (map-map (fn [[name part]]
-                         {name (get-complex-part part)})
-                       parts)]
-    (-> world
-        (assoc-in [:ground-children] ground-children)
-        (assoc-in [:parts] parts)
-        (assoc-in [:camera] camera)
-        (compute-camera)
-        (compute-transforms :parts)
-        (create-weld-groups))))
 
 (defn save-machine-callback [world text]
   (save-machine! world (str "resources/machines/" text ".clj"))
   (println! "saved machine" text)
   (assoc-in world [:last-saved-machine] text))
-
-(defn load-machine-callback [world text]
-  (let [world (-> world
-                  (new-file)
-                  (load-machine (str "resources/machines/" text ".clj")))]
-    (println! "loaded machine" text)
-    (assoc-in world [:last-saved-machine] text)))
 
 (defn save-version [world]
   (if-let [last-saved (:last-saved-machine world)]
@@ -93,6 +66,26 @@
           new-name (str root "." (format "%03d" (inc number)))]
       (save-machine-callback world new-name))
     (read-input world save-machine-callback)))
+
+(defn load-machine [world filename]
+  (let [{:keys [parts camera]} (read-string (slurp filename))
+        parts (map-map (fn [[name part]]
+                         {name (get-complex-part part)})
+                       parts)]
+    (-> world
+        (assoc-in [:parts] parts)
+        (assoc-in [:parts :ground-part :transform] (make-transform [0 -0.1 0] [1 0 0 0]))
+        (assoc-in [:camera] camera)
+        (compute-camera)
+        (compute-transforms :parts)
+        (create-weld-groups))))
+
+(defn load-machine-callback [world text]
+  (let [world (-> world
+                  (new-file)
+                  (load-machine (str "resources/machines/" text ".clj")))]
+    (println! "loaded machine" text)
+    (assoc-in world [:last-saved-machine] text)))
 
 (defn extract-number [name]
   (let [r-index (.indexOf name ".")
