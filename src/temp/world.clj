@@ -1,5 +1,5 @@
 
-(in-ns 'temp.core)
+(ns temp.core)
 
 (def world (atom {}))
 
@@ -19,24 +19,7 @@
     `(set-thing! ~path (let [~val-name (get-thing! ~path)]
                          ~(cons fn (list val-name))))))
 
-(defn dissoc-in [map keys]
-  (if (= (count keys) 1)
-    (dissoc map (nth keys 0))
-    (update-in map (butlast keys) dissoc (last keys))))
-
 (defn remove-thing! [path]
   (swap! world dissoc-in path)
   nil)
 
-(def saved-world (atom {}))
-
-(defn save-world! [names]
-  (reset! saved-world
-          (apply merge (map (fn [name]
-                              {name (get-in @world [name])})
-                            names)))
-  nil)
-
-(defn restore-world! []
-  (reset! world (merge-with (fn [a b] b) @world @saved-world))
-  nil)

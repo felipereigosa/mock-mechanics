@@ -269,3 +269,9 @@
         (recur (update-in acc [(dec (count acc))] #(conj % line))
                header?
                (rest lines))))))
+
+(defn dissoc-in [map keys]
+  (if (= (count keys) 1)
+    (dissoc map (nth keys 0))
+    (update-in map (butlast keys) dissoc (last keys))))
+
