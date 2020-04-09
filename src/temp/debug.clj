@@ -5,7 +5,11 @@
 (declare create-line-mesh)
 
 (defn debug-mode-draw [world]
-  (draw-rect! :red 340 300 670 550))
+  (let [w (:window-width world)
+        h (:window-height world)
+        hw (* w 0.5)
+        hh (* h 0.5)]
+    (draw-rect! :red hw hh (- w 100) (- h 100))))
 
 (do
 1  
@@ -21,7 +25,6 @@
 (defn debug-mode-released [world event]
   world)
 )
-
 
 (def debug-meshes (atom nil))
 

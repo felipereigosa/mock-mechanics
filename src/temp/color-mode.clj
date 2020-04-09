@@ -15,17 +15,18 @@
       world)))
 
 (defn color-mode-draw [world]
-  (let [{:keys [image x y]} (:color-palette world)]
-    (draw-image! image x y))
+  (let [color-pallete (:color-palette world)]
+    (let [{:keys [image x y]} color-pallete]
+      (draw-image! image x y))
 
-  (let [color-box (get-in world [:color-palette
-                                 :regions (:current-color world)])
-        {:keys [x y w h]} color-box
-        color (if (< x 230)
-                :red
-                :black)]
-    (dotimes [i 3]
-      (draw-rect! color x y (- w i) (- h i 1)))))
+    (let [color-box (get-in color-pallete
+                            [:regions (:current-color world)])
+          {:keys [x y w h]} (get-absolute-region color-box color-pallete)
+          color (if (< x 230)
+                  :red
+                  :black)]
+      (dotimes [i 3]
+        (draw-rect! color x y (- w i) (- h i 1))))))
 
 (defn color-mode-released [world event]
   (let [x (:x event)                    

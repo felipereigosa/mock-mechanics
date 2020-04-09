@@ -50,11 +50,13 @@
                          {name (get-simple-part part)})
                        (:parts world))]
     (spit filename {:parts parts
-                    :camera (:camera world)})))
+                    :camera (:camera world)
+                    :visible-layers (:visible-layers world)})))
 
 (defn save-machine-callback [world text]
   (save-machine! world (str "resources/machines/" text ".clj"))
   (println! "saved machine" text)
+  (set-title! text)
   (assoc-in world [:last-saved-machine] text))
 
 (defn save-version [world]
@@ -68,7 +70,7 @@
     (read-input world save-machine-callback)))
 
 (defn load-machine [world filename]
-  (let [{:keys [parts camera]} (read-string (slurp filename))
+  (let [{:keys [parts camera visible-layers]} (read-string (slurp filename))
         parts (map-map (fn [[name part]]
                          {name (get-complex-part part)})
                        parts)]
@@ -76,6 +78,7 @@
         (assoc-in [:parts] parts)
         (assoc-in [:parts :ground-part :transform] (make-transform [0 -0.1 0] [1 0 0 0]))
         (assoc-in [:camera] camera)
+        (assoc-in [:visible-layers] (or visible-layers [1]))
         (compute-camera)
         (compute-transforms :parts)
         (create-weld-groups))))
@@ -85,6 +88,7 @@
                   (new-file)
                   (load-machine (str "resources/machines/" text ".clj")))]
     (println! "loaded machine" text)
+    (set-title! text)
     (assoc-in world [:last-saved-machine] text)))
 
 (defn extract-number [name]

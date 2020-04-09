@@ -425,8 +425,7 @@
                                  :functions function-name :points]
                           new-points)]
       (println! "move node:" (apply format "%.2f, %.2f" coords))
-      (redraw!)
-      world)
+      (redraw world))
     world))
 
 (defn move-node-released [world x y]
@@ -457,12 +456,11 @@
           p1 (global->local graph-box view start-point)
           p2 (global->local graph-box view end-point)
           displacement (vector-multiply (vector-subtract p2 p1)
-                                        (:zoom view))
-          world (assoc-in world [:parts chip-name :view :offset]
-                          (vector-add (:saved-offset world)
-                                      displacement))]
-      (redraw!)
-      world)      
+                                        (:zoom view))]
+      (-> world
+          (assoc-in [:parts chip-name :view :offset]
+                    (vector-add (:saved-offset world) displacement))
+          (redraw)))
     world))
 
 (defn pan-graph-released [world x y]
@@ -485,8 +483,8 @@
 
 (defn reset-graph-view [world]
   (if-let [chip-name (:selected-chip world)]
-    (assoc-in world [:parts chip-name :view] {:offset [0 0]
-                                              :zoom 1})
+    (assoc-in world [:parts chip-name :view] {:offset [0.025 0.1]
+                                              :zoom 0.5})
     world))
 
 (defn graph-mode-pressed [world event]
@@ -533,8 +531,8 @@
 
 (defn graph-mode-scrolled [world event]
   (let [graph-box (:graph-box world)
-        chip-name (:selected-chip world)
-        world (update-in world [:parts chip-name :view]
-                         #(change-zoom % (:graph-box world) event))]
-    (redraw!)
-    world))
+        chip-name (:selected-chip world)]
+    (-> world
+        (update-in [:parts chip-name :view]
+                   #(change-zoom % (:graph-box world) event))
+        (redraw))))

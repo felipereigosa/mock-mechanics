@@ -7,15 +7,15 @@
 (declare set-wagon-loop)
 
 (defn insert-mode-draw [world]
-  (let [{:keys [image x y w h]} (:insert-menu world)]
-    (fill-rect! (make-color 70 70 70) x y (+ w 30) (+ h 20))
-    (draw-image! image x y))
-  
-  (let [box (get-in world [:insert-menu :regions
-                           (:insert-type world)])
-        {:keys [x y w h]} box]
-    (dotimes [i 3]
-      (draw-rect! :black x y (- w i) (- h i 1)))))
+  (let [insert-menu (:insert-menu world)]
+    (let [{:keys [image x y w h]} insert-menu]
+      (fill-rect! (make-color 70 70 70) x y (+ w 30) (+ h 20))
+      (draw-image! image x y))
+
+    (let [box (get-in insert-menu [:regions (:insert-type world)])
+          {:keys [x y w h]} (get-absolute-region box insert-menu)]
+      (dotimes [i 3]
+        (draw-rect! :black x y (- w i) (- h i 1))))))
 
 (defn insert-wagon [world color x y]
   (let [part-name (get-part-at world x y)]

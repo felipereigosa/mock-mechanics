@@ -19,20 +19,19 @@
 
 (defn change-mode [world new-mode]
   (let [exit-fun (or (get-function (:mode world) :exited) identity)
-        enter-fun (or (get-function new-mode :entered) identity)
-        world (-> world
-                  (exit-fun)
-                  (assoc-in [:mode] new-mode)
-                  (enter-fun)
-                  (prepare-tree))]
-    (redraw!)
-    world))
+        enter-fun (or (get-function new-mode :entered) identity)]
+    (-> world
+        (exit-fun)
+        (assoc-in [:mode] new-mode)
+        (enter-fun)
+        (prepare-tree)
+        (redraw))))
 
 (defn mode-mouse-pressed [world event]
   (if-let [fun (get-function (:mode world) :pressed)]
-    (let [world (fun world event)]
-      (redraw!)
-      world)
+    (-> world
+        (fun event)
+        (redraw))
     world))
 
 (defn mode-mouse-moved [world event]
@@ -42,7 +41,7 @@
 
 (defn mode-mouse-released [world event]
   (if-let [fun (get-function (:mode world) :released)]
-    (let [world (fun world event)]
-      (redraw!)
-      world)
+    (-> world
+        (fun event)
+        (redraw))
     world))

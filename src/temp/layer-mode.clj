@@ -19,12 +19,14 @@
   (let [layer-box (:layer-box world)
         {:keys [x y w h]} layer-box]    
     (fill-rect! :black x y w h)
+
     (dotimes [i 8]
       (let [cx (+ (* i 60) 30 (- x (/ w 2)))]
         (fill-rect! :dark-gray cx y 50 50)
         (draw-text! :black (str (inc i)) (- cx 20) (- y 10) 15)
         (when (in? (inc i) (:visible-layers world))
-          (draw-rect! :white cx y 50 50))))))
+          (draw-rect! :white cx y 50 50))
+        ))))
 
 (defn get-layer-index [box x]
   (inc (int (/ (- x (- (:x box) (/ (:w box) 2))) 60))))
@@ -33,7 +35,9 @@
   (let [layer-box (:layer-box world)]
     (if (inside-box? layer-box x y)
       (set-layer world (get-layer-index layer-box x))
-      (assoc-in world [:selected-part] (get-part-at world x y)))))
+      (-> world
+          (assoc-in [:selected-part] (get-part-at world x y))
+          (assoc-in [:indicator] 1)))))
 
 (defn layer-mode-released [world {:keys [x y]}]
   (let [layer-box (:layer-box world)]    
@@ -43,4 +47,4 @@
         (-> world
             (assoc-in [:parts (:selected-part world) :layer] index)
             (dissoc-in [:selected-part])))
-      world)))
+      (dissoc-in world [:selected-part]))))

@@ -365,13 +365,13 @@
                                             :connections connection-name
                                             :points index] [x y])))]
 
-      (redraw!)
-      world)
+      (redraw world))
     world))
 
 (defn cpu-move-released [world event]
-  (redraw!)
-  (dissoc-in world [:moving-element]))
+  (-> world
+      (redraw)
+      (dissoc-in world [:moving-element])))
 
 (defn add-gate [cpu type {:keys [x y]}]
   (let [gate-name (gen-keyword (join-keywords :gate type))

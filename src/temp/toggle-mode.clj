@@ -1,25 +1,30 @@
 
 (ns temp.core)
 
-(defn toggle-mode-pressed [world event]
-  (if (< (:x event) 120)
-    (let [index (int (/ (- (:y event) 65) 40))]
-      (assoc-in world [:selected-property] index))
-    (if-let [part-name (get-part-at world (:x event) (:y event))]
-      (let [property (nth (get-in world [:properties])
-                          (:selected-property world))]
-        (println! (get-in world [:parts part-name property]))
-        (update-in world [:parts part-name property] not))
-      world)))
+(defn toggle-mode-pressed [world {:keys [x y]}]
+  (let [box (:toggle-box world)]
+    (if (inside-box? box x y)
+      (let [start-x (- (:x box) (/ (:w box) 2))
+            n (dec (count (:properties world)))
+            index (within (int (/ (- x start-x) 100)) 0 n)]
+        (assoc-in world [:selected-property] index))
+      (if-let [part-name (get-part-at world x y)]
+        (let [property (nth (get-in world [:properties])
+                            (:selected-property world))]
+          (update-in world [:parts part-name property] not))
+        world))))
 
 (defn toggle-mode-draw [world]
-  (fill-rect! :black 60 325 120 550)
+  (let [layer-box (:toggle-box world)
+        {:keys [x y w h]} layer-box]    
+    (fill-rect! :black x y w h)
 
-  (let [properties (map keyword->str (:properties world))]
-    (dotimes [i (count properties)]
-      (let [y (+ 80 (* i 40))
-            color (if (= i (:selected-property world))
-                    :blue
-                    :white)]
-        (draw-rect! color 60 y 100 30)
-        (draw-text! color (nth properties i) 20 (+ y 8) 20)))))
+    (let [properties (map keyword->str (:properties world))]
+      (dotimes [i (count properties)]
+        (let [cx (+ (* i 100) 60 (- x (/ w 2)))
+              color (if (= i (:selected-property world))
+                      :gray
+                      :dark-gray)]
+          (fill-rect! color cx y 98 40)
+          (draw-text! :white (nth properties i)
+                      (- cx 40) (+ y 5) 20))))))

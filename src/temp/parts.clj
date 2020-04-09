@@ -145,8 +145,8 @@
                    (assoc-in [:functions] {})
                    (assoc-in [:time] 1.0)
                    (assoc-in [:final-time] 0.0)
-                   (assoc-in [:view] {:offset [0 0]
-                                      :zoom 1}))
+                   (assoc-in [:view] {:offset [0.025 0.1]
+                                      :zoom 0.5}))
                part)]
     part))
 
@@ -303,4 +303,3 @@
     (-> world
         (compute-transforms :parts)
         (create-weld-groups)))
-

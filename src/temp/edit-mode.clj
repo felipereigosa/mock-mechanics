@@ -13,14 +13,15 @@
   (dissoc-in world [:selected-part]))
 
 (defn edit-mode-draw [world]
-  (fill-rect! (make-color 70 70 70) 330 580 800 70)
-  (let [{:keys [image x y]} (:edit-menu world)]
-    (draw-image! image x y))
-  (let [box (get-in world [:edit-menu :regions
-                           (:edit-subcommand world)])
-        {:keys [x y w h]} box]
-    (dotimes [i 3]
-      (draw-rect! :black x y (- w i) (- h i)))))
+  (let [edit-menu (:edit-menu world)]
+    (let [{:keys [image x y w h]} edit-menu]
+      (fill-rect! (make-color 70 70 70) x y (+ w 30) (+ h 20))
+      (draw-image! image x y))
+    
+    (let [box (get-in edit-menu [:regions (:edit-subcommand world)])
+          {:keys [x y w h]} (get-absolute-region box edit-menu)]
+      (dotimes [i 3]
+        (draw-rect! :black x y (- w i) (- h i))))))
 
 (defn edit-mode-pressed [world event]
   (let [{:keys [x y]} event]

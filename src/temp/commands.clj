@@ -87,9 +87,6 @@
 
 (set-thing! [:bindings] (get-bindings)))
 
-(do
-1
-
 (defn get-key [code control-pressed alt-pressed]
   (if-let [name (get-in keymap [code])]
     (let [name (if (keyword? name)
@@ -180,16 +177,10 @@
           world))))
 
 (defn key-released [world event]
-  (redraw!)
-
-  (let [key-name (get-in keymap [(:code event)])]
+  (let [key-name (get-in keymap [(:code event)])
+        world (redraw world)]
     (cond
       (= key-name :control) (assoc-in world [:control-pressed] false)
       (= key-name :shift) (assoc-in world [:shift-pressed] false)
       (= key-name :alt) (assoc-in world [:alt-pressed] false)
       :else world)))
-
-;; (clear-output!)
-)
-
-(reset-world!)
