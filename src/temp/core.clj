@@ -13,9 +13,9 @@
 (load "svg")
 (load "keymap")
 (load "debug")
-(load "output")
 
 (load "miscellaneous")
+(load "output")
 (load "parts")
 (load "collision")
 (load "physics")
@@ -34,14 +34,12 @@
 
 (defn create-world []
   (-> (create-base-world)
+      (assoc-in [:num-lines] 6)
       (assoc-in [:background-meshes :grid] (create-grid-mesh 24 0.5))
       (assoc-in [:info] (create-info))
-      (assoc-in [:parts] {:ground-part
-                          {:type :ground
-                           :transform (make-transform [0 -0.1 0] [1 0 0 0])
-                           :color :dark-gray
-                           :scale [12 0.2 12]
-                           :children {}}})
+      (assoc-in [:parts] {})
+      (assoc-in [:parts :ground-part] (create-ground-part))
+                          
       (assoc-in [:other-ground]
                 (create-cube-mesh [0 -0.1 0] [1 0 0 0] [12 0.2 12]
                                   (make-color 40 40 40)))
@@ -49,11 +47,14 @@
                               :w 685 :h 150
                               :buffer (new-image 685 150)
                               })
-      (assoc-in [:cpu-box] {:x 343 :y 530 :w 685 :h 150})
+      (assoc-in [:cpu-box] {:x 343 :y 530
+                            :w 685 :h 150
+                            :buffer (new-image 685 150)})
+      (assoc-in [:set-value-box]
+                (create-picture "resources/set-value-menu.svg" 240 340 -1 60))
       (assoc-in [:layer-box] {:x 343 :y 575 :w 480 :h 60})
       (assoc-in [:toggle-box] {:x 343 :y 575 :w 500 :h 60})
       (assoc-in [:visible-layers] [1])
-      (update-move-plane)
       (assoc-in [:command] "")
       (assoc-in [:mode] :idle)
       (assoc-in [:bindings] (get-bindings))
@@ -74,8 +75,11 @@
                 (create-picture "resources/edit-menu.svg" 210 575 -1 50))
       (assoc-in [:edit-subcommand] :move)
 
-      (assoc-in [:use-weld-groups] false) ;;######################
+      (assoc-in [:use-weld-groups] true)
       (assoc-in [:graph-snap-value] 0.1)
+
+      (assoc-in [:graph-menu]
+                (create-picture "resources/graph-menu.svg" 210 575 -1 30))
       (assoc-in [:selected-property] 0)
       (assoc-in [:properties] [:free :physics :heat :size])
 
@@ -121,7 +125,7 @@
   (if-let [edited-part (:edited-part world)]
     (let [part (get-in world [:parts edited-part])
           part (if (in? (:type part) [:button :lamp])
-                 (assoc-in part [:color] :blarck)
+                 (assoc-in part [:color] :black)
                  part)
           ;; part (assoc-in part [:color] :yellow)
           ]
@@ -129,14 +133,6 @@
 
   (draw-buttons! world)
   (draw-lamps! world)
-
-  (if (or (and
-           (= (:mode world) :graph)
-           (:selected-chip world))
-          (and
-           (= (:mode world) :cpu)
-           (:selected-cpu world)))
-    (draw-mesh! world (:selected-mesh world)))
   )
 
 (do
@@ -174,7 +170,7 @@
   (if-let [region (get-region-at (:action-menu world) x y)]
     (case region
       :new (new-file world)
-      :view (create-camera world [0 0 1] 40 25 -35)
+      :view (reset-camera world)
       :save (save-version world)
       :load (read-input world load-last-version-callback)
       :undo (undo! world)
@@ -203,7 +199,8 @@
 
       (and
        (in? (:button event) [:middle :right])
-       (not (inside-box? (:graph-box world) x y)))
+       (not (and (= (:mode world) :graph)
+                 (inside-box? (:graph-box world) x y))))
       (assoc-in world [:last-point] [x y])
 
       :else
@@ -227,17 +224,12 @@
                                     [(:x event) (:y event)]) 10))
                 (set-pivot world event)
                 world)
-        world (cond
-                (not-nil? (:last-point world))
-                (-> world
-                    (dissoc-in [:last-point])
-                    (update-move-plane))
-                :else
+        world (if (not-nil? (:last-point world))
+                (dissoc-in world [:last-point])
                 (mode-mouse-released world event))]
     (-> world
         (redraw)
-        (prepare-tree)
-        (save-checkpoint!))))
+        (prepare-tree))))
 
 (defn window-changed [world event]
   (let [{:keys [width height]} event]

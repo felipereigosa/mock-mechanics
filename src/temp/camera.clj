@@ -70,16 +70,6 @@
       (update-in [:camera :distance] #(* % amount))
       (compute-camera)))
 
-(defn get-ground-camera-point [world x y offset]
-  (let [plane (:move-plane world)
-        line (unproject-point world [x y])
-        ground-plane [[0 offset 0] [1 offset 0] [0 offset 1]]
-        p1 (line-plane-intersection line plane)
-        p2 (line-plane-intersection line ground-plane)]
-    (if (> (second p1) (second p2))
-      p1
-      p2)))
-
 (defn mouse-rotate [world event]
   (let [[x y] (:last-point world)
         dx (- (:x event) x)
@@ -107,3 +97,6 @@
     (-> world
         (assoc-in [:camera :distance] new-distance)
         (compute-camera))))
+
+(defn reset-camera [world]
+  (create-camera world [0 0 1] 40 25 -35))

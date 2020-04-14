@@ -144,7 +144,10 @@
 
 (defn insert-mode-moved [world event]
   (if (:move-after-insert world)
-    (move-part-moved world event :grain 0.25)
+    (let [grain-size (if (:shift-pressed world)
+                           0.05
+                           0.25)]
+      (move-part-moved world event :grain grain-size))
     world))
 
 (defn insert-mode-released [world event]

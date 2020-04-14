@@ -1,9 +1,6 @@
 
 (ns temp.core)
 
-(do
-1
-
 (declare get-parts-with-type)
 (declare get-tail-transform)
 (declare compute-transforms)
@@ -39,13 +36,6 @@
                 (get-limited-tree (:parts world) root roots))
               roots))))
 
-(defn change-whites [colors other]
-  (map (fn [color]
-         (if (vector= color [1 1 1 1])
-           other
-           color))
-       colors))
-
 (defn bake-part [world part]
   (if (not (in? (:layer part) (:visible-layers world)))
     {}
@@ -69,7 +59,6 @@
                            g (/ (get-green color) 255.0)
                            b (/ (get-blue color) 255.0)]
                        [r g b 1])
-          part-color [1 0 0 1]
           colors (if (= (:mode world) :toggle)
                    (let [property-index (:selected-property world)
                          property (get-in world [:properties property-index])
@@ -79,8 +68,7 @@
                      (repeat (count vertices) color))
                    (if (empty? (:colors model))
                      (repeat (count vertices) part-color)
-                     (change-whites (partition 4 (:colors model))
-                                    part-color)))]
+                     (partition 4 (:colors model))))]
       {:vertices vertices
        :normals normals
        :colors colors})))
@@ -101,10 +89,9 @@
         inverse-transform (get-inverse-transform root-transform)
         vertices (vec (flatten (map #(apply-transform
                                       inverse-transform %) vertices)))
-        ;; rotation-transform (get-rotation-component root-transform)
-        ;; inverse-transform (get-inverse-transform root-transform)
-        ;; normals (vec (flatten (map #(apply-transform
-        ;;                              inverse-transform %) normals)))
+        rotation-transform (get-rotation-component inverse-transform)
+        normals (vec (flatten (map #(apply-transform
+                                     rotation-transform %) normals)))
         colors (vec (flatten colors))]
     (create-mesh vertices [0 0 0] [1 0 0 0]
                    [1 1 1] colors [] normals)))
@@ -139,8 +126,7 @@
 (defn create-weld-groups [world]
   (let [groups (segregate-parts world)
         parts (:parts (compute-transforms
-                       (reset-part-values world)
-                       :parts))
+                       (reset-part-values world) :parts))
         info (:info world)
         property (if (= (:mode world) :toggle)
                    (nth (get-in world [:properties])
@@ -156,12 +142,3 @@
     (-> world
         (assoc-in [:weld-groups] weld-groups)
         (compute-transforms :weld-groups))))
-
-;; (clear-output!)
-(set-thing! [:use-weld-groups] false)
-;; (update-thing! [] create-weld-groups)
-
-)
-
-;; (remove-thing! [:weld-groups])
-;; (keys (:weld-group @world))

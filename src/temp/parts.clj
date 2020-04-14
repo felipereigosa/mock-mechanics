@@ -9,6 +9,7 @@
    {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :direction nil
+    :properties [:value]
     }
 
    :block
@@ -19,6 +20,7 @@
     :scale [0.5 0.5 0.5]
     :direction :input
     :color :white
+    :properties [:value]
     }
 
    :cylinder
@@ -28,6 +30,7 @@
     :scale [0.5 0.5 0.5]
     :direction :input
     :color :orange
+    :properties [:value]
     }
 
    :sphere
@@ -38,6 +41,7 @@
     :scale [0.5 0.5 0.5]
     :direction :input
     :color :blue
+    :properties [:value]
     }
 
    :cone
@@ -47,6 +51,7 @@
     :scale [0.5 0.5 0.5]
     :direction :input
     :color :green
+    :properties [:value]
     }
 
    :wagon
@@ -58,27 +63,27 @@
     :scale [0.15 0.15 0.15]
     :direction :output
     :color :yellow
+    :properties [:value]
     }
 
    :probe
-   {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                             [1 1 1] :white)
+   {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.1 0.1 0.1]
     :direction :input
     :color :purple
+    :properties [:value]
     }
 
    :track
-   {:model (create-cube-mesh [0 0 0] [1 0 0 0]
-                             [1 1 1] :white)
+   {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0.2 0 0] [-0.2 0 0]
              [0 0.2 0]
-             [0 0 0.2] [0 0 -0.2]
-             ]
+             [0 0 0.2] [0 0 -0.2]]
     :scale [0.1 1 0.1]
     :direction :output
     :color :red
+    :properties [:value]
     }
 
    :chip
@@ -88,6 +93,16 @@
     :scale [0.3 0.07 0.3]
     :direction :output
     :color :dark-gray
+    :properties [:value]
+    }
+   
+   :speaker
+   {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :points []
+    :scale [0.4 0.1 0.4]
+    :direction :output
+    :color :pink
+    :properties [:value :frequency]
     }
 
    :cpu
@@ -97,6 +112,7 @@
     :scale [0.3 0.07 0.3]
     :direction nil
     :color :blue
+    :properties [:value]
     }
 
    :button
@@ -108,6 +124,7 @@
     :scale [0.5 0.2 0.5]
     :direction :input
     :color :red
+    :properties [:value]
     }
 
    :lamp
@@ -119,10 +136,18 @@
     :scale [0.4 0.2 0.4]
     :direction :output
     :color :red
+    :properties [:value]
     }
    })
-;; (set-thing! [:info] (create-info))
+(set-thing! [:info] (create-info))
 )
+
+(defn create-ground-part []
+  {:type :ground
+   :transform (make-transform [0 -0.1 0] [1 0 0 0])
+   :color :dark-gray
+   :scale [12 0.2 12]
+   :children {}})
 
 (defn create-part [type color layer info]
   (let [part {:type type
@@ -147,7 +172,12 @@
                    (assoc-in [:final-time] 0.0)
                    (assoc-in [:view] {:offset [0.025 0.1]
                                       :zoom 0.5}))
-               part)]
+               part)
+
+        part (if (= type :speaker)
+               (assoc-in part [:frequency] 440)
+               part)
+        ]
     part))
 
 (defn create-relative-transform [world child-name parent-name]
@@ -297,9 +327,12 @@
                          (assoc-in [:color] (get-color-vector color)))]
             (draw-mesh! world mesh)))))))
 
+(declare save-checkpoint!)
+
 (defn prepare-tree [world]
   ;; (if (= (:mode world) :idle)
   ;;   world
-    (-> world
-        (compute-transforms :parts)
-        (create-weld-groups)))
+  (-> world
+      (compute-transforms :parts)
+      (create-weld-groups)
+      (save-checkpoint!)))

@@ -44,7 +44,7 @@
 (declare draw-3d!)
 (declare draw-ortho-mesh!)
 (declare create-ortho-mesh)
-(declare redraw!)
+(declare redraw)
 
 (defn create-world [])
 (defn draw-world! [world])

@@ -19,6 +19,7 @@
    ":insert h" #(assoc-in % [:insert-type] :cylinder)
    ":insert v" #(assoc-in % [:insert-type] :cone)
    ":insert l" #(assoc-in % [:insert-type] :lamp)
+   ":insert o" #(assoc-in % [:insert-type] :speaker)
 
    "C-e" #(change-mode % :edit)
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)
@@ -33,18 +34,18 @@
    ":graph m" #(assoc-in % [:graph-subcommand] :move)
    ":graph x" #(assoc-in % [:graph-subcommand] :set-x)
    ":graph y" #(assoc-in % [:graph-subcommand] :set-y)
-   ":graph C-c x" #(assoc-in % [:graph-subcommand] :set-both)
+   ":graph C-x x" #(assoc-in % [:graph-subcommand] :set-both)
    ":graph a" #(assoc-in % [:graph-subcommand] :add)
    ":graph d" #(assoc-in % [:graph-subcommand] :delete)
    ":graph r" #(run-selected-chip %)
    ":graph s" #(dissoc-in % [:selected-chip])
    ":graph t" #(assoc-in % [:graph-subcommand] :toggle-relative)
-   ":graph 1" #(reset-graph-view %)
-   ":graph C-c s" #(set-snap-value %)
+   ":graph v" #(reset-graph-view %)
+   ":graph C-x s" #(set-snap-value %)
    ":graph l" #(assoc-in % [:graph-subcommand] :print-lengths)
 
    "C-q" #(change-mode % :cpu)
-   ":cpu s" #(dissoc-in % [:selected-cpu])
+   ":cpu s" #(toggle-script %)
    ":cpu a" #(assoc-in % [:cpu-subcommand] :and)
    ":cpu o" #(assoc-in % [:cpu-subcommand] :or)
    ":cpu n" #(assoc-in % [:cpu-subcommand] :not)
@@ -131,7 +132,7 @@
             world (-> world
                       (dissoc-in [:text])
                       (assoc-in [:text-input] false))]
-        (save-checkpoint! world))
+        (prepare-tree world))
 
       :backspace
       (if (empty? (:text world))
@@ -151,7 +152,6 @@
 
         (= key-name :esc)
         (do
-          (reset! output "")
           (-> world
               (assoc-in [:command] "")
               (assoc-in [:graph-subcommand] :move)

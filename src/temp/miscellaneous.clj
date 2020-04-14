@@ -13,10 +13,6 @@
 (declare show-hint)
 (declare change-mode)
 
-(defn update-move-plane [world]
-  (assoc-in world [:move-plane]
-            (get-camera-plane world (get-in world [:camera :pivot]))))
-
 (defn get-function-value [function t interpolator]
   (let [final-time (first (last function))]
     (cond
@@ -57,23 +53,15 @@
               (get-part-position world part-name))]
     (compute-camera (assoc-in world [:camera :pivot] pos))))
 
+(declare delete-all-parts)
+
 (defn new-file [world]
-  ;; (let [ground-part ;; (assoc-in (:ground-part world) [:children] {})
-  ;;       (:ground-part world)
-  ;;       ]
-  ;;   (-> world
-  ;;       (assoc-in [:command] "")
-  ;;       (assoc-in [:mode] :idle)
-  ;;       (assoc-in [:parts] {:ground-part ground-part})
-  ;;       (assoc-in [:planet] (create-planet))
-  ;;       (update-in [:planet] create-ground)
-  ;;       (reset-camera)
-  ;;       (update-move-plane)
-  ;;       (prepare-tree)
-  ;;       (save-checkpoint!)))
-  (let [world (create-world)]
-    (set-title! "-")
-    (redraw world)))
+  (set-title! "-")  
+  (-> world
+      (delete-all-parts)
+      (reset-camera)
+      (change-mode :idle)
+      (redraw)))
 
 (defn place-box [world name & {:keys [rx ry wx wy ox oy]}]
   (let [{:keys [x y w h]} (get-in world [name])
@@ -104,15 +92,16 @@
         (assoc-in [name :y] (+ y oy)))))
 
 (defn place-elements [world]
-  (-> world
-      (place-box :action-menu :rx 0.6 :ry 0.5 :oy 10)
-      (place-box :mode-menu :rx -0.6 :ry 0.5 :oy 10)
-      (place-box :insert-menu :wx 0.5 :ry -0.6 :oy -25)
-      (place-box :color-palette :wx 0.5 :ry -0.5 :oy -25)
-      (place-box :edit-menu :wx 0.5 :ry -0.6 :oy -25)
-      (place-box :layer-box :wx 0.5 :ry -0.5 :oy -25)
-      (place-box :graph-box :wx 0.5 :ry -0.5 :oy -25)
-      (place-box :cpu-box :wx 0.5 :ry -0.5 :oy -25)
-      (place-box :toggle-box :wx 0.5 :ry -0.5 :oy -25)
-      ))
-
+  (let [oy (- (+ (* (:num-lines world) 16) 10))]
+    (-> world
+        (place-box :action-menu :rx 0.6 :ry 0.5 :oy 10)
+        (place-box :mode-menu :rx -0.6 :ry 0.5 :oy 10)
+        (place-box :insert-menu :wx 0.5 :ry -0.6 :oy oy)
+        (place-box :color-palette :wx 0.5 :ry -0.5 :oy oy)
+        (place-box :edit-menu :wx 0.5 :ry -0.6 :oy oy)
+        (place-box :layer-box :wx 0.5 :ry -0.5 :oy oy)
+        (place-box :graph-box :wx 0.5 :ry -0.5 :oy (- oy 30))
+        (place-box :cpu-box :wx 0.5 :ry -0.5 :oy (- oy 30))
+        (place-box :toggle-box :wx 0.5 :ry -0.5 :oy oy)
+        (place-box :set-value-box :wx 0.5 :ry -0.5 :oy oy)
+        )))

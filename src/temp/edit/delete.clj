@@ -35,6 +35,12 @@
         (unselect-part part-name)
         (dissoc-in [:parts part-name]))))
 
+(defn delete-all-parts [world]
+  (reduce (fn [w part-name]
+            (delete-part w part-name))
+          world
+          (keys (get-in world [:parts :ground-part :children]))))
+
 (defn delete-mode-released [world event]
   (let [x (:x event)
         y (:y event)]

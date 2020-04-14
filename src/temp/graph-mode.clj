@@ -137,9 +137,11 @@
         {:keys [x y w h]} graph-box
         buffer (:buffer graph-box)
         hw (* w 0.5)
-        hh (* h 0.5)]
-
+        hh (* h 0.5)
+        menu (:graph-menu world)]
     (clear buffer :black)
+    (fill-rect! :black x (+ y hh 15) w 30)
+    (draw-image! (:image menu) x (+ y hh 15))
 
     (if-let [chip-name (:selected-chip world)]
       (let [chip (get-in world [:parts chip-name])
@@ -162,7 +164,8 @@
       (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14))
       )
     
-    (draw-image! buffer x y)))
+    (draw-image! buffer x y)
+    ))
 
 (defn run-wave [world part-name function time]
   (let [part (get-in world [:parts part-name])
