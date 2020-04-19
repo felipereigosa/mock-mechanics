@@ -14,6 +14,7 @@
 (load "keymap")
 (load "debug")
 
+(load "synthesizer")
 (load "miscellaneous")
 (load "output")
 (load "parts")
@@ -80,8 +81,11 @@
 
       (assoc-in [:graph-menu]
                 (create-picture "resources/graph-menu.svg" 210 575 -1 30))
+
+      (assoc-in [:cpu-menu]
+                (create-picture "resources/cpu-menu.svg" 210 575 -1 30))
       (assoc-in [:selected-property] 0)
-      (assoc-in [:properties] [:free :physics :heat :size])
+      (assoc-in [:properties] [:free :physics :. :.])
 
       (reset-undo! [:parts])
       (prepare-tree)
@@ -89,6 +93,88 @@
       ))
 (reset-world!)
 )
+
+;; (do
+;; 1
+
+;; (defn get-block-transform [block]
+;;   (let [[sx sy sz] (:scale block)
+;;         scale-matrix (get-scale-matrix sx sy sz)
+;;         other-matrix (get-transform-matrix (:transform block))
+;;         final-matrix (multiply-matrices scale-matrix other-matrix)]
+;;     (matrix->transform final-matrix)))
+
+;; (defn blocks-collide? [world a-name b-name]
+;;   ;;############################################## include edges
+;;   (let [a-block (get-in world [:parts a-name])
+;;         b-block (get-in world [:parts b-name])
+;;         model (get-in world [:info :block :model])
+;;         vertices [[-0.5 0.5 0.5] [0.5 0.5 0.5]
+;;                   [-0.5 -0.5 0.5] [0.5 -0.5 0.5]
+;;                   [-0.5 0.5 -0.5] [0.5 0.5 -0.5]
+;;                   [-0.5 -0.5 -0.5] [0.5 -0.5 -0.5]]
+;;         a-transform (get-block-transform a-block)
+;;         b-transform (get-block-transform b-block)
+;;         ia-transform (get-inverse-transform a-transform)
+;;         ib-transform (get-inverse-transform b-transform)
+;;         a->b-transform (combine-transforms a-transform ib-transform)
+;;         b->a-transform (combine-transforms b-transform ia-transform)
+;;         a-vertices (map #(apply-transform b->a-transform %) vertices)
+;;         b-vertices (map #(apply-transform a->b-transform %) vertices)
+;;         all-vertices (concat a-vertices b-vertices)]
+;;     (some (fn [[x y z]]
+;;             (and
+;;              (<= -0.5 x 0.5)
+;;              (<= -0.5 y 0.5)
+;;              (<= -0.5 z 0.5)))
+;;           all-vertices)))
+
+;; (defn create-all-pairs [elements]
+;;   (let [n (count elements)]
+;;     (vec (mapcat (fn [i]
+;;                    (map (fn [j]
+;;                           [(nth elements i) (nth elements j)])
+;;                         (range (inc i) n)))
+;;                  (range n)))))
+
+;; (defn get-colliding-pairs [world]
+;;   ;;###########################################
+;;   ;; (let [part (get-in world [:parts :track9075])]
+;;   ;;   (if (> (:value part) 0.44)
+;;   ;;     [[:block9076 :block9078]]
+;;   ;;     []))
+;;   (let [blocks (map first (filter (fn [[part-name part]]
+;;                                     (and (= (:type part) :block)
+;;                                          (:physics part)))
+;;                                   (:parts world)))]
+;;     (filter (fn [[a b]]
+;;               (blocks-collide? world a b))
+;;             (create-all-pairs blocks))))
+
+;; (defn reverse-collision [world [a b]]
+;;   (if-let [dof-name (or (get-first-dof world a)
+;;                         (get-first-dof world b))]
+;;     (let [part (get-in world [:parts dof-name])]
+;;       (assoc-in world [:parts dof-name :value] (:saved-value part)))
+;;     world))
+  
+;; (defn reverse-collisions [world]
+;;   (if-let [pairs (get-colliding-pairs world)]
+;;     (let [world (reduce (fn [w pair]
+;;                           (reverse-collision world pair))
+;;                         world
+;;                         pairs)]
+;;       (println! pairs)
+;;       (compute-transforms world
+;;                           (if (:use-weld-groups world)
+;;                             :weld-groups
+;;                             :parts)))
+;;     world))
+
+;; ;; (update-thing! [] reverse-collisions)
+
+;; (println! (get-colliding-pairs @world))
+;; )
 
 (defn update-world [world elapsed]
   (if (in? (:mode world) [:insert :edit])
@@ -100,6 +186,7 @@
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
+                    ;; (reverse-collisions)
                     (update-cpus))]
       world)))
 
@@ -133,6 +220,8 @@
 
   (draw-buttons! world)
   (draw-lamps! world)
+
+  (draw-debug-meshes!)
   )
 
 (do
@@ -155,7 +244,7 @@
   (draw-buffer! world)
 
   (if-let [hint (:hint world)]
-    (draw-hint hint))
+    (draw-hint world hint))
   )
 (redraw!))
 
@@ -168,19 +257,21 @@
 
 (defn action-menu-pressed [world x y]
   (if-let [region (get-region-at (:action-menu world) x y)]
-    (case region
-      :new (new-file world)
-      :view (reset-camera world)
-      :save (save-version world)
-      :load (read-input world load-last-version-callback)
-      :undo (undo! world)
-      :redo (redo! world))
+    (let [world (case region
+                  :new (new-file world)
+                  :view (reset-camera world)
+                  :save (save-version world)
+                  :load (read-input world load-last-version-callback)
+                  :undo (undo! world)
+                  :redo (redo! world))]
+      (show-hint world :action region))
     world))
 
 (defn mode-menu-pressed [world x y]
   (if-let [region (get-region-at (:mode-menu world) x y)]
     (-> world
         (change-mode region)
+        (prepare-tree)
         (show-hint :mode region))
     world))
 
@@ -223,13 +314,10 @@
                        (< (distance (:press-point world)
                                     [(:x event) (:y event)]) 10))
                 (set-pivot world event)
-                world)
-        world (if (not-nil? (:last-point world))
-                (dissoc-in world [:last-point])
-                (mode-mouse-released world event))]
-    (-> world
-        (redraw)
-        (prepare-tree))))
+                world)]
+    (if (not-nil? (:last-point world))
+      (dissoc-in world [:last-point])
+      (mode-mouse-released world event))))
 
 (defn window-changed [world event]
   (let [{:keys [width height]} event]

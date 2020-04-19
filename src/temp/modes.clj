@@ -24,7 +24,6 @@
         (exit-fun)
         (assoc-in [:mode] new-mode)
         (enter-fun)
-        (prepare-tree)
         (redraw))))
 
 (defn mode-mouse-pressed [world event]
@@ -40,8 +39,9 @@
     world))
 
 (defn mode-mouse-released [world event]
-  (if-let [fun (get-function (:mode world) :released)]
+  (let [fun (or (get-function (:mode world) :released)
+                (fn [w e] w))]
     (-> world
         (fun event)
-        (redraw))
-    world))
+        (prepare-tree)
+        (redraw))))

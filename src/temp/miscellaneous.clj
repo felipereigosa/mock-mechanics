@@ -92,7 +92,8 @@
         (assoc-in [name :y] (+ y oy)))))
 
 (defn place-elements [world]
-  (let [oy (- (+ (* (:num-lines world) 16) 10))]
+  (let [oy (- (+ (* (:num-lines world) 16) 10))
+        menu-offset (if (:show-submenu world) 30 0)]
     (-> world
         (place-box :action-menu :rx 0.6 :ry 0.5 :oy 10)
         (place-box :mode-menu :rx -0.6 :ry 0.5 :oy 10)
@@ -100,8 +101,10 @@
         (place-box :color-palette :wx 0.5 :ry -0.5 :oy oy)
         (place-box :edit-menu :wx 0.5 :ry -0.6 :oy oy)
         (place-box :layer-box :wx 0.5 :ry -0.5 :oy oy)
-        (place-box :graph-box :wx 0.5 :ry -0.5 :oy (- oy 30))
-        (place-box :cpu-box :wx 0.5 :ry -0.5 :oy (- oy 30))
+        (place-box :graph-box :wx 0.5 :ry -0.5 :oy (- oy menu-offset))
+        (place-box :graph-menu :wx 0.5 :ry -0.5 :oy oy)
+        (place-box :cpu-box :wx 0.5 :ry -0.5 :oy (- oy menu-offset))
+        (place-box :cpu-menu :wx 0.5 :ry -0.5 :oy oy)
         (place-box :toggle-box :wx 0.5 :ry -0.5 :oy oy)
         (place-box :set-value-box :wx 0.5 :ry -0.5 :oy oy)
         )))

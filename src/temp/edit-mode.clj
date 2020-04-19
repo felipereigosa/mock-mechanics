@@ -28,6 +28,7 @@
     (if-let [region (get-region-at (:edit-menu world) x y)]
       (-> world
           (assoc-in [:edit-subcommand] region)
+          (show-hint :edit region)
           (assoc-in [:region-pressed] true))
       (case (:edit-subcommand world)
         :move (move-mode-pressed world event)

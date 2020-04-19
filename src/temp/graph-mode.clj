@@ -138,33 +138,47 @@
         buffer (:buffer graph-box)
         hw (* w 0.5)
         hh (* h 0.5)
-        menu (:graph-menu world)]
-    (clear buffer :black)
+        menu (:graph-menu world)
+        border-color (if (= (:graph-subcommand world) :move)
+                       :black
+                       :white)]
+    (clear buffer border-color)
+    (fill-rect buffer :black hw hh (- w 14) (- h 14))
+    (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14))
+
     (fill-rect! :black x (+ y hh 15) w 30)
-    (draw-image! (:image menu) x (+ y hh 15))
+
+    (let [region (get-in (:regions menu) [(:graph-subcommand world)])
+          {:keys [x y w h]} (get-absolute-region region menu)]
+      (fill-rect! :dark-gray x y w h))
+    (draw-image! (:image menu) (:x menu) (:y menu))
 
     (if-let [chip-name (:selected-chip world)]
       (let [chip (get-in world [:parts chip-name])
             view (:view chip)]
         (draw-grid graph-box view)
-        
+
         (doseq [function-name (keys (:functions chip))]
           (let [color (get-in world [:parts function-name :color])
                 function (get-in chip [:functions function-name])]
             (draw-function! (:graph-box world) view function color))))
       (draw-graph-cross graph-box))
 
-    (let [color (if (= (:graph-subcommand world) :move)
-                  :black
-                  :white)]
-      (fill-rect buffer color 0 hh 14 h)
-      (fill-rect buffer color w hh 14 h)
-      (fill-rect buffer color hw 0 w 14)
-      (fill-rect buffer color hw h w 14)
-      (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14))
-      )
-    
+    ;; (let [color (if (= (:graph-subcommand world) :move)
+    ;;               :black
+    ;;               :white)]
+    ;;   (fill-rect buffer color 0 hh 14 h)
+    ;;   (fill-rect buffer color w hh 14 h)
+    ;;   (fill-rect buffer color hw 0 w 14)
+    ;;   (fill-rect buffer color hw h w 14)
+    ;;   (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14)))
+
     (draw-image! buffer x y)
+
+    (let [x (+ x (* w 0.5) -20)
+          y (:y menu)]
+      (draw-rect! :gray x y 15 10)
+      (draw-line! :gray (- x 4) y (+ x 3) y))
     ))
 
 (defn run-wave [world part-name function time]
@@ -203,35 +217,6 @@
               (run-chip w chip-name dt))
             world
             chip-names)))
-
-(defn select-chip [world x y]
-  (if (inside-box? (:graph-box world) x y)
-    world
-    (if-let [part-name (get-part-at world x y)]
-      (let [part (get-in world [:parts part-name])]
-        (if (= (:type part) :chip)
-          (assoc-in world [:selected-chip] part-name)
-          world))
-      world)))
-
-(defn chip-change-part [world x y]
-  (if-let [part-name (get-part-at world x y)]
-    (let [chip-name (:selected-chip world)
-          chip (get-in world [:parts chip-name])
-          part (get-in world [:parts part-name])
-          part-type (:type part)
-          part-direction (get-in world [:info part-type :direction])]
-      (if (in? part-type [:wagon :track])
-        (if (in? part-name (keys (:functions chip)))
-          (dissoc-in world [:parts chip-name :functions part-name])
-          (if (or (nil? part-name)
-                  (= part-name chip-name))
-            world
-            (assoc-in world [:parts chip-name :functions part-name]
-                      {:points [[0 0] [1 1]]
-                       :relative false})))
-        world))
-    world))
 
 (defn get-node-at [world x y]
   (let [graph-box (:graph-box world)
@@ -371,14 +356,6 @@
                       function-name :relative] not)
     world))
 
-(defn print-wagon-lengths [world x y]
-  (if-let [part-name (get-part-at world x y)]
-    (let [part (get-in world [:parts part-name])]
-      (if (= (:type part) :wagon)
-        (println! "track lengths: " (:track-lengths part))
-        (println! "not a wagon!"))))
-  world)
-
 (defn move-node-pressed [world x y]
   (if-let [node (get-node-at world x y)]
     (assoc-in world [:moving-node] node)
@@ -444,7 +421,7 @@
   (let [graph-box (:graph-box world)
         chip-name (:selected-chip world)
         chip (get-in world [:parts chip-name])
-        view (:view chip)]         
+        view (:view chip)]
     (-> world
         (assoc-in [:start-point] [x y])
         (assoc-in [:saved-offset] (:offset view)))))
@@ -490,12 +467,51 @@
                                               :zoom 0.5})
     world))
 
-(defn graph-mode-pressed [world event]
-  (let [x (:x event)
-        y (:y event)]
-    (if-let [selected-chip (:selected-chip world)]
-      (let [world (if (inside-box? (:graph-box world) x y)
-                    (case (:graph-subcommand world)
+(defn chip-change-part [world x y]
+  (if-let [part-name (get-part-at world x y)]
+    (let [chip-name (:selected-chip world)
+          chip (get-in world [:parts chip-name])
+          part (get-in world [:parts part-name])
+          part-type (:type part)
+          part-direction (get-in world [:info part-type :direction])]
+      (if (in? part-type [:wagon :track])
+        (if (in? part-name (keys (:functions chip)))
+          (dissoc-in world [:parts chip-name :functions part-name])
+          (if (or (nil? part-name)
+                  (= part-name chip-name))
+            world
+            (assoc-in world [:parts chip-name :functions part-name]
+                      {:points [[0 0] [1 1]]
+                       :relative false})))
+        world))
+    world))
+
+(defn print-lengths [world x y]
+  (if-let [function-name (get-function-at world x y)]
+    (let [part (get-in world [:parts function-name])]
+      (if (= (:type part) :wagon)
+        (do
+          (println! "track lengths: " (:track-lengths part))
+          world)
+        world))
+    world))
+
+(defn graph-mode-pressed [world {:keys [x y]}]
+  (let [graph-box (:graph-box world)
+        menu (:graph-menu world)
+        button {:x (+ (:x graph-box) (* (:w graph-box) 0.5) -20)
+                :y (:y menu)
+                :w 20
+                :h 20}]
+    (cond
+      (inside-box? button x y)
+      (-> world
+          (update-in [:show-submenu] not)
+          (place-elements))
+
+      (inside-box? graph-box x y)
+      (if-let [selected-chip (:selected-chip world)]
+        (let [world (case (:graph-subcommand world)
                       :set-x (set-node world :x x y)
                       :set-y (set-node world :y x y)
                       :set-both (set-node world :both x y)
@@ -503,12 +519,31 @@
                       :delete (delete-node world x y)
                       :move (pan-or-move-pressed world x y)
                       :toggle-relative (toggle-relative-flag world x y)
-                      world)
-                    (case (:graph-subcommand world)
-                      :print-lengths (print-wagon-lengths world x y)
-                      (chip-change-part world x y)))]
-        (assoc-in world [:graph-subcommand] :move))
-      (select-chip world x y))))
+                      :print-lengths (print-lengths world x y)
+                      world)]
+          (assoc-in world [:graph-subcommand] :move))
+        world)
+
+      (inside-box? menu x y)
+      (if-let [selected-chip (:selected-chip world)]
+        (if-let [region (get-region-at menu x y)]
+          (let [world (case region
+                        :run (run-selected-chip world)
+                        :view (reset-graph-view world)
+                        (assoc-in world [:graph-subcommand] region))]
+            (show-hint world :graph region))
+          world)
+        world)
+
+      :else
+      (if-let [part-name (get-part-at world x y)]
+        (let [part (get-in world [:parts part-name])]
+          (if (= (:type part) :chip)
+            (assoc-in world [:selected-chip] part-name)
+            (if (:selected-chip world)
+              (chip-change-part world x y)
+              world)))
+        world))))
 
 (defn graph-mode-moved [world event]
   (pan-or-move-moved world (:x event) (:y event)))
@@ -539,3 +574,4 @@
         (update-in [:parts chip-name :view]
                    #(change-zoom % (:graph-box world) event))
         (redraw))))
+

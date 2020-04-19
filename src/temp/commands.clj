@@ -28,7 +28,7 @@
    ":edit t" #(assoc-in % [:edit-subcommand] :translate)
    ":edit c" #(assoc-in % [:edit-subcommand] :copy)
    ":edit r" #(assoc-in % [:edit-subcommand] :rotate)
-   ":edit y" #(assoc-in % [:edit-subcommand] :sink)          
+   ":edit v" #(assoc-in % [:edit-subcommand] :sink)          
 
    "C-g" #(change-mode % :graph)
    ":graph m" #(assoc-in % [:graph-subcommand] :move)
@@ -38,7 +38,6 @@
    ":graph a" #(assoc-in % [:graph-subcommand] :add)
    ":graph d" #(assoc-in % [:graph-subcommand] :delete)
    ":graph r" #(run-selected-chip %)
-   ":graph s" #(dissoc-in % [:selected-chip])
    ":graph t" #(assoc-in % [:graph-subcommand] :toggle-relative)
    ":graph v" #(reset-graph-view %)
    ":graph C-x s" #(set-snap-value %)
@@ -46,6 +45,7 @@
 
    "C-q" #(change-mode % :cpu)
    ":cpu s" #(toggle-script %)
+   ":cpu m" #(assoc-in % [:cpu-subcommand] :move)
    ":cpu a" #(assoc-in % [:cpu-subcommand] :and)
    ":cpu o" #(assoc-in % [:cpu-subcommand] :or)
    ":cpu n" #(assoc-in % [:cpu-subcommand] :not)

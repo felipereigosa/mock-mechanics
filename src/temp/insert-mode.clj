@@ -117,7 +117,9 @@
   (let [{:keys [x y]} event]
     (if (inside-box? (:insert-menu world) x y)
       (if-let [region (get-region-at (:insert-menu world) x y)]
-        (assoc-in world [:insert-type] region)
+        (-> world
+            (assoc-in [:insert-type] region)
+            (show-hint :insert region))
         world)
       (let [type (:insert-type world)
             color (get-in world [:info type :color])]

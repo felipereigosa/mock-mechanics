@@ -1,18 +1,16 @@
 
 (ns temp.core)
 
-(do
-1
-
-(defn draw-text-in-box! [text color size box]
-  (draw-text! color text (- (:x box) 40) (+ (:y box) 5) size))
-
 (defn get-properties [world]
   (if-let [part-name (:value-part world)]
     (let [part (get-in world [:parts part-name])
           property-names (get-in world [:info (:type part) :properties])]
       (map (fn [property]
-             (let [value (->> (get-in part [property])
+             (let [value (get-in part [property])
+                   value (if (= (:type part) :wagon)
+                           (* value (reduce + (:track-lengths part)))
+                           value)
+                   value (->> value
                               (float)
                               (format "%.2f"))]
                [(name property) value]))
@@ -132,8 +130,3 @@
   (-> world
       (dissoc-in [:force])
       (dissoc-in [:track-force])))
-
-(clear-output!)
-(redraw!)
-)
-

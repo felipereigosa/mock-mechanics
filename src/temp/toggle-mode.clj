@@ -18,13 +18,15 @@
   (let [layer-box (:toggle-box world)
         {:keys [x y w h]} layer-box]    
     (fill-rect! :black x y w h)
-
     (let [properties (map keyword->str (:properties world))]
       (dotimes [i (count properties)]
         (let [cx (+ (* i 100) 60 (- x (/ w 2)))
               color (if (= i (:selected-property world))
                       :gray
-                      :dark-gray)]
+                      :dark-gray)
+              text (nth properties i)
+              text (if (= text ".")
+                     ""
+                     text)]
           (fill-rect! color cx y 98 40)
-          (draw-text! :white (nth properties i)
-                      (- cx 40) (+ y 5) 20))))))
+          (draw-text! :white text (- cx 40) (+ y 5) 20))))))

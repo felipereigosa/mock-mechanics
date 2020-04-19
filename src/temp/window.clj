@@ -401,6 +401,12 @@
     (.setColor g (get-color color))
     (.draw g (new Ellipse2D$Double (- x r) (- y r) (* 2 r) (* 2 r)))))
 
+(defn get-text-width! [text size]
+  (let [image (get-in @world [:ortho-mesh :image])
+        g (get-image-graphics image)
+        font (new Font "Dialog" Font/PLAIN size)]
+    (.stringWidth (.getFontMetrics g font) text)))
+
 (defn draw-text [image color text x y size]
   (let [g (get-image-graphics image)]
     (.setFont g (new Font "Dialog" Font/PLAIN size))
@@ -538,6 +544,10 @@
   (let [mesh (get-in @world [:ortho-mesh])]
     (draw-text (:image mesh) color text x y size)
     (gl-thread (reset-texture mesh))))
+
+(defn draw-text-in-box! [text color size box]
+  (let [w (* 0.5 (get-text-width! text size))]
+    (draw-text! color text (- (:x box) w) (+ (:y box) 5) size)))
 
 (defn draw-ellipse! [color rect]
   (let [mesh (get-in @world [:ortho-mesh])]

@@ -95,6 +95,19 @@
                   (if (float= value 1.0)
                     (activate-chip world part-name)
                     w))
+
+                :speaker
+                (let [value (get-element-value world cpu part-name)
+                      part (get-in world [:parts part-name])
+                      note (get-note (:frequency part))]
+                  (if (float= value 1.0)
+                    (do
+                      (println! "on")
+                      (note-on note)
+                      )
+                    ;; (note-off note)
+                    )
+                  w)
                 w))
             world
             output-names)))
@@ -297,12 +310,20 @@
         buffer (:buffer cpu-box)
         hw (* w 0.5)
         hh (* h 0.5)
+        menu (:cpu-menu world)
         border-color (if (= (:cpu-subcommand world) :move)
                        :black
                        :white)]
     (clear buffer border-color)
     (fill-rect buffer :black hw hh (- w 14) (- h 14))
     (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14))
+
+    (fill-rect! :black x (+ y hh 15) w 30)
+
+    (let [region (get-in (:regions menu) [(:cpu-subcommand world)])
+          {:keys [x y w h]} (get-absolute-region region menu)]
+      (fill-rect! :dark-gray x y w h))
+    (draw-image! (:image menu) (:x menu) (:y menu))
 
     (if-let [cpu-name (:selected-cpu world)]
       (let [cpu (get-in world [:parts cpu-name])]
@@ -320,7 +341,13 @@
       (draw-graph-cross (:cpu-box world)))
 
     (draw-image! buffer x y)
-    (draw-arrow world)))
+    (draw-arrow world)
+
+    (let [x (+ x (* w -0.5) +20)
+          y (:y menu)]
+      (draw-rect! :gray x y 15 10)
+      (draw-line! :gray (- x 4) y (+ x 3) y))
+    ))
 
 (defn prune-connections [cpu]
   (let [elements (concat (vec (keys (:pins cpu)))
@@ -412,10 +439,11 @@
               (update-in [:parts cpu-name] prune-connections))
 
           (let [x (get-available-pin-spot cpu cpu-box)
-                part (get-in world [:parts part-name])]
+                part (get-in world [:parts part-name])
+                trigger (= (:type part) :button)]
             (assoc-in world [:parts cpu-name :pins part-name]
                       {:x x
-                       :trigger false
+                       :trigger trigger
                        :value (:value part)})))))
     world))
 
@@ -516,10 +544,21 @@
   (activate-chip world chip-name)))
 
 (defn cpu-mode-pressed [world event]
-  (let [cpu-box (:cpu-box world)
-        {:keys [x y]} event
+  (let [{:keys [x y]} event 
+        cpu-box (:cpu-box world)
+        menu (:cpu-menu world)
+        button {:x (+ (:x cpu-box) (* (:w cpu-box) -0.5) 20)
+                :y (:y menu)
+                :w 20
+                :h 20}
         [cx cy] (world->cpu-coords cpu-box x y)]
-    (if (inside-box? cpu-box x y)
+    (cond
+      (inside-box? button x y)
+      (-> world
+          (update-in [:show-submenu] not)
+          (place-elements))
+
+      (inside-box? cpu-box x y)
       (if-let [selected-cpu (:selected-cpu world)]
         (if (> cx 646)
           (assoc-in world [:parts selected-cpu :tab] 
@@ -549,6 +588,18 @@
                        (assoc-in [:cpu-subcommand] :move))
               world)))
         world)
+
+      (inside-box? menu x y)
+      (if-let [selected-cpu (:selected-cpu world)]
+        (if-let [region (get-region-at menu x y)]
+          (let [world (if (= region :script)
+                        (toggle-script world)
+                        (assoc-in world [:cpu-subcommand] region))]
+            (show-hint world :cpu region))
+          world)
+        world)
+
+      :else
       (if-let [part-name (get-part-at world x y)]
         (let [part (get-in world [:parts part-name])]
           (if (= (:type part) :cpu)

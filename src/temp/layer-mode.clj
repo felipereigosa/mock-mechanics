@@ -17,7 +17,12 @@
 
 (defn layer-mode-draw [world]
   (let [layer-box (:layer-box world)
-        {:keys [x y w h]} layer-box]    
+        {:keys [x y w h]} layer-box
+        used-layers (->> (:parts world)
+                         (vals)
+                         (map :layer)
+                         (remove-nil)
+                         (into #{}))]
     (fill-rect! :black x y w h)
 
     (dotimes [i 8]
@@ -26,7 +31,9 @@
         (draw-text! :black (str (inc i)) (- cx 20) (- y 10) 15)
         (when (in? (inc i) (:visible-layers world))
           (draw-rect! :white cx y 50 50))
-        ))))
+
+        (if (in? (inc i) used-layers)
+          (fill-circle! :white cx y 4))))))
 
 (defn get-layer-index [box x]
   (inc (int (/ (- x (- (:x box) (/ (:w box) 2))) 60))))

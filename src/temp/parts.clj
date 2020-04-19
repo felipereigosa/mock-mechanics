@@ -97,11 +97,12 @@
     }
    
    :speaker
-   {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
+   {:model (create-model-mesh "resources/speaker.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] nil)
     :points []
     :scale [0.4 0.1 0.4]
     :direction :output
-    :color :pink
+    :color :gray
     :properties [:value :frequency]
     }
 
@@ -330,9 +331,9 @@
 (declare save-checkpoint!)
 
 (defn prepare-tree [world]
-  ;; (if (= (:mode world) :idle)
-  ;;   world
-  (-> world
-      (compute-transforms :parts)
-      (create-weld-groups)
-      (save-checkpoint!)))
+  (if (= (:mode world) :idle)
+    (compute-transforms world :parts)
+    (-> world
+        (compute-transforms :parts)
+        (create-weld-groups)
+        (save-checkpoint!))))
