@@ -29,7 +29,9 @@
 
       :else
       (let [lines (take-last num-lines (split @output #"\n"))]
-        (helper lines  :green :black false)))))
+        (helper lines  :green :black false)))
+
+    (draw-mode-text! world)))
 
 (defn println! [& args]
   (apply gl-println args)
@@ -54,3 +56,4 @@
 
 (defn toggle-output! []
   (update-thing! [] toggle-output))
+

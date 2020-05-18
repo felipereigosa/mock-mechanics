@@ -69,8 +69,9 @@
                               (not (in? (:layer part) (:visible-layers world))))
                            nil
                            (let [type (:type part)
-                                 info (get-in world [:info type])
-                                 mesh (:model info)
+                                 ;; info (get-in world [:info type])
+                                 ;; mesh (:model info)
+                                 mesh (get-in world [:info :block :model])
                                  transform (if (= (:type part) :track)
                                              (get-tail-transform part)
                                              (:transform part))
@@ -86,8 +87,10 @@
         distances (filter (fn [distance]
                             (not (or (nil? distance)
                                      (= (:part-name distance) :ground-part))))
-                          distances)]
-    (first (sort-by :distance distances))))
+                          distances)
+        ]
+    (first (sort-by :distance distances))
+    ))
 
 (defn get-part-at [world px py & rest]
   (:part-name (get-part-collision world px py (first rest))))

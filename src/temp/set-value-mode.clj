@@ -62,7 +62,9 @@
     (set-property world x y)
     (let [{:keys [part-name point]} (get-part-collision world x y)
           part (get-in world [:parts part-name])
-          world (assoc-in world [:value-part] part-name)]
+          world (-> world
+                    (assoc-in [:value-part] part-name)
+                    (assoc-in [:press-time] (get-current-time)))]
       (case (:type part)
         :wagon (let [transform (:transform part)
                      inverse-transform (get-inverse-transform transform)
@@ -127,6 +129,9 @@
     :else world))
 
 (defn set-value-mode-released [world {:keys [x y]}]
-  (-> world
-      (dissoc-in [:force])
-      (dissoc-in [:track-force])))
+  (let [world (if (< (- (get-current-time) (:press-time world)) 200)
+                (select-part world (:value-part world))
+                world)]
+    (-> world
+        (dissoc-in [:force])
+        (dissoc-in [:track-force]))))

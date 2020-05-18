@@ -6,18 +6,18 @@
 (declare move-part-released)
 (declare set-wagon-loop)
 
-(defn insert-mode-draw [world]
-  (let [insert-menu (:insert-menu world)]
-    (let [{:keys [image x y w h]} insert-menu]
+(defn add-mode-draw [world]
+  (let [add-menu (:add-menu world)]
+    (let [{:keys [image x y w h]} add-menu]
       (fill-rect! (make-color 70 70 70) x y (+ w 30) (+ h 20))
       (draw-image! image x y))
 
-    (let [box (get-in insert-menu [:regions (:insert-type world)])
-          {:keys [x y w h]} (get-absolute-region box insert-menu)]
+    (let [box (get-in add-menu [:regions (:add-type world)])
+          {:keys [x y w h]} (get-absolute-region box add-menu)]
       (dotimes [i 3]
         (draw-rect! :black x y (- w i) (- h i 1))))))
 
-(defn insert-wagon [world color x y]
+(defn add-wagon [world color x y]
   (let [part-name (get-part-at world x y)]
     (if (and (not-nil? part-name)
              (= (get-in world [:parts part-name :type]) :track))
@@ -113,19 +113,19 @@
       :else
       (println! "can't place part on" (no-colon (:type target))))))
 
-(defn insert-mode-pressed [world event]
+(defn add-mode-pressed [world event]
   (let [{:keys [x y]} event]
-    (if (inside-box? (:insert-menu world) x y)
-      (if-let [region (get-region-at (:insert-menu world) x y)]
+    (if (inside-box? (:add-menu world) x y)
+      (if-let [region (get-region-at (:add-menu world) x y)]
         (-> world
-            (assoc-in [:insert-type] region)
-            (show-hint :insert region))
+            (assoc-in [:add-type] region)
+            (show-hint :add region))
         world)
-      (let [type (:insert-type world)
+      (let [type (:add-type world)
             color (get-in world [:info type :color])]
-        (case (:insert-type world)
+        (case (:add-type world)
           :wagon
-          (insert-wagon world color x y)
+          (add-wagon world color x y)
 
           (let [layer (apply min (:visible-layers world))
                 part (create-part type color layer (:info world))
@@ -140,21 +140,14 @@
             (if (= (:type parent) :track)
               world
               (-> world
-                  (assoc-in [:move-after-insert] true)
                   (move-part-pressed part-name nil)
                   (move-part-moved event :grain 0.25)))))))))
 
-(defn insert-mode-moved [world event]
-  (if (:move-after-insert world)
-    (let [grain-size (if (:shift-pressed world)
-                           0.05
-                           0.25)]
-      (move-part-moved world event :grain grain-size))
-    world))
+(defn add-mode-moved [world event]
+  (let [grain-size (if (:shift-pressed world)
+                     0.05
+                     0.25)]
+    (move-part-moved world event :grain grain-size)))
 
-(defn insert-mode-released [world event]
-  (if (:move-after-insert world)
-    (-> world
-        (move-part-released event)
-        (dissoc-in [:move-after-insert]))
-    world))
+(defn add-mode-released [world event]
+  (move-part-released world event))

@@ -19,12 +19,12 @@
 (load "output")
 (load "parts")
 (load "collision")
-(load "physics")
 (load "weld-optimization")
 (load "mechanical-tree")
 (load "undo")
 (load "persistence")
 (load "value-force")
+(load "value-collision")
 (load "modes")
 (load "commands")
 (load "track-loop")
@@ -57,7 +57,6 @@
       (assoc-in [:toggle-box] {:x 343 :y 575 :w 500 :h 60})
       (assoc-in [:visible-layers] [1])
       (assoc-in [:command] "")
-      (assoc-in [:mode] :idle)
       (assoc-in [:bindings] (get-bindings))
       (assoc-in [:current-color] :red)
       
@@ -68,16 +67,16 @@
       
       (assoc-in [:color-palette]
                 (create-picture "resources/colors.svg" 340 585 -1 40))
-      (assoc-in [:insert-menu]
-                (create-picture "resources/insert-menu.svg" 726 675 -1 50))
-      (assoc-in [:insert-type] :block)
+      (assoc-in [:add-menu]
+                (create-picture "resources/add-menu.svg" 726 675 -1 50))
+      (assoc-in [:add-type] :block)
 
       (assoc-in [:edit-menu]
                 (create-picture "resources/edit-menu.svg" 210 575 -1 50))
       (assoc-in [:edit-subcommand] :move)
 
       (assoc-in [:use-weld-groups] true)
-      (assoc-in [:graph-snap-value] 0.1)
+      (assoc-in [:graph-snap-value] 0.05)
 
       (assoc-in [:graph-menu]
                 (create-picture "resources/graph-menu.svg" 210 575 -1 30))
@@ -85,110 +84,49 @@
       (assoc-in [:cpu-menu]
                 (create-picture "resources/cpu-menu.svg" 210 575 -1 30))
       (assoc-in [:selected-property] 0)
-      (assoc-in [:properties] [:free :physics :. :.])
+      (assoc-in [:properties] [:free :physics :collision :.])
 
+      (create-physics-world)
       (reset-undo! [:parts])
       (prepare-tree)
+      (assoc-in [:mode] :simulation)
+
       (place-elements)
+
+      (assoc-in [:selection] {:mesh (create-cube-mesh [0 0 0] [1 0 0 0]
+                                                      [1 1 1] :red)
+                              :time 0})
       ))
 (reset-world!)
 )
 
-;; (do
-;; 1
-
-;; (defn get-block-transform [block]
-;;   (let [[sx sy sz] (:scale block)
-;;         scale-matrix (get-scale-matrix sx sy sz)
-;;         other-matrix (get-transform-matrix (:transform block))
-;;         final-matrix (multiply-matrices scale-matrix other-matrix)]
-;;     (matrix->transform final-matrix)))
-
-;; (defn blocks-collide? [world a-name b-name]
-;;   ;;############################################## include edges
-;;   (let [a-block (get-in world [:parts a-name])
-;;         b-block (get-in world [:parts b-name])
-;;         model (get-in world [:info :block :model])
-;;         vertices [[-0.5 0.5 0.5] [0.5 0.5 0.5]
-;;                   [-0.5 -0.5 0.5] [0.5 -0.5 0.5]
-;;                   [-0.5 0.5 -0.5] [0.5 0.5 -0.5]
-;;                   [-0.5 -0.5 -0.5] [0.5 -0.5 -0.5]]
-;;         a-transform (get-block-transform a-block)
-;;         b-transform (get-block-transform b-block)
-;;         ia-transform (get-inverse-transform a-transform)
-;;         ib-transform (get-inverse-transform b-transform)
-;;         a->b-transform (combine-transforms a-transform ib-transform)
-;;         b->a-transform (combine-transforms b-transform ia-transform)
-;;         a-vertices (map #(apply-transform b->a-transform %) vertices)
-;;         b-vertices (map #(apply-transform a->b-transform %) vertices)
-;;         all-vertices (concat a-vertices b-vertices)]
-;;     (some (fn [[x y z]]
-;;             (and
-;;              (<= -0.5 x 0.5)
-;;              (<= -0.5 y 0.5)
-;;              (<= -0.5 z 0.5)))
-;;           all-vertices)))
-
-;; (defn create-all-pairs [elements]
-;;   (let [n (count elements)]
-;;     (vec (mapcat (fn [i]
-;;                    (map (fn [j]
-;;                           [(nth elements i) (nth elements j)])
-;;                         (range (inc i) n)))
-;;                  (range n)))))
-
-;; (defn get-colliding-pairs [world]
-;;   ;;###########################################
-;;   ;; (let [part (get-in world [:parts :track9075])]
-;;   ;;   (if (> (:value part) 0.44)
-;;   ;;     [[:block9076 :block9078]]
-;;   ;;     []))
-;;   (let [blocks (map first (filter (fn [[part-name part]]
-;;                                     (and (= (:type part) :block)
-;;                                          (:physics part)))
-;;                                   (:parts world)))]
-;;     (filter (fn [[a b]]
-;;               (blocks-collide? world a b))
-;;             (create-all-pairs blocks))))
-
-;; (defn reverse-collision [world [a b]]
-;;   (if-let [dof-name (or (get-first-dof world a)
-;;                         (get-first-dof world b))]
-;;     (let [part (get-in world [:parts dof-name])]
-;;       (assoc-in world [:parts dof-name :value] (:saved-value part)))
-;;     world))
-  
-;; (defn reverse-collisions [world]
-;;   (if-let [pairs (get-colliding-pairs world)]
-;;     (let [world (reduce (fn [w pair]
-;;                           (reverse-collision world pair))
-;;                         world
-;;                         pairs)]
-;;       (println! pairs)
-;;       (compute-transforms world
-;;                           (if (:use-weld-groups world)
-;;                             :weld-groups
-;;                             :parts)))
-;;     world))
-
-;; ;; (update-thing! [] reverse-collisions)
-
-;; (println! (get-colliding-pairs @world))
-;; )
-
 (defn update-world [world elapsed]
-  (if (in? (:mode world) [:insert :edit])
-    world
+  (cond
+    (in? (:mode world) [:simulation :graph :cpu])
     (let [world (-> world
                     (set-probe-values)
+                    (save-values)
                     (run-chips elapsed)
                     (apply-force elapsed)
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
-                    ;; (reverse-collisions)
-                    (update-cpus))]
-      world)))
+                    (reverse-collisions)
+                    (update-cpus)
+                    )]
+      (recompute-body-transforms! world)
+      (step-simulation! (:planet world) elapsed)
+      world)
+
+    (= (:mode world) :set-value)
+    (-> world
+        (apply-force elapsed)
+        (compute-transforms (if (:use-weld-groups world)
+                              :weld-groups
+                              :parts))
+        )
+    
+    :else world))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -200,6 +138,8 @@
   (if (> (get-in world [:camera :x-angle]) 0)
     (draw-mesh! world (:other-ground world)))
 
+  (draw-spheres! world)
+  
   (if (:use-weld-groups world)
     (doseq [group (vals (:weld-groups world))]
       (draw-mesh! world group))
@@ -217,6 +157,11 @@
           ;; part (assoc-in part [:color] :yellow)
           ]
       (draw-part! world part)))
+
+  (let [{:keys [mesh time]} (:selection world)]
+    (if (< (- (get-current-time) time) 300)
+      (draw-mesh! world mesh)
+    ))
 
   (draw-buttons! world)
   (draw-lamps! world)
@@ -245,6 +190,7 @@
 
   (if-let [hint (:hint world)]
     (draw-hint world hint))
+
   )
 (redraw!))
 
@@ -259,7 +205,7 @@
   (if-let [region (get-region-at (:action-menu world) x y)]
     (let [world (case region
                   :new (new-file world)
-                  :view (reset-camera world)
+                  :view (view-all-parts world)
                   :save (save-version world)
                   :load (read-input world load-last-version-callback)
                   :undo (undo! world)
@@ -324,3 +270,14 @@
     (-> world
         (recompute-viewport width height)
         (place-elements))))
+
+
+;; (let [world @world
+;;       body (first (:spheres world))]
+
+;;   (println! body)
+;; ;; btTransform transform = body -> getCenterOfMassTransform();
+;; ;; transform.setOrigin(new_position);
+;; ;; body -> setCenterOfMassTransform(transform);
+
+;;   )

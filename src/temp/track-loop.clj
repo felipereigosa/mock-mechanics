@@ -1,23 +1,28 @@
 
 (ns temp.core)
 
-(defn tracks-connected? [world p0-name p1-name]
+(defn tracks-connected? [world t0-name t1-name]
   (let [parts (:parts world)
-        p0 (get-in parts [p0-name])
-        p1 (get-in parts [p1-name])]
+        t0 (get-in parts [t0-name])
+        t1 (get-in parts [t1-name])]
     (or
-     (and (in? p1-name (keys (:children p0)))
-          (nil? (:loop-fn p1)))
-
-     (and (in? p0-name (keys (:children p1)))
-          (nil? (:loop-fn p0))))))
+     (in? t1-name (keys (:children t0)))
+     (in? t0-name (keys (:children t1))))))
 
 (defn get-track-neighbours [world part-name]
   (filter (fn [other-part-name]
             (and
              (not (= other-part-name part-name))
              (tracks-connected? world other-part-name part-name)))
-          (keys (:parts world))))
+          (get-parts-with-type (:parts world) :track)))
+
+(defn color= [a b]
+  (let [a (get-color a)
+        b (get-color b)]
+    (and
+     (= (get-red a) (get-red b))
+     (= (get-green a) (get-green b))
+     (= (get-blue a) (get-blue b)))))
 
 (defn grow-loop [world loop color]
   (let [start (first loop)
@@ -28,7 +33,7 @@
                               (let [part (get-in world [:parts part-name])]
                                 (and
                                  (= (:type part) :track)
-                                 (= (:color part) color)
+                                 (color= (:color part) color)
                                  (not (in? part-name loop)))))
                             (get-track-neighbours world tip))))
         before (get-next start)
@@ -102,3 +107,12 @@
                  (-> wagon
                      (assoc-in [:loop-fn] loop-fn)
                      (assoc-in [:track-lengths] lengths))))))
+
+(defn reset-wagons [world]
+  (let [wagon-names (get-parts-with-type (:parts world) :wagon)]
+    (compute-transforms 
+     (reduce (fn [w wagon-name]
+               (let [track-name (get-parent-part w wagon-name)]
+                 (set-wagon-loop w wagon-name track-name)))
+             world wagon-names)
+     :weld-groups)))

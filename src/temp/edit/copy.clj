@@ -71,7 +71,10 @@
 (defn copy-mode-pressed [world {:keys [x y]}]
   (if-let [collision (get-collision world x y)]
     (if (:control-pressed world)
-      (assoc-in world [:selected-part] (:part-name collision))
+      (let [part-name (:part-name collision)]
+        (-> world
+            (assoc-in [:selected-part] part-name)
+            (select-part part-name)))
       (if-let [selected-part (:selected-part world)]
         (if (can-place-part-at? world collision)
           (let [suffix (gen-keyword :copy)

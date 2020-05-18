@@ -89,7 +89,7 @@
    :chip
    {:model (create-model-mesh "resources/chip.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
-    :points []
+    :poinpts []
     :scale [0.3 0.07 0.3]
     :direction :output
     :color :dark-gray
@@ -172,13 +172,13 @@
                    (assoc-in [:time] 1.0)
                    (assoc-in [:final-time] 0.0)
                    (assoc-in [:view] {:offset [0.025 0.1]
-                                      :zoom 0.5}))
+                                      :zoom-x 0.5
+                                      :zoom-y 0.5}))
                part)
 
         part (if (= type :speaker)
                (assoc-in part [:frequency] 440)
-               part)
-        ]
+               part)]
     part))
 
 (defn create-relative-transform [world child-name parent-name]
@@ -186,8 +186,10 @@
         parent-transform (:transform parent)
         child (get-in world [:parts child-name])
         child-transform (:transform child)
-        final-transform (remove-transform child-transform
-                                          parent-transform)]
+        final-transform (if (= (:type child) :wagon)
+                          (make-transform [0 0 0] [1 0 0 0])
+                          (remove-transform child-transform
+                                            parent-transform))]
     (assoc-in world [:parts parent-name :children child-name]
               final-transform)))
 
@@ -313,7 +315,7 @@
                 property (nth (get-in world [:properties])
                               (:selected-property world))
                 color (if (and (float= (:value lamp) 0)
-                               (in? (:mode world) [:idle :cpu :set-value]))
+                               (in? (:mode world) [:simulation :cpu :set-value]))
                         (:dark-color lamp)
                         (:color lamp))
                 
@@ -331,9 +333,28 @@
 (declare save-checkpoint!)
 
 (defn prepare-tree [world]
-  (if (= (:mode world) :idle)
-    (compute-transforms world :parts)
+  (if (= (:mode world) :simulation)
+    world
     (-> world
         (compute-transforms :parts)
         (create-weld-groups)
         (save-checkpoint!))))
+
+(defn select-part [world part-name]
+  (let [part (get-in world [:parts part-name])
+        type (:type part)
+        scale (vector-multiply (:scale part) 1.01)
+        transform (if (= type :track)
+                    (get-tail-transform part)
+                    (:transform part))
+        color (if (color= (:color part) :yellow)
+                [1 0 0 0]
+                [1 1 0 0])]
+    (if (= type :ground)
+      world
+      (-> world
+          (assoc-in [:selection :time] (get-current-time))
+          (assoc-in [:selection :mesh :color] color)
+          (assoc-in [:selection :mesh :scale] scale)
+          (assoc-in [:selection :mesh :transform] transform)))))
+

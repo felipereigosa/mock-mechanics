@@ -100,3 +100,22 @@
 
 (defn reset-camera [world]
   (create-camera world [0 0 1] 40 25 -35))
+
+(declare get-transform-position)
+
+(defn view-all-parts [world]
+  (let [real-parts (dissoc-in (:parts world) [:ground-part])]
+    (if (empty? real-parts)
+      (reset-camera world)
+      (let [center (vector-multiply
+                    (reduce vector-add
+                            (map #(get-transform-position (:transform %))
+                                 (vals real-parts)))
+                    (/ 1.0 (count real-parts)))
+            distance 50 ;;############################
+            ]
+        (-> world
+            (assoc-in [:camera :pivot] center)
+            (assoc-in [:camera :distance] distance)
+            (compute-camera))))))
+

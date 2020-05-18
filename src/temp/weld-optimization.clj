@@ -4,6 +4,7 @@
 (declare get-parts-with-type)
 (declare get-tail-transform)
 (declare compute-transforms)
+(declare create-kinematic-bodies)
 
 (defn get-limited-tree [parts root-name all-root-names]
   (let [root (get-in parts [root-name])
@@ -21,12 +22,17 @@
                                              (keys (:functions chip))))
                                          chip-names))
         probes (get-parts-with-type (:parts world) :probe)
+        collision-parts (map first (filter (fn [[part-name part]]
+                                            (and (= (:type part) :block)
+                                                 (:collision part)))
+                                          (:parts world)))
         free-parts (filter (fn [part-name]
                              (get-in world [:parts part-name :free]))
                            (keys (:parts world)))
         force-part (get-in world [:force :part-name])
         track-force-part (get-in world [:track-force :part-name])
-        roots (concat [:ground-part] chip-children free-parts probes
+        roots (concat [:ground-part] chip-children free-parts
+                      probes collision-parts
                       (filter not-nil? [force-part track-force-part]))]
     (vec (into #{} roots))))
 
@@ -140,5 +146,6 @@
                                  {(first names) mesh}))
                              groups)]
     (-> world
+        (create-kinematic-bodies parts groups)
         (assoc-in [:weld-groups] weld-groups)
         (compute-transforms :weld-groups))))

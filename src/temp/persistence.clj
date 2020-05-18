@@ -45,13 +45,18 @@
         (modify-field :color get-complex-color)
         (assoc-in [:children] children))))
 
+(declare get-body-transform)
+
 (defn save-machine! [world filename]
   (let [parts (map-map (fn [[name part]]
                          {name (get-simple-part part)})
-                       (:parts world))]
+                       (:parts world))
+        sphere-transforms (vec (map (comp get-simple-transform get-body-transform)
+                                    (:spheres world)))]
     (spit filename {:parts parts
                     :camera (:camera world)
-                    :visible-layers (:visible-layers world)})))
+                    :visible-layers (:visible-layers world)
+                    :sphere-transforms sphere-transforms})))
 
 (defn save-machine-callback [world text]
   (save-machine! world (str "resources/machines/" text ".clj"))
@@ -69,13 +74,21 @@
       (save-machine-callback world new-name))
     (read-input world save-machine-callback)))
 
+(declare make-sphere)
+
 (defn load-machine [world filename]
-  (let [{:keys [parts camera visible-layers]} (read-string (slurp filename))
+  (let [{:keys [parts camera
+                visible-layers
+                sphere-transforms]} (read-string (slurp filename))
         parts (map-map (fn [[name part]]
                          {name (get-complex-part part)})
-                       parts)]
+                       parts)
+        spheres (vec (map (fn [{:keys [position rotation]}]
+                     (make-sphere world position rotation))
+                   sphere-transforms))]
     (-> world
         (assoc-in [:parts] parts)
+        (assoc-in [:spheres] spheres)
         (assoc-in [:parts :ground-part :transform] (make-transform [0 -0.1 0] [1 0 0 0]))
         (assoc-in [:camera] camera)
         (assoc-in [:visible-layers] (or visible-layers [1]))
@@ -86,7 +99,8 @@
 (defn load-machine-callback [world text]
   (let [world (-> world
                   (new-file)
-                  (load-machine (str "resources/machines/" text ".clj")))]
+                  (load-machine (str "resources/machines/"
+                                     text ".clj")))]
     (println! "loaded machine" text)
     (set-title! text)
     (assoc-in world [:last-saved-machine] text)))

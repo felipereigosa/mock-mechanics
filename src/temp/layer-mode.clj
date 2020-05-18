@@ -46,12 +46,21 @@
           (assoc-in [:selected-part] (get-part-at world x y))
           (assoc-in [:indicator] 1)))))
 
+(defn move-parts-to-layer [world root-name layer-index]
+  (let [names (if (:shift-pressed world)
+                (get-limited-tree (:parts world) root-name [])
+                [root-name])]
+    (reduce (fn [w name]
+              (assoc-in w [:parts name :layer] layer-index))
+            world
+            names)))
+
 (defn layer-mode-released [world {:keys [x y]}]
   (let [layer-box (:layer-box world)]    
     (if (and (not (nil? (:selected-part world)))
              (inside-box? layer-box x y))
       (let [index (get-layer-index layer-box x)]
         (-> world
-            (assoc-in [:parts (:selected-part world) :layer] index)
+            (move-parts-to-layer (:selected-part world) index)
             (dissoc-in [:selected-part])))
       (dissoc-in world [:selected-part]))))

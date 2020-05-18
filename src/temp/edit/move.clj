@@ -66,7 +66,9 @@
                            0.25
                            0.05))
           point (get-normalized-plane-point plane point grain-size)
+          v (vector-subtract point (first plane))
           point (vector-add point offset)]
+      (println! "move:" (vec (map #(format "%.2f" %) v)))
       (update-in world [:parts part-name]
                  #(set-part-position % point)))
     world))
@@ -98,3 +100,4 @@
 
 (defn move-mode-released [world event]
   (move-part-released world event))
+

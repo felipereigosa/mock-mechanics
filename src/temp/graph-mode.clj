@@ -52,9 +52,10 @@
 (defn local->global [graph-box view [t v]]
   (let [{:keys [x y w h]} graph-box
         [to vo] (:offset view)
-        zoom (:zoom view)
-        t (+ (* t zoom) to)
-        v (+ (* v zoom) vo)]
+        zoom-x (:zoom-x view)
+        zoom-y (:zoom-y view)
+        t (+ (* t zoom-x) to)
+        v (+ (* v zoom-y) vo)]
     [(map-between-ranges t 0 1 7 (- w 7))
      (map-between-ranges v 0 1 (- h 7) 7)]))
 
@@ -67,11 +68,12 @@
         y1 (- y hh)
         y2 (+ y hh)
         [to vo] (:offset view)
-        zoom (:zoom view)
+        zoom-x (:zoom-x view)
+        zoom-y (:zoom-y view)
         t (map-between-ranges px (+ x1 7) (- x2 7) 0 1)
         v (map-between-ranges py (- y2 7) (+ y1 7) 0 1)]
-    [(/ (- t to) zoom)
-     (/ (- v vo) zoom)]))
+    [(/ (- t to) zoom-x)
+     (/ (- v vo) zoom-y)]))
 
 (defn draw-graph-cross [graph-box]
   (let [buffer (:buffer graph-box)
@@ -144,8 +146,6 @@
                        :white)]
     (clear buffer border-color)
     (fill-rect buffer :black hw hh (- w 14) (- h 14))
-    (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14))
-
     (fill-rect! :black x (+ y hh 15) w 30)
 
     (let [region (get-in (:regions menu) [(:graph-subcommand world)])
@@ -231,8 +231,8 @@
                                       [name index point])
                                     points (range (count points)))))
                              functions)
-        dx (/ (* 2 (/ 7.0 (:w graph-box))) (:zoom view))
-        dy (/ (* 2 (/ 7.0 (:h graph-box))) (:zoom view))
+        dx (/ (* 2 (/ 7.0 (:w graph-box))) (:zoom-x view))
+        dy (/ (* 2 (/ 7.0 (:h graph-box))) (:zoom-y view))
         named-point (find-if (fn [[name index [px py]]]
                                (and (< (abs (- px t)) dx)
                                     (< (abs (- py v)) dy)))
@@ -279,37 +279,26 @@
       (read-input world #(set-node-value-callback %1 node which %2)))
     world))
 
-(defn point-between-points? [p p1 p2 zoom]
-  (if (vector= p1 p2)
-    (vector= p p1)
-    (let [v (vector-subtract p2 p1)
-          line [p1 (vector-normalize v)]
-          l (vector-length v)]
-      (and
-       (< (point-line-distance p line) (/ 0.04 zoom))
-       (< (distance p p1) l)
-       (< (distance p p2) l)))))
-
-(defn normal-function-collision [points t v zoom]
+(defn normal-function-collision [points t v]
   (let [segments (map vector points (rest points))
         point [t v]]
     (some (fn [[a b]]
-            (point-between-points? [t v] a b zoom))
+            (point-between-points? [t v] a b))
           segments)))
 
-(defn square-function-collision [points t v zoom]
+(defn square-function-collision [points t v]
   (let [segments (map vector points (rest points))
         corners (map (fn [[[_ y1] [x2 _]]]
                        [x2 y1])
                      segments)
         new-points (butlast (interleave points
                                         (conj (vec corners) nil)))]
-    (normal-function-collision new-points t v zoom)))
+    (normal-function-collision new-points t v)))
 
-(defn function-collision [function t v zoom]
+(defn function-collision [function t v]
   (if (:relative function)
-    (square-function-collision (:points function) t v zoom)
-    (normal-function-collision (:points function) t v zoom)))
+    (square-function-collision (:points function) t v)
+    (normal-function-collision (:points function) t v)))
 
 (defn get-function-at [world x y]
   (let [graph-box (:graph-box world)
@@ -319,7 +308,7 @@
         [t v] (global->local graph-box view [x y])
         functions (:functions chip)]
     (first (find-if (fn [[name function]]
-                      (function-collision function t v (:zoom view)))
+                      (function-collision function t v))
                     functions))))
 
 (defn add-node [world x y]
@@ -356,11 +345,6 @@
                       function-name :relative] not)
     world))
 
-(defn move-node-pressed [world x y]
-  (if-let [node (get-node-at world x y)]
-    (assoc-in world [:moving-node] node)
-    world))
-
 (defn snap-coords [coords spec]
   (cond
     (number? spec) (vec (map #(snap-value % spec) coords))
@@ -391,6 +375,16 @@
               (fn [w text]
                 (assoc-in w [:graph-snap-value] (parse-snap text)))))
 
+(defn move-node-pressed [world x y]
+  (if-let [node (get-node-at world x y)]
+    (let [coords (get-in world [:parts (:selected-chip world)
+                                :functions (first node)
+                                :points (second node)])]
+      (-> world
+          (assoc-in [:original-node] coords)
+          (assoc-in [:moving-node] node)))
+    world))
+
 (defn move-node-moved [world x y]
   (if-let [[function-name index] (:moving-node world)]
     (let [graph-box (:graph-box world)
@@ -399,6 +393,13 @@
           view (:view chip)
           coords (global->local graph-box view [x y])
           coords (snap-coords coords (:graph-snap-value world))
+          original-node (:original-node world)
+          offset (vector-subtract original-node coords)
+          coords (if (:shift-pressed world)
+                   (if (< (abs (first offset)) (abs (second offset)))
+                     [(first original-node) (second coords)]
+                     [(first coords) (second original-node)])
+                   coords)
           new-points (-> (get-in chip [:functions function-name :points])
                          (assoc-in [index] coords))
           world (assoc-in world [:parts chip-name
@@ -435,8 +436,9 @@
           end-point [x y]
           p1 (global->local graph-box view start-point)
           p2 (global->local graph-box view end-point)
-          displacement (vector-multiply (vector-subtract p2 p1)
-                                        (:zoom view))]
+          [dx dy] (vector-subtract p2 p1)
+          displacement [(* dx (:zoom-x view))
+                        (* dy (:zoom-y view))]]
       (-> world
           (assoc-in [:parts chip-name :view :offset]
                     (vector-add (:saved-offset world) displacement))
@@ -464,7 +466,8 @@
 (defn reset-graph-view [world]
   (if-let [chip-name (:selected-chip world)]
     (assoc-in world [:parts chip-name :view] {:offset [0.025 0.1]
-                                              :zoom 0.5})
+                                              :zoom-x 0.5
+                                              :zoom-y 0.5})
     world))
 
 (defn chip-change-part [world x y]
@@ -477,12 +480,9 @@
       (if (in? part-type [:wagon :track])
         (if (in? part-name (keys (:functions chip)))
           (dissoc-in world [:parts chip-name :functions part-name])
-          (if (or (nil? part-name)
-                  (= part-name chip-name))
-            world
-            (assoc-in world [:parts chip-name :functions part-name]
-                      {:points [[0 0] [1 1]]
-                       :relative false})))
+          (assoc-in world [:parts chip-name :functions part-name]
+                    {:points [[0 0] [1 1]]
+                     :relative false}))
         world))
     world))
 
@@ -491,7 +491,10 @@
     (let [part (get-in world [:parts function-name])]
       (if (= (:type part) :wagon)
         (do
-          (println! "track lengths: " (:track-lengths part))
+          (println! "track lengths: "
+                    (vec (map #(format "%.2f" %)
+                              (:track-lengths part)))
+                    (format "%.2f" (reduce + (:track-lengths part))))
           world)
         world))
     world))
@@ -553,18 +556,23 @@
 
 (defn place-point [view graph-box local-point global-point]
   (let [p (global->local graph-box view global-point)
-        v (vector-multiply (vector-subtract p local-point) (:zoom view))]
+        [dx dy] (vector-subtract p local-point)
+        v [(* dx (:zoom-x view))
+           (* dy (:zoom-y view))]]
     (update-in view [:offset] #(vector-add % v))))
 
-(defn change-zoom [view graph-box event]
+(defn change-zoom [view graph-box event shift-pressed]
   (let [offset (:offset view)
-        zoom (:zoom view)
         f (if (pos? (:amount event)) 1.1 0.9)
-        new-zoom (* zoom f)
+        new-zoom-x (if shift-pressed
+                     (:zoom-x view)
+                     (* (:zoom-x view) f))
+        new-zoom-y (* (:zoom-y view) f)
         global-point [(:x event) (:y event)]
         local-point (global->local graph-box view global-point)]
     (place-point {:offset offset
-                  :zoom new-zoom}
+                  :zoom-x new-zoom-x
+                  :zoom-y new-zoom-y}
                  graph-box local-point global-point)))
 
 (defn graph-mode-scrolled [world event]
@@ -572,6 +580,6 @@
         chip-name (:selected-chip world)]
     (-> world
         (update-in [:parts chip-name :view]
-                   #(change-zoom % (:graph-box world) event))
+                   #(change-zoom % (:graph-box world)
+                                 event (:shift-pressed world)))
         (redraw))))
-

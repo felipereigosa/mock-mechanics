@@ -1,12 +1,12 @@
 
 (ns temp.core)
 
-(defn idle-mode-entered [world]
+(defn simulation-mode-entered [world]
   (-> world
       (compute-transforms :parts)
       (create-weld-groups)))
 
-(defn idle-mode-pressed [world {:keys [x y]}]
+(defn simulation-mode-pressed [world {:keys [x y]}]
   (if-let [{:keys [part-name point]} (get-part-collision world x y)]
     (let [part (get-in world [:parts part-name])
           world (if (in? (:type part) [:button :block])
@@ -27,7 +27,7 @@
         world))
     world))
 
-(defn idle-mode-moved [world event]
+(defn simulation-mode-moved [world event]
   (if (nil? (:force world))
     world
     (let [x (:x event)
@@ -35,7 +35,7 @@
           mouse-line (unproject-point world [x y])]
       (assoc-in world [:force :line] mouse-line))))
 
-(defn idle-mode-released [world event]
+(defn simulation-mode-released [world event]
   (let [world (if (nil? (:pressed-part world))
                 world
                 (assoc-in world [:parts (:pressed-part world) :value] 0))]

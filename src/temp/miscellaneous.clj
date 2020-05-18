@@ -54,13 +54,17 @@
     (compute-camera (assoc-in world [:camera :pivot] pos))))
 
 (declare delete-all-parts)
+(declare delete-all-spheres)
 
 (defn new-file [world]
   (set-title! "-")  
   (-> world
+      (dissoc-in [:last-saved-machine])
       (delete-all-parts)
+      (delete-all-spheres)
       (reset-camera)
-      (change-mode :idle)
+      (change-mode :simulation)
+      (assoc-in [:visible-layers] [1])
       (redraw)))
 
 (defn place-box [world name & {:keys [rx ry wx wy ox oy]}]
@@ -97,7 +101,7 @@
     (-> world
         (place-box :action-menu :rx 0.6 :ry 0.5 :oy 10)
         (place-box :mode-menu :rx -0.6 :ry 0.5 :oy 10)
-        (place-box :insert-menu :wx 0.5 :ry -0.6 :oy oy)
+        (place-box :add-menu :wx 0.5 :ry -0.6 :oy oy)
         (place-box :color-palette :wx 0.5 :ry -0.5 :oy oy)
         (place-box :edit-menu :wx 0.5 :ry -0.6 :oy oy)
         (place-box :layer-box :wx 0.5 :ry -0.5 :oy oy)
@@ -108,3 +112,14 @@
         (place-box :toggle-box :wx 0.5 :ry -0.5 :oy oy)
         (place-box :set-value-box :wx 0.5 :ry -0.5 :oy oy)
         )))
+
+(defn point-between-points? [p p1 p2]
+  (if (vector= p1 p2)
+    (vector= p p1)
+    (let [v (vector-subtract p2 p1)
+          line [p1 (vector-normalize v)]
+          l (vector-length v)]
+      (and
+       (< (point-line-distance p line) (* 0.02 l))
+       (< (distance p p1) l)
+       (< (distance p p2) l)))))

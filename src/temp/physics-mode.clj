@@ -101,8 +101,25 @@
 (defn step-simulation! [planet elapsed]
   (.stepSimulation planet elapsed 7 (/ 1 60.0)))
 
-;;----------------------------------------------------------------------;;
-;; part physics
+(defn create-physics-world [world]
+  (let [r 0.2
+        d (* r 2)
+        mesh (create-model-mesh "resources/physical-sphere.obj"
+                                [0 0 0] [1 0 0 0]
+                                [d d d] nil)
+        world (-> world
+                  (assoc-in [:planet] (create-planet))
+                  (assoc-in [:sphere-radius] r)
+                  (assoc-in [:sphere-mesh] mesh))]
+    (create-ground (:planet world))
+    world))
+
+(defn make-sphere [world position rotation]
+  (let [body (create-sphere-body
+              (:sphere-radius world) 1.0
+              (make-transform position rotation))]
+    (add-body-to-planet (:planet world) body)
+    body))
 
 (defn create-sphere [world position]
   (let [body (create-sphere-body
@@ -131,6 +148,13 @@
                             position (get-transform-position transform)]
                         (distance position eye)))
                     spheres))))
+
+(defn draw-spheres! [world]
+  (let [mesh (:sphere-mesh world)]
+    (doseq [body (:spheres world)]
+      (let [transform (get-body-transform body)
+            mesh (assoc-in mesh [:transform] transform)]
+        (draw-mesh! world mesh)))))
 
 (defn is-physical-part? [[name part]]
   (and
@@ -180,9 +204,34 @@
                                         parent-transform)]
       (set-body-transform body transform))))
 
-(defn draw-spheres! [world]
-  (let [mesh (:sphere-mesh world)]
-    (doseq [body (:spheres world)]
-      (let [transform (get-body-transform body)
-            mesh (assoc-in mesh [:transform] transform)]
-        (draw-mesh! world mesh)))))
+(defn add-sphere [world x y]
+  (if-let [collision (get-part-collision world x y)]
+    (let [local-normal (get-collision-normal world collision)
+          part (get-in world [:parts (:part-name collision)])
+          rotation (get-rotation-component (:transform part))
+          normal (apply-transform rotation local-normal)
+          offset (vector-multiply (vector-normalize normal)
+                                  (:sphere-radius world))
+          position (vector-add (:point collision) offset)]
+      (create-sphere world position))
+    (let [line (unproject-point world [x y])
+          ground-plane [[0 0 0] [1 0 0] [0 0 1]]
+          offset [0 (:sphere-radius world) 0]
+          point (line-plane-intersection line ground-plane)
+          position (vector-add point offset)]
+      (create-sphere world position))))
+
+(defn delete-sphere [world sphere]
+  (remove-body (:planet world) sphere)
+  (update-in world [:spheres]
+             (fn [spheres]
+               (remove #(= % sphere) spheres))))
+
+(defn delete-all-spheres [world]
+  (doseq [sphere (:spheres world)]
+    (remove-body (:planet world) sphere))
+  (assoc-in world [:spheres] []))
+
+(defn physics-mode-pressed [world {:keys [x y]}]
+  (add-sphere world x y))
+

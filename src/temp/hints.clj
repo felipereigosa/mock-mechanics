@@ -2,8 +2,14 @@
 (ns temp.core)
 
 (defn show-hint [world menu action]
-  (let [texts {:action {}
-               :mode {:insert "Ctrl + a,Add Mode"
+  (let [texts {:action {:new "Alt + n,New File"
+                        :view "Alt + c,Reset Camera"
+                        :save "Alt + s,Save"
+                        :load "Alt + l,Load"
+                        :undo "Alt + ←,Undo"
+                        :redo "Alt + →,Redo"
+                        }
+               :mode {:add "Ctrl + a,Add Mode"
                       :edit "Ctrl + e,Edit Mode"
                       :graph "Ctrl + g,Graph Mode"
                       :cpu "Ctrl + q,Cpu Mode"
@@ -11,9 +17,9 @@
                       :set-value "Ctrl + v,Set Value Mode"
                       :toggle "Ctrl + t,Toggle Mode"
                       :layer "Ctrl + L,Layer Mode"
-                      :idle "Ctrl + S,Simulation Mode"
+                      :simulation "Ctrl + S,Simulation Mode"
                       }
-               :insert {:block "b,Block"
+               :add {:block "b,Block"
                         :wagon "w,Wagon"
                         :track "t,Track"
                         :chip "g,Chip"
@@ -53,6 +59,8 @@
                      :toggle "t, Toggle Trigger"
                      :run "r,Run"
                      :script "s,Toggle Script"
+                     :on "1,Set Pin to 1"
+                     :off "0,Set Pin to 0"
                      }
                }
         world (assoc-in world [:hint]

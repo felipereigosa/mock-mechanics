@@ -14,7 +14,7 @@
    viewBox="0 0 52.16471 517.82732"
    version="1.1"
    id="svg8"
-   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"
+   inkscape:version="0.92.5 (2060ec1f9f, 2020-04-08)"
    sodipodi:docname="mode-menu.svg">
   <defs
      id="defs2">
@@ -41,10 +41,10 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.175"
-     inkscape:cx="-944.2838"
+     inkscape:cx="-1987.1409"
      inkscape:cy="780.88736"
      inkscape:document-units="mm"
-     inkscape:current-layer="layer1"
+     inkscape:current-layer="layer2"
      showgrid="false"
      inkscape:snap-global="false"
      fit-margin-top="0"
@@ -66,7 +66,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title></dc:title>
+        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -371,7 +371,7 @@
      transform="translate(-16.536468,-376.84226)">
     <rect
        style="display:inline;opacity:1;fill:#ff0000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="insert"
+       id="add"
        width="52.160713"
        height="52.160713"
        x="16.53648"
@@ -427,7 +427,7 @@
        inkscape:label="#rect817-5-5" />
     <rect
        style="display:inline;opacity:1;fill:#ff0000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="idle"
+       id="simulation"
        width="52.160713"
        height="52.160713"
        x="16.540472"

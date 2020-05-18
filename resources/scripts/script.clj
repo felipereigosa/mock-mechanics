@@ -1,13 +1,12 @@
 
 (script
- [button probe]
- [out-chip in-chip]
+ [probe]
+ [chip]
 
  (fn [part-name]
-   (when (and (= part-name button)
-              (= (get-value button) 1))
-     (sleep 500)
-     (if (= (get-value probe) 1)
-       (activate out-chip)
-       (activate in-chip))
-     )))
+   (when (and (= part-name probe)
+              (= (get-value probe) 1))
+     (while (= (get-value probe) 1)
+       (activate chip)
+       (wait #(chip-active? chip))
+       ))))

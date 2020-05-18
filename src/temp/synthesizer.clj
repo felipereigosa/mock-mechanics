@@ -5,11 +5,11 @@
 
 (def synth (doto (MidiSystem/getSynthesizer) .open))
 
-(defn note-on [note]                    
+(defn note-on [note]
   (let [channel (aget (.getChannels synth) 0)]
     (.noteOn channel note 127)))
 
-(defn note-off [note]                    
+(defn note-off [note]
   (let [channel (aget (.getChannels synth) 0)]
     (.noteOff channel note 127)))
 
@@ -19,3 +19,4 @@
 (defn get-note [frequency]
   (int (Math/round (/ (Math/log (/ frequency 8.1758))
                       (Math/log 1.059463)))))
+

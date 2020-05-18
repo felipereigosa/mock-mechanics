@@ -101,12 +101,8 @@
                       part (get-in world [:parts part-name])
                       note (get-note (:frequency part))]
                   (if (float= value 1.0)
-                    (do
-                      (println! "on")
-                      (note-on note)
-                      )
-                    ;; (note-off note)
-                    )
+                    (note-on note)
+                    (note-off note))
                   w)
                 w))
             world
@@ -143,7 +139,7 @@
          ~@other))))
 
 (defn get-sorted-pin-list [world cpu-name which]
-  (let [cpu (get-in world [:parts :cpu11905])
+  (let [cpu (get-in world [:parts cpu-name])
         helper (fn [[name pin]]
                  (let [type (get-in world [:parts name :type])
                        direction (get-in world [:info type :direction])]
@@ -155,9 +151,9 @@
   (let [cpu (get-in world [:parts cpu-name])
         inputs (get-sorted-pin-list world cpu-name :input)
         outputs (get-sorted-pin-list world cpu-name :output)
-        filename (str "resources/scripts/script.clj")]
+        filename (:script cpu)]
     (if-let [text (try
-                    (read-string (slurp filename))
+                    (read-string (str "(script" (slurp filename) ")"))
                     (catch Exception e
                       (println! "eof found on script")))]
       (let [code (process-code text inputs outputs)]
@@ -258,6 +254,7 @@
           buffer (:buffer cpu-box)
           part (get-in world [:parts name])]
       (fill-rect buffer (:color part) (:x pin) 12 20 10)
+      (draw-rect buffer :gray (:x pin) 12 20 10)
       (when (:trigger pin)
         (draw-circle buffer :blue (:x pin) 12 13)))))
 
@@ -304,6 +301,9 @@
         (fill-circle! :white x1 y1 3)
         (fill-circle! :white x2 y2 3)))))
 
+(do
+1
+
 (defn cpu-mode-draw [world]
   (let [cpu-box (:cpu-box world)
         {:keys [x y w h]} cpu-box
@@ -326,18 +326,15 @@
     (draw-image! (:image menu) (:x menu) (:y menu))
 
     (if-let [cpu-name (:selected-cpu world)]
-      (let [cpu (get-in world [:parts cpu-name])]
+      (let [cpu (get-in world [:parts cpu-name])
+            script-name (str "file: " (:script cpu))]
         (if (:script cpu)
-          (do
-            (fill-rect buffer :white 50 50 30 50)
-            (fill-rect buffer :black 50 35 25 4)
-            (fill-rect buffer :black 50 45 25 4)
-            (fill-rect buffer :black 50 55 25 4))            
+          (draw-text buffer :gray script-name 100 80 20)
           (do
             (draw-connections cpu cpu-box)
-            (draw-pins world cpu)
             (draw-gates cpu cpu-box)
-            (draw-tab-switcher cpu cpu-box))))
+            (draw-tab-switcher cpu cpu-box)))
+        (draw-pins world cpu))
       (draw-graph-cross (:cpu-box world)))
 
     (draw-image! buffer x y)
@@ -348,6 +345,9 @@
       (draw-rect! :gray x y 15 10)
       (draw-line! :gray (- x 4) y (+ x 3) y))
     ))
+
+(redraw!)
+)
 
 (defn prune-connections [cpu]
   (let [elements (concat (vec (keys (:pins cpu)))
@@ -390,20 +390,20 @@
              named-joints)))
 
 (defn get-connection-at [cpu cpu-box x y]
-  (if-let [[name _]
-           (find-if (fn [[name connection]]
-                      (if (= (:tab connection) (:tab cpu))
-                        (let [points (get-connection-points cpu connection)
-                              points (map (fn [[px py]]
-                                            (cpu->world-coords cpu-box px py))
-                                          points)
-                              segments (map vector points (rest points))]
-                          (some (fn [[a b]]
-                                  (point-between-points? [x y] a b 0.01))
-                                segments))))
-                    (:connections cpu))]
-    [:connection name]
-    nil))
+  (let [helper
+        (fn [[name connection]]
+          (if (= (:tab connection) (:tab cpu))
+            (let [points (get-connection-points cpu connection)
+                  points (map (fn [[px py]]
+                                (cpu->world-coords cpu-box px py))
+                              points)
+                  segments (map vector points (rest points))]
+              (some (fn [[a b]]
+                      (point-between-points? [x y] a b))
+                    segments))))]
+    (if-let [[name _] (find-if helper (:connections cpu))]
+      [:connection name]
+      nil)))
 
 (defn get-element-at [cpu cpu-box x y]
   (if-let [pin (get-pin-at cpu cpu-box x y)]
@@ -543,6 +543,29 @@
         chip-name (get-pin-at cpu (:cpu-box world) (:x event) (:y event))]
   (activate-chip world chip-name)))
 
+(defn toggle-script [world]
+  (if-let [selected-cpu (:selected-cpu world)]
+    (if (get-in world [:parts selected-cpu :script])
+      (dissoc-in world [:parts selected-cpu :script])
+      (read-input world
+                  #(assoc-in %1 [:parts selected-cpu :script]
+                             (str "resources/scripts/" %2 ".clj"))))
+    world))
+
+(defn change-component [world value {:keys [x y]}]
+  (if-let [selected-cpu (:selected-cpu world)]
+    (let [cpu (get-in world [:parts selected-cpu])
+          cpu-box (:cpu-box world)]
+      (if-let [pin-name (get-pin-at cpu cpu-box x y)]
+        (let [type (get-in world [:parts pin-name :type])]
+          (println! (kw->str type) "value = " value)
+          (assoc-in world [:parts pin-name :value] value))
+        (do
+          (println! "no pin selected")
+          world
+          )))
+    world))
+
 (defn cpu-mode-pressed [world event]
   (let [{:keys [x y]} event 
         cpu-box (:cpu-box world)
@@ -586,6 +609,15 @@
               :run (-> world
                        (run-chip-at event)
                        (assoc-in [:cpu-subcommand] :move))
+
+              :on (-> world
+                      (change-component 1 event)
+                      (assoc-in [:cpu-subcommand] :move))
+
+              :off (-> world
+                      (change-component 0 event)
+                      (assoc-in [:cpu-subcommand] :move))
+              
               world)))
         world)
 
@@ -612,14 +644,11 @@
 (defn cpu-mode-moved [world event]
   (case (:cpu-subcommand world)
     :move (cpu-move-moved world event)
-    world))
+    world))1
 
 (defn cpu-mode-released [world event]
   (case (:cpu-subcommand world)
     :move (cpu-move-released world event)
     world))
 
-(defn toggle-script [world]
-  (if-let [selected-cpu (:selected-cpu world)]
-    (update-in world [:parts selected-cpu :script] not)
-    world))
+
