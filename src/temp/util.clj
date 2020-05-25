@@ -116,6 +116,14 @@
         b (int (* (.getBlue color) amount))]
     (new Color r g b)))
 
+(defn color= [a b]
+  (let [a (get-color a)
+        b (get-color b)]
+    (and
+     (= (get-red a) (get-red b))
+     (= (get-green a) (get-green b))
+     (= (get-blue a) (get-blue b)))))
+
 (defn near-zero? [value]
   (< (abs value) 0.001))
 

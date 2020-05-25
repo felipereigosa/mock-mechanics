@@ -600,6 +600,8 @@
       (draw-2d! world)
       (catch Exception e))
     (reset! redraw-flag false))
+
+  (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
   (draw-ortho-mesh! world (:ortho-mesh world))
   )
 

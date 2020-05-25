@@ -16,14 +16,6 @@
              (tracks-connected? world other-part-name part-name)))
           (get-parts-with-type (:parts world) :track)))
 
-(defn color= [a b]
-  (let [a (get-color a)
-        b (get-color b)]
-    (and
-     (= (get-red a) (get-red b))
-     (= (get-green a) (get-green b))
-     (= (get-blue a) (get-blue b)))))
-
 (defn grow-loop [world loop color]
   (let [start (first loop)
         end (last loop)

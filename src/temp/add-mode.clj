@@ -106,6 +106,7 @@
       (= (:type target) :cylinder)
       (let [normal (vector-normalize
                     (get-collision-normal world collision))]
+        (println! normal)
         (if (or (vector= normal [0 1 0])
                 (vector= normal [0 -1 0]))
           true

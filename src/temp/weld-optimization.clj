@@ -4,7 +4,7 @@
 (declare get-parts-with-type)
 (declare get-tail-transform)
 (declare compute-transforms)
-(declare create-kinematic-bodies)
+(declare create-part-bodies)
 
 (defn get-limited-tree [parts root-name all-root-names]
   (let [root (get-in parts [root-name])
@@ -15,6 +15,8 @@
                          children)]
     (vec (apply concat [root-name] descendents))))
 
+(do
+1
 (defn get-root-parts [world]
   (let [chip-names (get-parts-with-type (:parts world) :chip)
         chip-children (apply concat (map (fn [chip-name]
@@ -25,7 +27,10 @@
         collision-parts (map first (filter (fn [[part-name part]]
                                             (and (= (:type part) :block)
                                                  (:collision part)))
-                                          (:parts world)))
+                                           (:parts world)))
+
+        ;; probes []
+        ;; collision-parts []
         free-parts (filter (fn [part-name]
                              (get-in world [:parts part-name :free]))
                            (keys (:parts world)))
@@ -35,6 +40,8 @@
                       probes collision-parts
                       (filter not-nil? [force-part track-force-part]))]
     (vec (into #{} roots))))
+
+(update-thing! [] create-weld-groups))
 
 (defn segregate-parts [world]
   (let [roots (get-root-parts world)]
@@ -146,6 +153,21 @@
                                  {(first names) mesh}))
                              groups)]
     (-> world
-        (create-kinematic-bodies parts groups)
+        (create-part-bodies parts groups)
         (assoc-in [:weld-groups] weld-groups)
         (compute-transforms :weld-groups))))
+
+;; (defn create-part-body [part-name parts groups]
+;;   (let [part (get-in parts [part-name])
+;;         [w h d] (:scale part)
+;;         shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))
+;;         body (create-body shape 100 (make-transform [0 0 0] [1 0 0 0]))
+;;         root-name (first (find-if #(in? part-name %) groups))
+;;         root (get-in parts [root-name])
+;;         part-transform (:transform part)
+;;         root-transform (:transform root)
+;;         relative-transform (remove-transform part-transform
+;;                                              root-transform)]
+;;     {:body body
+;;      :transform relative-transform
+;;      :root root-name}))

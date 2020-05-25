@@ -53,15 +53,6 @@
     (-> world
         (fun event)
         (reset-wagons)
+        (prepare-simulation)
         (prepare-tree)
         (redraw))))
-
-(defn draw-mode-text! [world]
-  (let [text (str (kw->str (:mode world)) " mode")
-        size 15
-        width (get-text-width! text size)
-        ww (:window-width world)
-        wh (:window-height world)
-        x (- ww width 10)
-        y (- wh 6)]
-    (draw-text! :gray text x y size)))

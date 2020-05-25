@@ -10,32 +10,37 @@
 
 (defn blocks-collide? [world a-name b-name]
   ;;############################################## include edges
-  (let [a-block (get-in world [:parts a-name])
-        b-block (get-in world [:parts b-name])
-        model (get-in world [:info :block :model])
-        vertices [[-0.5 0.5 0.5] [0.5 0.5 0.5]
-                  [-0.5 -0.5 0.5] [0.5 -0.5 0.5]
-                  [-0.5 0.5 -0.5] [0.5 0.5 -0.5]
-                  [-0.5 -0.5 -0.5] [0.5 -0.5 -0.5]]
-        a-transform (get-scaled-transform
-                     (get-in world [:parts a-name :scale])
-                     (get-in world [:weld-groups a-name :transform]))
-        b-transform (get-scaled-transform
-                     (get-in world [:parts b-name :scale])
-                     (get-in world [:weld-groups b-name :transform]))
-        ia-transform (get-inverse-transform a-transform)
-        ib-transform (get-inverse-transform b-transform)
-        a->b-transform (combine-transforms a-transform ib-transform)
-        b->a-transform (combine-transforms b-transform ia-transform)
-        a-vertices (map #(apply-transform b->a-transform %) vertices)
-        b-vertices (map #(apply-transform a->b-transform %) vertices)
-        all-vertices (concat a-vertices b-vertices)]
-     (some (fn [[x y z]]
-             (and
-              (<= -0.5 x 0.5)
-              (<= -0.5 y 0.5)
-              (<= -0.5 z 0.5)))
-           all-vertices)))
+  (let [a-parent (get-parent-part world a-name)
+        b-parent (get-parent-part world a-name)]
+    (if (or (= a-parent b-name)
+            (= b-parent a-name))
+      false
+      (let [a-block (get-in world [:parts a-name])
+            b-block (get-in world [:parts b-name])
+            model (get-in world [:info :block :model])
+            vertices [[-0.5 0.5 0.5] [0.5 0.5 0.5]
+                      [-0.5 -0.5 0.5] [0.5 -0.5 0.5]
+                      [-0.5 0.5 -0.5] [0.5 0.5 -0.5]
+                      [-0.5 -0.5 -0.5] [0.5 -0.5 -0.5]]
+            a-transform (get-scaled-transform
+                         (get-in world [:parts a-name :scale])
+                         (get-in world [:weld-groups a-name :transform]))
+            b-transform (get-scaled-transform
+                         (get-in world [:parts b-name :scale])
+                         (get-in world [:weld-groups b-name :transform]))
+            ia-transform (get-inverse-transform a-transform)
+            ib-transform (get-inverse-transform b-transform)
+            a->b-transform (combine-transforms a-transform ib-transform)
+            b->a-transform (combine-transforms b-transform ia-transform)
+            a-vertices (map #(apply-transform b->a-transform %) vertices)
+            b-vertices (map #(apply-transform a->b-transform %) vertices)
+            all-vertices (concat a-vertices b-vertices)]
+        (some (fn [[x y z]]
+                (and
+                 (<= -0.5 x 0.5)
+                 (<= -0.5 y 0.5)
+                 (<= -0.5 z 0.5)))
+              all-vertices)))))
 
 (defn create-all-pairs [elements]
   (let [n (count elements)]

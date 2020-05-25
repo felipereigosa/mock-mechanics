@@ -89,6 +89,8 @@
    :chip
    {:model (create-model-mesh "resources/chip.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
+    :white-model (create-model-mesh "resources/chip.obj"
+                                    [0 0 0] [1 0 0 0] [1 1 1] :white)
     :poinpts []
     :scale [0.3 0.07 0.3]
     :direction :output
@@ -99,6 +101,8 @@
    :speaker
    {:model (create-model-mesh "resources/speaker.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
+    :white-model (create-model-mesh "resources/speaker.obj"
+                                    [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.4 0.1 0.4]
     :direction :output
@@ -109,6 +113,8 @@
    :cpu
    {:model (create-model-mesh "resources/cpu.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
+    :white-model (create-model-mesh "resources/cpu.obj"
+                                    [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.3 0.07 0.3]
     :direction nil
@@ -119,6 +125,8 @@
    :button
    {:model (create-model-mesh "resources/button.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
+    :white-model (create-model-mesh "resources/button.obj"
+                                    [0 0 0] [1 0 0 0] [1 1 1] :white)
     :cap (create-model-mesh "resources/cylinder.obj"
                             [0 0 0] [1 0 0 0] [0.4 0.2 0.4] :red)
     :points []
@@ -131,6 +139,8 @@
    :lamp
    {:model (create-model-mesh "resources/lamp-base.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
+    :white-model (create-model-mesh "resources/lamp-base.obj"
+                                    [0 0 0] [1 0 0 0] [1 1 1] :white)
     :bulb (create-model-mesh "resources/bulb.obj"
                             [0 0 0] [1 0 0 0] [0.3 0.3 0.3] :red)
     :points []
@@ -348,13 +358,21 @@
                     (get-tail-transform part)
                     (:transform part))
         color (if (color= (:color part) :yellow)
-                [1 0 0 0]
-                [1 1 0 0])]
+                [0 0 1 0]
+                [1 1 0 0])
+        mesh (or
+              (get-in world [:info type :white-model])
+              (get-in world [:info type :model]))]
     (if (= type :ground)
       world
       (-> world
           (assoc-in [:selection :time] (get-current-time))
+          (assoc-in [:selection :mesh] mesh)
           (assoc-in [:selection :mesh :color] color)
           (assoc-in [:selection :mesh :scale] scale)
           (assoc-in [:selection :mesh :transform] transform)))))
 
+(defn draw-selection! [world]
+  (if-let [{:keys [mesh time]} (:selection world)]
+    (if (< (- (get-current-time) time) 300)
+      (draw-mesh! world mesh))))

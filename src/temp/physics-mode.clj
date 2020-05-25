@@ -71,23 +71,6 @@
 
 (declare make-transform)
 
-(defn create-kinematic-body [position rotation scale]
-  (let [[w h d] scale
-        shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))
-        transform (make-transform position rotation)
-        motion-state (new DefaultMotionState transform)
-        mass 1.0
-        local-inertia (let [vec (new Vector3f)]
-                        (.calculateLocalInertia shape mass vec)
-                        vec)
-        construction-info (new RigidBodyConstructionInfo mass motion-state
-                               shape local-inertia)
-        body (new RigidBody construction-info)]
-    (.setCollisionFlags body (bit-or (.getCollisionFlags body)
-                                     CollisionFlags/KINEMATIC_OBJECT))
-    (.forceActivationState body RigidBody/DISABLE_DEACTIVATION)
-    body))
-
 (defn create-sphere-body [r mass transform]
   (create-body (new SphereShape r) mass transform))
 
@@ -161,12 +144,16 @@
    (in? (:type part) [:block :wagon])
    (:physics part)))
 
-(defn compute-kinematic-body [part-name parts groups]
+(defn remove-all-bodies [world]
+  (doseq [{:keys [body]} (:bodies world)]
+    (remove-body (:planet world) body))
+  (assoc-in world [:bodies] []))
+
+(defn create-part-body [part-name parts groups]
   (let [part (get-in parts [part-name])
-        position (get-transform-position (:transform part))
-        rotation (get-transform-rotation (:transform part))
-        scale (:scale part)
-        body (create-kinematic-body position rotation scale)
+        [w h d] (:scale part)
+        shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))
+        body (create-body shape 100 (make-transform [0 0 0] [1 0 0 0]))
         root-name (first (find-if #(in? part-name %) groups))
         root (get-in parts [root-name])
         part-transform (:transform part)
@@ -177,22 +164,14 @@
      :transform relative-transform
      :root root-name}))
 
-(defn compute-kinematic-bodies [parts groups]
-  (let [physical-part-names (map first (filter is-physical-part? parts))]
-    (map #(compute-kinematic-body % parts groups)
-         physical-part-names)))
-
-(defn remove-all-bodies [world]
-  (doseq [{:keys [body]} (:bodies world)]
-    (remove-body (:planet world) body))
-  (assoc-in world [:bodies] []))
-
-(defn create-kinematic-bodies [world parts groups]
+(defn create-part-bodies [world parts groups]
   (let [world (remove-all-bodies world)
-        kinematic-bodies (compute-kinematic-bodies parts groups)]
-    (doseq [{:keys [body]} kinematic-bodies]
-      (add-body-to-planet (:planet world) body))
-    (assoc-in world [:bodies] kinematic-bodies)))
+        physical-part-names (map first (filter is-physical-part? parts))
+        bodies (map #(create-part-body % parts groups)
+                    physical-part-names)]
+      (doseq [{:keys [body]} bodies]
+        (add-body-to-planet (:planet world) body))
+      (assoc-in world [:bodies] bodies)))
 
 (defn recompute-body-transforms! [world]
   (doseq [b (:bodies world)]
@@ -202,7 +181,10 @@
           parent-transform (:transform parent)
           transform (combine-transforms relative-transform
                                         parent-transform)]
-      (set-body-transform body transform))))
+      (.setCenterOfMassTransform body transform)
+      (.setAngularVelocity body (new Vector3f 0 0 0))
+      (.setLinearVelocity body (new Vector3f 0 0 0))))
+  world)
 
 (defn add-sphere [world x y]
   (if-let [collision (get-part-collision world x y)]

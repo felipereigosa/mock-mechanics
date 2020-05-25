@@ -40,7 +40,7 @@
       (assoc-in [:info] (create-info))
       (assoc-in [:parts] {})
       (assoc-in [:parts :ground-part] (create-ground-part))
-                          
+
       (assoc-in [:other-ground]
                 (create-cube-mesh [0 -0.1 0] [1 0 0 0] [12 0.2 12]
                                   (make-color 40 40 40)))
@@ -92,10 +92,6 @@
       (assoc-in [:mode] :simulation)
 
       (place-elements)
-
-      (assoc-in [:selection] {:mesh (create-cube-mesh [0 0 0] [1 0 0 0]
-                                                      [1 1 1] :red)
-                              :time 0})
       ))
 (reset-world!)
 )
@@ -104,14 +100,14 @@
   (cond
     (in? (:mode world) [:simulation :graph :cpu])
     (let [world (-> world
-                    (set-probe-values)
+                    ;; (set-probe-values)
                     (save-values)
                     (run-chips elapsed)
                     (apply-force elapsed)
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
-                    (reverse-collisions)
+                    ;; (reverse-collisions)
                     (update-cpus)
                     )]
       (recompute-body-transforms! world)
@@ -123,9 +119,7 @@
         (apply-force elapsed)
         (compute-transforms (if (:use-weld-groups world)
                               :weld-groups
-                              :parts))
-        )
-    
+                              :parts)))
     :else world))
 
 (defn draw-3d! [world]
@@ -143,25 +137,21 @@
   (if (:use-weld-groups world)
     (doseq [group (vals (:weld-groups world))]
       (draw-mesh! world group))
-    (doseq [[name part] (:parts world)]
-      (if (or (= name :ground-part)
-              (not (in? (:layer part) (:visible-layers world))))
-        nil
-        (draw-part! world part))))
+    ;; (doseq [[name part] (:parts world)]
+    ;;   (if (or (= name :ground-part)
+    ;;           (not (in? (:layer part) (:visible-layers world))))
+    ;;     nil
+    ;;     (draw-part! world part)))
+    )
 
   (if-let [edited-part (:edited-part world)]
     (let [part (get-in world [:parts edited-part])
           part (if (in? (:type part) [:button :lamp])
                  (assoc-in part [:color] :black)
-                 part)
-          ;; part (assoc-in part [:color] :yellow)
-          ]
+                 part)]
       (draw-part! world part)))
 
-  (let [{:keys [mesh time]} (:selection world)]
-    (if (< (- (get-current-time) time) 300)
-      (draw-mesh! world mesh)
-    ))
+  (draw-selection! world)
 
   (draw-buttons! world)
   (draw-lamps! world)
@@ -270,14 +260,3 @@
     (-> world
         (recompute-viewport width height)
         (place-elements))))
-
-
-;; (let [world @world
-;;       body (first (:spheres world))]
-
-;;   (println! body)
-;; ;; btTransform transform = body -> getCenterOfMassTransform();
-;; ;; transform.setOrigin(new_position);
-;; ;; body -> setCenterOfMassTransform(transform);
-
-;;   )

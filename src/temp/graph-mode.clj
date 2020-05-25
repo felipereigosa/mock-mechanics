@@ -128,9 +128,13 @@
       (let [dx (- a x)
             dy (- b y)
             xi (+ x (* i dx))
-            yi (+ y (* i dy))]
+            yi (+ y (* i dy))
+            ]
         (draw-line buffer :dark-gray (- x 1500) yi (+ x 1500) yi)
-        (draw-line buffer :dark-gray xi (- y 1500) xi (+ y 1500))))
+        (draw-text buffer :dark-gray (str i) (- x 15) (- yi 6) 12)
+        
+        (draw-line buffer :dark-gray xi (- y 1500) xi (+ y 1500))
+        (draw-text buffer :dark-gray (str i) (+ xi 6) (+ y 14) 12)))
     (draw-line buffer :gray (- x 1500) y (+ x 1500) y)
     (draw-line buffer :gray x (- y 1500) x (+ y 1500))))
 
@@ -163,15 +167,6 @@
                 function (get-in chip [:functions function-name])]
             (draw-function! (:graph-box world) view function color))))
       (draw-graph-cross graph-box))
-
-    ;; (let [color (if (= (:graph-subcommand world) :move)
-    ;;               :black
-    ;;               :white)]
-    ;;   (fill-rect buffer color 0 hh 14 h)
-    ;;   (fill-rect buffer color w hh 14 h)
-    ;;   (fill-rect buffer color hw 0 w 14)
-    ;;   (fill-rect buffer color hw h w 14)
-    ;;   (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14)))
 
     (draw-image! buffer x y)
 
