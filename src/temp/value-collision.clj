@@ -8,6 +8,14 @@
         final-matrix (multiply-matrices scale-matrix other-matrix)]
     (matrix->transform final-matrix)))
 
+(defn create-all-pairs [elements]
+  (let [n (count elements)]
+    (vec (mapcat (fn [i]
+                   (map (fn [j]
+                          [(nth elements i) (nth elements j)])
+                        (range (inc i) n)))
+                 (range n)))))
+
 (defn blocks-collide? [world a-name b-name]
   ;;############################################## include edges
   (let [a-parent (get-parent-part world a-name)
@@ -22,12 +30,15 @@
                       [-0.5 -0.5 0.5] [0.5 -0.5 0.5]
                       [-0.5 0.5 -0.5] [0.5 0.5 -0.5]
                       [-0.5 -0.5 -0.5] [0.5 -0.5 -0.5]]
+
             a-transform (get-scaled-transform
                          (get-in world [:parts a-name :scale])
-                         (get-in world [:weld-groups a-name :transform]))
+                         (use-root-relative-transform world a-name))
+            
             b-transform (get-scaled-transform
                          (get-in world [:parts b-name :scale])
-                         (get-in world [:weld-groups b-name :transform]))
+                         (use-root-relative-transform world b-name))
+            
             ia-transform (get-inverse-transform a-transform)
             ib-transform (get-inverse-transform b-transform)
             a->b-transform (combine-transforms a-transform ib-transform)
@@ -42,22 +53,15 @@
                  (<= -0.5 z 0.5)))
               all-vertices)))))
 
-(defn create-all-pairs [elements]
-  (let [n (count elements)]
-    (vec (mapcat (fn [i]
-                   (map (fn [j]
-                          [(nth elements i) (nth elements j)])
-                        (range (inc i) n)))
-                 (range n)))))
-
 (defn get-colliding-pairs [world]
-  (let [blocks (map first (filter (fn [[part-name part]]
-                                    (and (= (:type part) :block)
-                                         (:collision part)))
-                                  (:parts world)))]
+  (let [block-relative-transforms
+        (filter (fn [[name value]]
+                  (= (:type value) :block))
+                (:root-relative-transforms world))
+        block-names (keys block-relative-transforms)]
     (filter (fn [[a b]]
               (blocks-collide? world a b))
-            (create-all-pairs blocks))))
+            (create-all-pairs block-names))))
 
 (defn reverse-collision [world [a b]]
   (if-let [dof-name (or (get-first-dof world a)
@@ -86,4 +90,5 @@
                           (assoc-in part [:saved-value] (:value part))})
                        (:parts world))]
     (assoc-in world [:parts] parts)))
+
 

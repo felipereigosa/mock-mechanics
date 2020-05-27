@@ -100,14 +100,14 @@
   (cond
     (in? (:mode world) [:simulation :graph :cpu])
     (let [world (-> world
-                    ;; (set-probe-values)
+                    (set-probe-values)
                     (save-values)
                     (run-chips elapsed)
                     (apply-force elapsed)
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
-                    ;; (reverse-collisions)
+                    (reverse-collisions)
                     (update-cpus)
                     )]
       (recompute-body-transforms! world)

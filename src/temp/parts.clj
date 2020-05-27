@@ -264,13 +264,17 @@
     (assoc-in world [:parts part-name :transform] transform)))
 
 (defn set-probe-values [world]
-  (let [probe-names (get-parts-with-type (:parts world) :probe)
-        positions (map (fn [probe-name]
-                         (let [probe (if (:use-weld-groups world)
-                                       (get-in world [:weld-groups probe-name])
-                                       (get-in world [:parts probe-name]))]
-                           (get-transform-position (:transform probe))))
-                       probe-names)
+  (let [probe-relative-transforms
+        (filter (fn [[name value]]
+                  (= (:type value) :probe))
+                (:root-relative-transforms world))
+        probe-names (keys probe-relative-transforms)
+        positions (map (fn [[probe-name {:keys [root-name transform]}]]
+                         (let [root (get-in world [:weld-groups root-name])
+                               root-transform (:transform root)
+                               transform (combine-transforms transform root-transform)]
+                           (get-transform-position transform)))
+                       probe-relative-transforms)
         close-pairs (mapcat (fn [i]
                               (map (fn [j]
                                      (let [p1 (nth positions i)
@@ -290,12 +294,14 @@
             world
             probe-names)))
 
+(declare use-root-relative-transform)
+
 (defn draw-buttons! [world]
   (let [button-names (get-parts-with-type (:parts world) :button)]
     (doseq [button-name button-names]
       (let [button (get-in world [:parts button-name])]
         (if (in? (:layer button) (:visible-layers world))
-          (let [base-transform (:transform button)
+          (let [base-transform (use-root-relative-transform world button-name)
                 rotation (get-transform-rotation (:transform button))
                 rotation-transform (make-transform [0 0 0] rotation)
                 up (apply-transform rotation-transform [0 1 0])
@@ -321,7 +327,7 @@
     (doseq [lamp-name lamp-names]
       (let [lamp (get-in world [:parts lamp-name])]
         (if (in? (:layer lamp) (:visible-layers world))
-          (let [base-transform (:transform lamp)
+          (let [base-transform (use-root-relative-transform world lamp-name)
                 property (nth (get-in world [:properties])
                               (:selected-property world))
                 color (if (and (float= (:value lamp) 0)

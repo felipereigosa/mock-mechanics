@@ -15,33 +15,19 @@
                          children)]
     (vec (apply concat [root-name] descendents))))
 
-(do
-1
 (defn get-root-parts [world]
   (let [chip-names (get-parts-with-type (:parts world) :chip)
         chip-children (apply concat (map (fn [chip-name]
                                            (let [chip (get-in world [:parts chip-name])]
                                              (keys (:functions chip))))
                                          chip-names))
-        probes (get-parts-with-type (:parts world) :probe)
-        collision-parts (map first (filter (fn [[part-name part]]
-                                            (and (= (:type part) :block)
-                                                 (:collision part)))
-                                           (:parts world)))
-
-        ;; probes []
-        ;; collision-parts []
         free-parts (filter (fn [part-name]
                              (get-in world [:parts part-name :free]))
                            (keys (:parts world)))
         force-part (get-in world [:force :part-name])
         track-force-part (get-in world [:track-force :part-name])
-        roots (concat [:ground-part] chip-children free-parts
-                      probes collision-parts
-                      (filter not-nil? [force-part track-force-part]))]
+        roots (concat [:ground-part] chip-children free-parts)]
     (vec (into #{} roots))))
-
-(update-thing! [] create-weld-groups))
 
 (defn segregate-parts [world]
   (let [roots (get-root-parts world)]
@@ -136,6 +122,37 @@
                        (:parts world))]
     (assoc-in world [:parts] parts)))
 
+(defn get-relative-transform [part-name parts groups]
+  (let [part (get-in parts [part-name])
+        root-name (first (find-if #(in? part-name %) groups))
+        root (get-in parts [root-name])
+        part-transform (:transform part)
+        root-transform (:transform root)
+        relative-transform (remove-transform part-transform
+                                             root-transform)]
+    {part-name {:transform relative-transform
+                :root-name root-name
+                :type (:type part)}}))
+
+(defn compute-root-relative-transforms [world parts groups]
+  (let [part-names
+        (map first (filter (fn [[name part]]
+                             (or
+                              (in? (:type part) [:probe :lamp :button])
+                              (and (= (:type part) :block)
+                                   (:collision part))))
+                           parts))
+        rrt (apply merge (map #(get-relative-transform % parts groups)
+                            part-names))]
+    (assoc-in world [:root-relative-transforms] rrt)))
+
+(defn use-root-relative-transform [world part-name]
+  (let [{:keys [root-name transform]}
+        (get-in world [:root-relative-transforms part-name])
+        root (get-in world [:weld-groups root-name])
+        root-transform (:transform root)]
+    (combine-transforms transform root-transform)))
+
 (defn create-weld-groups [world]
   (let [groups (segregate-parts world)
         parts (:parts (compute-transforms
@@ -154,20 +171,6 @@
                              groups)]
     (-> world
         (create-part-bodies parts groups)
+        (compute-root-relative-transforms parts groups)
         (assoc-in [:weld-groups] weld-groups)
         (compute-transforms :weld-groups))))
-
-;; (defn create-part-body [part-name parts groups]
-;;   (let [part (get-in parts [part-name])
-;;         [w h d] (:scale part)
-;;         shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))
-;;         body (create-body shape 100 (make-transform [0 0 0] [1 0 0 0]))
-;;         root-name (first (find-if #(in? part-name %) groups))
-;;         root (get-in parts [root-name])
-;;         part-transform (:transform part)
-;;         root-transform (:transform root)
-;;         relative-transform (remove-transform part-transform
-;;                                              root-transform)]
-;;     {:body body
-;;      :transform relative-transform
-;;      :root root-name}))
