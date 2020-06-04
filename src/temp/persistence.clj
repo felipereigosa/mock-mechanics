@@ -35,10 +35,12 @@
     (apply make-color color)
     color))
 
-(defn get-complex-part [part]
+(defn get-complex-part [part info]
   (let [children (map-map (fn [[name transform]]
                             {name (get-complex-transform transform)})
-                          (:children part))]
+                          (:children part))
+        properties (get-in info [(:type part) :properties])
+        part (merge-with (fn [a b] a) part properties)]
     (-> part
         (assoc-in [:transform] (make-transform [0 0 0] [1 0 0 0]))
         (modify-field :dark-color get-complex-color)
@@ -81,7 +83,7 @@
                 visible-layers
                 sphere-transforms]} (read-string (slurp filename))
         parts (map-map (fn [[name part]]
-                         {name (get-complex-part part)})
+                         {name (get-complex-part part (:info world))})
                        parts)
         spheres (vec (map (fn [{:keys [position rotation]}]
                      (make-sphere world position rotation))

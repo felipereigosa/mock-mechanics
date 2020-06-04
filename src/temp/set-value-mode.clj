@@ -4,17 +4,19 @@
 (defn get-properties [world]
   (if-let [part-name (:value-part world)]
     (let [part (get-in world [:parts part-name])
-          property-names (get-in world [:info (:type part) :properties])]
+          properties (get-in world [:info (:type part) :properties])]
       (map (fn [property]
              (let [value (get-in part [property])
-                   value (if (= (:type part) :wagon)
+                   value (if (and
+                              (= (:type part) :wagon)
+                              (= property :value))
                            (* value (reduce + (:track-lengths part)))
                            value)
                    value (->> value
                               (float)
                               (format "%.2f"))]
                [(name property) value]))
-           property-names))
+           (keys properties)))
     []))
 
 (defn set-value-mode-draw [world]
@@ -40,7 +42,8 @@
     (read-input world
                 (fn [w text]
                   (let [value (read-string text)
-                        value (if (= (:type part) :wagon)
+                        value (if (and (= (:type part) :wagon)
+                                       (= key :value))
                                 (/ value
                                    (reduce + (:track-lengths part)))
                                 value)]
@@ -129,9 +132,12 @@
     :else world))
 
 (defn set-value-mode-released [world {:keys [x y]}]
-  (let [world (if (< (- (get-current-time) (:press-time world)) 200)
+  (let [box (:set-value-box world)
+        world (if (and
+                   (not (inside-box? box x y))
+                   (< (- (get-current-time) (:press-time world)) 200))
                 (select-part world (:value-part world))
-                world)]
+                (snap-part world (:value-part world)))]
     (-> world
         (dissoc-in [:force])
         (dissoc-in [:track-force]))))

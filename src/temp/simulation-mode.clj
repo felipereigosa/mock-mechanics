@@ -38,7 +38,10 @@
 (defn simulation-mode-released [world event]
   (let [world (if (nil? (:pressed-part world))
                 world
-                (assoc-in world [:parts (:pressed-part world) :value] 0))]
+                (assoc-in world [:parts (:pressed-part world) :value] 0))
+        world (if (nil? (:force world))
+                world
+                (snap-part world (get-in world [:force :part-name])))]
     (-> world
         (dissoc-in [:pressed-part])
         (dissoc-in [:force]))))

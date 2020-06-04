@@ -113,13 +113,13 @@
         (place-box :set-value-box :wx 0.5 :ry -0.5 :oy oy)
         )))
 
-(defn point-between-points? [p p1 p2]
+(defn point-between-points? [p p1 p2 d]
   (if (vector= p1 p2)
     (vector= p p1)
     (let [v (vector-subtract p2 p1)
           line [p1 (vector-normalize v)]
           l (vector-length v)]
       (and
-       (< (point-line-distance p line) (* 0.02 l))
+       (< (point-line-distance p line) d)
        (< (distance p p1) l)
        (< (distance p p2) l)))))

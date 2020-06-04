@@ -26,7 +26,8 @@
                            (keys (:parts world)))
         force-part (get-in world [:force :part-name])
         track-force-part (get-in world [:track-force :part-name])
-        roots (concat [:ground-part] chip-children free-parts)]
+        roots (concat [:ground-part] chip-children free-parts
+                      (filter not-nil? [force-part track-force-part]))]
     (vec (into #{} roots))))
 
 (defn segregate-parts [world]

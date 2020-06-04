@@ -399,7 +399,7 @@
                               points)
                   segments (map vector points (rest points))]
               (some (fn [[a b]]
-                      (point-between-points? [x y] a b))
+                      (point-between-points? [x y] a b 10))
                     segments))))]
     (if-let [[name _] (find-if helper (:connections cpu))]
       [:connection name]

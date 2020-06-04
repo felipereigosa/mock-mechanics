@@ -80,7 +80,7 @@
           r (vector-length arm-vector)
           F (vector-length force-vector)
           force-component (* r F (sin theta))
-          acceleration (* force-component 10)
+          acceleration (* force-component 100)
           value (get-in world [:parts part-name :value])
           dt (* elapsed 0.001)
           dv (* acceleration dt)
