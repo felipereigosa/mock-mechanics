@@ -19,4 +19,3 @@
 (defn get-note [frequency]
   (int (Math/round (/ (Math/log (/ frequency 8.1758))
                       (Math/log 1.059463)))))
-

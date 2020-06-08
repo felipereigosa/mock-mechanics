@@ -40,7 +40,10 @@
                             {name (get-complex-transform transform)})
                           (:children part))
         properties (get-in info [(:type part) :properties])
-        part (merge-with (fn [a b] a) part properties)]
+        part (merge-with (fn [a b] a) part properties)
+        part (if (= (:type part) :chip)
+               (assoc-in part [:time] 10000)
+               part)]
     (-> part
         (assoc-in [:transform] (make-transform [0 0 0] [1 0 0 0]))
         (modify-field :dark-color get-complex-color)

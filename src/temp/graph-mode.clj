@@ -172,10 +172,11 @@
       (compute-absolute-points start-value (:points function))
       (:points function))))
 
-(defn run-wave [world part-name function time dt]
+(defn run-wave [world chip-name part-name time dt]
   (let [part (get-in world [:parts part-name])
         linear-interpolator (fn [a b t]
                               (+ (* a (- 1.0 t)) (* b t)))
+        function (get-in world [:parts chip-name :functions part-name])
         points (:points function)
         t1 (first (first points))
         t2 (first (last points))]
@@ -184,17 +185,22 @@
             (< (abs (- time t2)) dt))
       (let [time (within time t1 t2)
             world (if (float= time t1)
-                    (assoc-in world [:parts part-name :final-points]
-                              (compute-final-points world function part-name))
+                    (-> world
+                        (assoc-in [:parts part-name :final-points]
+                                  (compute-final-points world function part-name))
+                        (assoc-in [:parts part-name :controlling-chip]
+                                  chip-name))
                     world)
             final-points (get-in world [:parts part-name :final-points])
             new-value (float (get-function-value
                               final-points time linear-interpolator))]
-        (if (= (:type part) :wagon)
-          (let [total-length (reduce + (:track-lengths part))]
-            (assoc-in world [:parts part-name :value]
-                      (/ new-value total-length)))
-          (assoc-in world [:parts part-name :value] new-value)))
+        (if (= chip-name (:controlling-chip part))
+          (if (= (:type part) :wagon)
+            (let [total-length (reduce + (:track-lengths part))]
+              (assoc-in world [:parts part-name :value]
+                        (/ new-value total-length)))
+            (assoc-in world [:parts part-name :value] new-value))
+          world))
       world)))
 
 (defn run-chip [world chip-name dt]
@@ -204,10 +210,10 @@
     (if (> time (+ final-time dt))
       world
       (let [world (update-in world [:parts chip-name :time] #(+ % dt))]
-        (reduce (fn [w [part-name function]]
-                  (run-wave w part-name function time dt))
+        (reduce (fn [w function-name]
+                  (run-wave w chip-name function-name time dt))
                 world
-                (:functions chip))))))
+                (keys (:functions chip)))))))
 
 (defn run-chips [world elapsed]
   (let [dt (float (/ elapsed 1000))
@@ -382,11 +388,20 @@
               (fn [w text]
                 (assoc-in w [:graph-snap-value] (parse-snap text)))))
 
+(defn get-max-z [chip]
+  (if (empty? (:functions chip))
+    0
+    (apply max (map #(:z (second %)) (:functions chip)))))
+
 (defn move-node-pressed [world x y]
   (if-let [node (get-node-at world x y)]
     (let [chip (get-in world [:parts (:selected-chip world)])
           coords (get-in chip [:functions (first node)
-                               :points (second node)])]
+                               :points (second node)])
+          [function-name index] node
+          value (get-in chip [:functions function-name
+                              :points index])]
+      (println! (apply format "node value = %.2f, %.2f" (map float value)))
       (-> world
           (assoc-in [:original-node] coords)
           (assoc-in [:moving-node] node)
@@ -490,11 +505,6 @@
                                               :zoom-y 0.5})
     world))
 
-(defn get-max-z [chip]
-  (if (empty? (:functions chip))
-    0
-    (apply max (map #(:z (second %)) (:functions chip)))))
-
 (defn chip-change-part [world x y]
   (if-let [part-name (get-part-at world x y)]
     (let [chip-name (:selected-chip world)
@@ -532,7 +542,6 @@
                 :y (:y menu)
                 :w 20
                 :h 20}]
-    (println! (get-function-at world x y))
     (cond
       (inside-box? button x y)
       (-> world
@@ -611,3 +620,5 @@
                    #(change-zoom % (:graph-box world)
                                  event (:shift-pressed world)))
         (redraw))))
+
+

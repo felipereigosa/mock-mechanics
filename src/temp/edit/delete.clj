@@ -2,7 +2,6 @@
 (ns temp.core)
 
 (declare get-sphere-at)
-(declare delete-sphere)
 (declare prune-connections)
 
 (defn forget-part [world parent-name part-name]
@@ -41,11 +40,7 @@
           world
           (keys (get-in world [:parts :ground-part :children]))))
 
-(defn delete-mode-released [world event]
-  (let [x (:x event)
-        y (:y event)]
-    (if-let [sphere (get-sphere-at world x y)]
-      (delete-sphere world sphere)
-      (if-let [part-name (get-part-at world x y)]
-        (delete-part world part-name)
-        world))))
+(defn delete-mode-released [world {:keys [x y]}]
+  (if-let [part-name (get-part-at world x y)]
+    (delete-part world part-name)
+    world))

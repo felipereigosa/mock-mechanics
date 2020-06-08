@@ -62,10 +62,7 @@
 
 (defn apply-force-to-track [world elapsed]
   (if-let [{:keys [part-name velocity line point]} (:force world)]
-    (let [key (if (:use-weld-groups world)
-                :weld-groups
-                :parts)
-          track (get-in world [key part-name])
+    (let [track (get-in world [:weld-groups part-name])
           transform (:transform track)
           p1 (apply-transform transform point)
           p2 (point-line-projection p1 line)
@@ -76,18 +73,24 @@
           track-line [track-position track-direction]
           p3 (point-line-projection p1 track-line)
           arm-vector (vector-subtract p1 p3)
-          theta (vector-angle arm-vector force-vector track-direction)
-          r (vector-length arm-vector)
-          F (vector-length force-vector)
-          force-component (* r F (sin theta))
-          acceleration (* force-component 100)
+          ;; theta (vector-angle arm-vector force-vector track-direction)
+          ;; r (vector-length arm-vector)
+          ;; F (vector-length force-vector)
+          ;; force-component (* r F (sin theta))
+          ;; acceleration (* force-component 10)
+          sign (if (pos? (vector-dot-product
+                          (vector-cross-product arm-vector force-vector)
+                          track-direction))
+                 1
+                 -1)
+          acceleration (* sign 20 (vector-length force-vector))
           value (get-in world [:parts part-name :value])
           dt (* elapsed 0.001)
           dv (* acceleration dt)
           dampening-factor 0.7
           velocity (* (+ velocity dv) dampening-factor)
           dvalue (* velocity dt)
-          value (+ value dvalue)]
+          value (+ value dvalue)]      
       (-> world
           (assoc-in [:parts part-name :value] value)
           (assoc-in [:force :velocity] velocity)))

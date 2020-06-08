@@ -127,7 +127,7 @@
                              (update-thing! [] #(activate-chip % name)))
                   chip-active? (fn [name]
                                  (let [chip (get-thing! [:parts name])]
-                                   (not (= (:time chip) (:final-time chip)))))
+                                   (not (>= (:time chip) (:final-time chip)))))
                   wait (fn [pred]
                          (while (pred) (sleep 50)))]]
     `(do
@@ -416,12 +416,13 @@
 
 (defn get-available-pin-spot [cpu cpu-box]
   (let [x-values (sort (map (comp :x second) (:pins cpu)))
-        helper (fn [i xs]
-                 (if (or (empty? xs)
-                         (> (abs (- (* i 40) (first xs))) 20))
-                   (* i 40)
-                   (recur (inc i) (rest xs))))]
-    (helper 1 x-values)))
+        helper (fn [i]
+                 (let [x (* i 40)]
+                   (if (and (< x 600)
+                            (some #(< (abs (- x %)) 21) x-values))
+                   (recur (inc i))
+                   x)))]
+    (helper 1)))
 
 (defn cpu-change-part [world x y]
   (if-let [part-name (get-part-at world x y)]
@@ -650,5 +651,3 @@
   (case (:cpu-subcommand world)
     :move (cpu-move-released world event)
     world))
-
-

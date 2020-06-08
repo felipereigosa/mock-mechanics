@@ -76,7 +76,9 @@
     }
 
    :track
-   {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
+   {;; :model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :model (create-model-mesh "resources/cylinder.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0.2 0 0] [-0.2 0 0]
              [0 0.2 0]
              [0 0 0.2] [0 0 -0.2]]
@@ -179,7 +181,7 @@
         part (if (= type :chip)
                (-> part
                    (assoc-in [:functions] {})
-                   (assoc-in [:time] 1.0)
+                   (assoc-in [:time] 1000.0)
                    (assoc-in [:final-time] 0.0)
                    (assoc-in [:view] {:offset [0.025 0.1]
                                       :zoom-x 0.5

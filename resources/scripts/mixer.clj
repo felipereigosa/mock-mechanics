@@ -16,5 +16,4 @@
       (wait-after up 200)
       (wait-after dump 500)
       (wait-after undump 200)
-      (activate down)
-      )))
+      (activate down))))

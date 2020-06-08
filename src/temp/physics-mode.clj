@@ -215,5 +215,7 @@
   (assoc-in world [:spheres] []))
 
 (defn physics-mode-pressed [world {:keys [x y]}]
-  (add-sphere world x y))
+  (if-let [sphere (get-sphere-at world x y)]
+    (delete-sphere world sphere)
+    (add-sphere world x y)))
 
