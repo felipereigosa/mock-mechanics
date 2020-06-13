@@ -36,6 +36,9 @@
                 (get-limited-tree (:parts world) root roots))
               roots))))
 
+(do
+1
+
 (defn bake-part [world part]
   (if (not (in? (:layer part) (:visible-layers world)))
     {}
@@ -53,7 +56,6 @@
           rotation-transform (get-rotation-component transform)
           normals (map #(apply-transform rotation-transform %)
                        (vec (partition 3 (:normals model))))
-          model (get-in world [:info (:type part) :model])
           part-color (let [color (get-color (:color part))
                            r (/ (get-red color) 255.0)
                            g (/ (get-green color) 255.0)
@@ -76,14 +78,15 @@
 (defn create-mesh-from-parts [world names]
   (let [edited-part (:edited-part world)
         parts (:parts world)
-        baked-parts (map (fn [name]
-                           (if (= name edited-part)
+        baked-parts (map (fn [part-name]
+                           (if (= part-name edited-part)
                              nil
-                             (bake-part world (get-in parts [name]))))
+                             (bake-part world (get-in parts [part-name]))))
                          names)
         {:keys [vertices colors normals]} (reduce (fn [a b]
                                                     (merge-with (comp vec concat) a b))
                                                   baked-parts)
+        ;; foo (println! "baked")
         root (get-in parts [(first names)])
         root-transform (:transform root)
         inverse-transform (get-inverse-transform root-transform)
@@ -92,9 +95,18 @@
         rotation-transform (get-rotation-component inverse-transform)
         normals (vec (flatten (map #(apply-transform
                                      rotation-transform %) normals)))
-        colors (vec (flatten colors))]
+        colors (vec (flatten colors))
+        ]
+    ;; (println! (count vertices))
     (create-mesh vertices [0 0 0] [1 0 0 0]
-                   [1 1 1] colors [] normals)))
+                 [1 1 1] colors [] normals)
+    ))
+
+;; (clear-output!)
+;; (println! "before")
+;; (create-mesh-from-parts @world (keys (:parts @world)))
+;; (println! "after")
+)
 
 (defn is-child-group? [parts parent-names child-names]
   (some (fn [parent-name]
@@ -175,3 +187,9 @@
         (compute-root-relative-transforms parts groups)
         (assoc-in [:weld-groups] weld-groups)
         (compute-transforms :weld-groups))))
+
+;; (set-thing! [:use-weld-groups] true)
+
+
+
+

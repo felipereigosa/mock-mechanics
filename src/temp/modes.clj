@@ -27,6 +27,14 @@
         (enter-fun)
         (redraw))))
 
+(defn prepare-tree [world]
+  (if (= (:mode world) :simulation)
+    world
+    (-> world
+        (compute-transforms :parts)
+        (create-weld-groups)
+        (save-checkpoint!))))
+
 (defn prepare-simulation [world]
   (if (= (:mode world) :simulation)
     (compute-transforms world :parts)
@@ -35,8 +43,8 @@
 (defn mode-mouse-pressed [world event]
   (if-let [fun (get-function (:mode world) :pressed)]
     (-> world
-        (fun event)
         (prepare-simulation)
+        (fun event)
         (redraw))
     world))
 

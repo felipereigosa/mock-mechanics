@@ -55,25 +55,14 @@
     (make-transform position rotation)))
 
 (defn get-track-anchor [world part collision]
-  (if (= (:type part) :track)
-    (let [normal (get-collision-normal world collision)
-          parent (get-in world [:parts (:part-name collision)])
-          parent-transform (:transform parent)
-          position (apply-transform parent-transform normal)
-          parent-rotation (get-rotation-component parent-transform)
-          normal-rotation (make-transform [0 0 0]
-                              (quaternion-from-normal normal))
-          final-rotation (combine-transforms normal-rotation parent-rotation)
-          rotation (get-transform-rotation final-rotation)]
-      (make-transform position rotation))    
-    (let [parent-name (:part-name collision)
-          parent (get-in world [:parts parent-name])
-          parent-transform (:transform parent)
-          parent-rotation (get-rotation-component parent-transform)
-          rotation (get-transform-rotation parent-transform)
-          position (apply-transform parent-transform
+  (let [parent-name (:part-name collision)
+        parent (get-in world [:parts parent-name])
+        parent-transform (:transform parent)
+        parent-rotation (get-rotation-component parent-transform)
+        rotation (get-transform-rotation parent-transform)
+        position (apply-transform parent-transform
                                   [0 (get-part-offset part) 0])]
-      (make-transform position rotation))))
+    (make-transform position rotation)))
 
 (defn get-cylinder-anchor [world part collision]
   (let [normal (vector-normalize (get-collision-normal world collision))]
@@ -82,17 +71,37 @@
       (get-block-anchor world part collision)
       nil)))
 
+(defn get-track-head-anchor [world collision]
+  (let [index (first (:collision collision))
+        mesh (:track-head-model world)
+        triangles (partition 3 (partition 3 (:vertices mesh)))
+        [a b c] (nth triangles index)
+        v1 (vector-subtract b a)
+        v2 (vector-subtract c a)
+        normal (vector-normalize (vector-cross-product v1 v2))
+
+        transform (get-in world [:parts (:track-head world) :transform])
+        position (apply-transform transform normal)
+        normal-rotation (make-transform [0 0 0]
+                                        (quaternion-from-normal normal))
+        rotation (get-rotation-component transform)
+        final-rotation (combine-transforms normal-rotation rotation)
+        rotation (get-transform-rotation final-rotation)]
+    (make-transform position rotation)))
+
 (defn place-part-at [world part-name collision]
   (let [parent-name (:part-name collision)
         parent (get-in world [:parts parent-name])
         part (get-in world [:parts part-name])
-        transform (case (:type parent)
-                    :ground (get-ground-anchor world part collision)
-                    :block (get-block-anchor world part collision)
-                    :wagon (get-block-anchor world part collision)
-                    :track (get-track-anchor world part collision)
-                    :cylinder (get-cylinder-anchor world part collision)
-                    (make-transform [0 0 0] [1 0 0 0]))]
+        transform (if (:track-head collision)
+                    (get-track-head-anchor world collision)
+                    (case (:type parent)
+                      :ground (get-ground-anchor world part collision)
+                      :block (get-block-anchor world part collision)
+                      :wagon (get-block-anchor world part collision)
+                      :track (get-track-anchor world part collision)
+                      :cylinder (get-cylinder-anchor world part collision)
+                      (make-transform [0 0 0] [1 0 0 0])))]
     (-> world
         (assoc-in [:parts part-name :transform] transform)
         (create-relative-transform part-name parent-name))))
@@ -144,11 +153,29 @@
                   (move-part-pressed part-name nil)
                   (move-part-moved event :grain 0.25)))))))))
 
+(defn set-track-head [world x y]
+  (let [line (unproject-point world [x y])
+        track-names (get-parts-with-type (:parts world) :track)
+        track-distances (remove-nil
+                         (map (fn [track-name]
+                                (let [track (get-in world [:parts track-name])
+                                      p (get-transform-position (:transform track))
+                                      d (point-line-distance p line)]
+                                  (if (< d 0.25)
+                                    [track-name d]
+                                    nil)))                                 
+                              track-names))
+        track-name (first (first (sort-by second track-distances)))]
+    (assoc-in world [:track-head] track-name)))
+
 (defn add-mode-moved [world event]
-  (let [grain-size (if (:shift-pressed world)
-                     0.05
-                     0.25)]
-    (move-part-moved world event :grain grain-size)))
+  (if (and (= (:add-type world) :track)
+           (nil? (:edited-part world)))
+    (set-track-head world (:x event) (:y event))
+    (let [grain-size (if (:shift-pressed world)
+                       0.05
+                       0.25)]
+      (move-part-moved world event :grain grain-size))))
 
 (defn add-mode-released [world event]
   (move-part-released world event))

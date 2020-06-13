@@ -25,6 +25,8 @@
    :cylinder
    {:model (create-model-mesh "resources/cylinder.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :collision-model (create-model-mesh "resources/cylinder-collision.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
     :direction :input
@@ -36,6 +38,8 @@
    {:model (create-model-mesh "resources/sphere.obj"
                               [0 0 0] [1 0 0 0]
                               [1 1 1] :white)
+    :collision-model (create-model-mesh "resources/sphere-collision.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
     :direction :input
@@ -45,6 +49,8 @@
 
    :cone
    {:model (create-model-mesh "resources/cone.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :collision-model (create-model-mesh "resources/cone-collision.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.5 0.5 0.5]
@@ -76,8 +82,7 @@
     }
 
    :track
-   {;; :model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :model (create-model-mesh "resources/cylinder.obj"
+   {:model (create-model-mesh "resources/track.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0.2 0 0] [-0.2 0 0]
              [0 0.2 0]
@@ -105,6 +110,8 @@
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
     :white-model (create-model-mesh "resources/speaker.obj"
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :collision-model (create-model-mesh "resources/cylinder-collision.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.4 0.1 0.4]
     :direction :output
@@ -120,6 +127,7 @@
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.3 0.07 0.3]
+    
     :direction nil
     :color :blue
     }
@@ -144,7 +152,9 @@
     :white-model (create-model-mesh "resources/lamp-base.obj"
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
     :bulb (create-model-mesh "resources/bulb.obj"
-                            [0 0 0] [1 0 0 0] [0.3 0.3 0.3] :red)
+                             [0 0 0] [1 0 0 0] [0.3 0.3 0.3] :red)
+    :collision-model (create-model-mesh "resources/cylinder-collision.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.4 0.2 0.4]
     :direction :output

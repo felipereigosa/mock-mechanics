@@ -91,6 +91,9 @@
       (prepare-tree)
       (assoc-in [:mode] :simulation)
 
+      (assoc-in [:track-head-model]
+                (create-cube-mesh [0 0 0] [1 0 0 0] [0.2 0.2 0.2] :white))
+      
       (place-elements)
       ))
 (reset-world!)
@@ -137,13 +140,19 @@
   (if (:use-weld-groups world)
     (doseq [group (vals (:weld-groups world))]
       (draw-mesh! world group))
-    ;; (doseq [[name part] (:parts world)]
-    ;;   (if (or (= name :ground-part)
-    ;;           (not (in? (:layer part) (:visible-layers world))))
-    ;;     nil
-    ;;     (draw-part! world part)))
+    (doseq [[name part] (:parts world)]
+      (if (or (= name :ground-part)
+              (not (in? (:layer part) (:visible-layers world))))
+        nil
+        (draw-part! world part)))
     )
 
+  (if-let [track-head-name (:track-head world)]
+    (let [transform (get-in world [:parts track-head-name :transform])
+          mesh (:track-head-model world)
+          mesh (assoc-in mesh [:transform] transform)]
+      (draw-mesh! world mesh)))
+  
   (if-let [edited-part (:edited-part world)]
     (let [part (get-in world [:parts edited-part])
           part (if (in? (:type part) [:button :lamp])
