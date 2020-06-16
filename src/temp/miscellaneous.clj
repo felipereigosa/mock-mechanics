@@ -2,7 +2,6 @@
 (ns temp.core)
 
 (declare get-parts-with-type)
-(declare create-weld-groups)
 (declare compute-transforms)
 (declare get-tail-transform)
 (declare get-part-position)
@@ -65,7 +64,8 @@
       (reset-camera)
       (change-mode :simulation)
       (assoc-in [:visible-layers] [1])
-      (redraw)))
+      (redraw)
+      (tree-changed)))
 
 (defn place-box [world name & {:keys [rx ry wx wy ox oy]}]
   (let [{:keys [x y w h]} (get-in world [name])
@@ -123,3 +123,4 @@
        (< (point-line-distance p line) d)
        (< (distance p p1) l)
        (< (distance p p2) l)))))
+

@@ -1,11 +1,6 @@
 
 (ns temp.core)
 
-(defn simulation-mode-entered [world]
-  (-> world
-      (compute-transforms :parts)
-      (create-weld-groups)))
-
 (defn simulation-mode-pressed [world {:keys [x y]}]
   (if-let [{:keys [part-name point]} (get-part-collision world x y)]
     (let [part (get-in world [:parts part-name])

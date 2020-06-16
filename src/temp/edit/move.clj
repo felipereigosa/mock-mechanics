@@ -51,7 +51,6 @@
         plane (map #(vector-subtract % xz-offset) plane)]
     (-> world
         (assoc-in [:edited-part] part-name)
-        (create-weld-groups)
         (assoc-in [:plane] plane)
         (assoc-in [:offset] offset))))
 

@@ -22,28 +22,15 @@
   (let [exit-fun (or (get-function (:mode world) :exited) identity)
         enter-fun (or (get-function new-mode :entered) identity)]
     (-> world
-        (exit-fun)
         (assoc-in [:mode] new-mode)
+        (exit-fun)
         (enter-fun)
         (redraw))))
-
-(defn prepare-tree [world]
-  (if (= (:mode world) :simulation)
-    world
-    (-> world
-        (compute-transforms :parts)
-        (create-weld-groups)
-        (save-checkpoint!))))
-
-(defn prepare-simulation [world]
-  (if (= (:mode world) :simulation)
-    (compute-transforms world :parts)
-    world))
 
 (defn mode-mouse-pressed [world event]
   (if-let [fun (get-function (:mode world) :pressed)]
     (-> world
-        (prepare-simulation)
+        (compute-transforms :parts)
         (fun event)
         (redraw))
     world))
@@ -61,6 +48,4 @@
     (-> world
         (fun event)
         (reset-wagons)
-        (prepare-simulation)
-        (prepare-tree)
         (redraw))))

@@ -9,8 +9,7 @@
         (-> world
             (assoc-in [:edited-part] part-name)
             (assoc-in [:start-point] [x y])
-            (assoc-in [:original-transform] (:transform part))
-            (create-weld-groups)))
+            (assoc-in [:original-transform] (:transform part))))
       world)))
 
 (defn rotate-mode-moved [world event]

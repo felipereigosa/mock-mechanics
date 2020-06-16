@@ -75,7 +75,7 @@
                 (create-picture "resources/edit-menu.svg" 210 575 -1 50))
       (assoc-in [:edit-subcommand] :move)
 
-      (assoc-in [:use-weld-groups] true)
+      (assoc-in [:use-weld-groups] false) ;;############################
       (assoc-in [:graph-snap-value] 0.05)
 
       (assoc-in [:graph-menu]
@@ -88,7 +88,6 @@
 
       (create-physics-world)
       (reset-undo! [:parts])
-      (prepare-tree)
       (assoc-in [:mode] :simulation)
 
       (assoc-in [:track-head-model]
@@ -152,7 +151,7 @@
           mesh (:track-head-model world)
           mesh (assoc-in mesh [:transform] transform)]
       (draw-mesh! world mesh)))
-  
+
   (if-let [edited-part (:edited-part world)]
     (let [part (get-in world [:parts edited-part])
           part (if (in? (:type part) [:button :lamp])
@@ -216,7 +215,6 @@
   (if-let [region (get-region-at (:mode-menu world) x y)]
     (-> world
         (change-mode region)
-        (prepare-tree)
         (show-hint :mode region))
     world))
 
@@ -226,6 +224,8 @@
         world (-> world
                   (assoc-in [:press-time] (get-current-time))
                   (assoc-in [:press-point] [x y]))]
+    (if (= (:button event) :left)
+      (function))
     (cond
       (inside-box? (:action-menu world) x y)
       (action-menu-pressed world x y)

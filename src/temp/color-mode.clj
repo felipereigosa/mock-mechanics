@@ -11,7 +11,9 @@
             part (if (= (:type part) :lamp)
                    (assoc-in part [:dark-color] (get-dark-color color))
                    part)]
-        (assoc-in world [:parts part-name] part))
+        (-> world
+            (assoc-in [:parts part-name] part)
+            (tree-changed)))
       world)))
 
 (defn color-mode-draw [world]

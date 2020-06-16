@@ -98,8 +98,7 @@
         (assoc-in [:camera] camera)
         (assoc-in [:visible-layers] (or visible-layers [1]))
         (compute-camera)
-        (compute-transforms :parts)
-        (create-weld-groups))))
+        (tree-changed))))
 
 (defn load-machine-callback [world text]
   (let [world (-> world

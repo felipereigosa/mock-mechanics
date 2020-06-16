@@ -40,7 +40,6 @@
             center (get-transform-position (:transform part))]
         (-> world
             (assoc-in [:edited-part] part-name)
-            (create-weld-groups)
             (assoc-in [:adjust-line] [point (vector-normalize v)])
             (assoc-in [:original-scale] scale)
             (assoc-in [:original-center] center)
@@ -126,7 +125,6 @@
             v (apply-transform rotation-transform [0 1 0])]
         (-> world
             (assoc-in [:edited-part] part-name)
-            (create-weld-groups)
             (assoc-in [:adjust-line] [point (vector-normalize v)])
             (assoc-in [:original-scale] scale)
             (assoc-in [:original-center] center)))
@@ -184,7 +182,6 @@
             center (get-transform-position (:transform part))]
         (-> world
             (assoc-in [:edited-part] part-name)
-            (create-weld-groups)
             (assoc-in [:adjust-line] [point v])
             (assoc-in [:original-scale] scale)
             (assoc-in [:original-center] center)
@@ -244,7 +241,6 @@
             center (get-transform-position (:transform part))]
         (-> world
             (assoc-in [:edited-part] part-name)
-            (create-weld-groups)
             (assoc-in [:adjust-line] [point v])
             (assoc-in [:original-scale] scale)
             (assoc-in [:original-center] center)
@@ -287,7 +283,6 @@
           v (vector-normalize (vector-subtract point center))]
       (-> world
           (assoc-in [:edited-part] part-name)
-          (create-weld-groups)
           (assoc-in [:adjust-line] [center v])))
     world))
 

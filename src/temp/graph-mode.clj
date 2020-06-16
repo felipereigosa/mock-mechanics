@@ -513,12 +513,13 @@
           part-type (:type part)
           part-direction (get-in world [:info part-type :direction])]
       (if (in? part-type [:wagon :track])
-        (if (in? part-name (keys (:functions chip)))
-          (dissoc-in world [:parts chip-name :functions part-name])
-          (assoc-in world [:parts chip-name :functions part-name]
-                    {:points [[0 0] [1 1]]
-                     :relative false
-                     :z (inc (get-max-z chip))}))
+        (let [world (if (in? part-name (keys (:functions chip)))
+                      (dissoc-in world [:parts chip-name :functions part-name])
+                      (assoc-in world [:parts chip-name :functions part-name]
+                                {:points [[0 0] [1 1]]
+                                 :relative false
+                                 :z (inc (get-max-z chip))}))]
+          (tree-changed world))
         world))
     world))
 

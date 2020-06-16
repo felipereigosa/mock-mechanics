@@ -24,10 +24,7 @@
         free-parts (filter (fn [part-name]
                              (get-in world [:parts part-name :free]))
                            (keys (:parts world)))
-        force-part (get-in world [:force :part-name])
-        track-force-part (get-in world [:track-force :part-name])
-        roots (concat [:ground-part] chip-children free-parts
-                      (filter not-nil? [force-part track-force-part]))]
+        roots (concat [:ground-part] chip-children free-parts)]
     (vec (into #{} roots))))
 
 (defn segregate-parts [world]
@@ -35,9 +32,6 @@
     (vec (map (fn [root]
                 (get-limited-tree (:parts world) root roots))
               roots))))
-
-(do
-1
 
 (defn bake-part [world part]
   (if (not (in? (:layer part) (:visible-layers world)))
@@ -57,6 +51,7 @@
           normals (map #(apply-transform rotation-transform %)
                        (vec (partition 3 (:normals model))))
           part-color (let [color (get-color (:color part))
+                           color (get-color :purple) ;;##########
                            r (/ (get-red color) 255.0)
                            g (/ (get-green color) 255.0)
                            b (/ (get-blue color) 255.0)]
@@ -76,17 +71,13 @@
        :colors colors})))
 
 (defn create-mesh-from-parts [world names]
-  (let [edited-part (:edited-part world)
-        parts (:parts world)
+  (let [parts (:parts world)
         baked-parts (map (fn [part-name]
-                           (if (= part-name edited-part)
-                             nil
-                             (bake-part world (get-in parts [part-name]))))
+                           (bake-part world (get-in parts [part-name])))
                          names)
         {:keys [vertices colors normals]} (reduce (fn [a b]
                                                     (merge-with (comp vec concat) a b))
                                                   baked-parts)
-        ;; foo (println! "baked")
         root (get-in parts [(first names)])
         root-transform (:transform root)
         inverse-transform (get-inverse-transform root-transform)
@@ -95,18 +86,9 @@
         rotation-transform (get-rotation-component inverse-transform)
         normals (vec (flatten (map #(apply-transform
                                      rotation-transform %) normals)))
-        colors (vec (flatten colors))
-        ]
-    ;; (println! (count vertices))
+        colors (vec (flatten colors))]
     (create-mesh vertices [0 0 0] [1 0 0 0]
-                 [1 1 1] colors [] normals)
-    ))
-
-;; (clear-output!)
-;; (println! "before")
-;; (create-mesh-from-parts @world (keys (:parts @world)))
-;; (println! "after")
-)
+                 [1 1 1] colors [] normals)))
 
 (defn is-child-group? [parts parent-names child-names]
   (some (fn [parent-name]
@@ -160,11 +142,13 @@
     (assoc-in world [:root-relative-transforms] rrt)))
 
 (defn use-root-relative-transform [world part-name]
-  (let [{:keys [root-name transform]}
-        (get-in world [:root-relative-transforms part-name])
-        root (get-in world [:weld-groups root-name])
-        root-transform (:transform root)]
-    (combine-transforms transform root-transform)))
+  (if (:use-weld-groups world)
+    (let [{:keys [root-name transform]}
+          (get-in world [:root-relative-transforms part-name])
+          root (get-in world [:weld-groups root-name])
+          root-transform (:transform root)]
+      (combine-transforms transform root-transform))
+    (get-in world [:parts part-name :transform])))
 
 (defn create-weld-groups [world]
   (let [groups (segregate-parts world)
@@ -188,8 +172,14 @@
         (assoc-in [:weld-groups] weld-groups)
         (compute-transforms :weld-groups))))
 
-;; (set-thing! [:use-weld-groups] true)
+(do
+1
+(update-thing! [] tree-changed)
+(set-thing! [:use-weld-groups] true))
 
+(do
+1
+(update-thing! [] #(compute-transforms % :parts))
+(set-thing! [:use-weld-groups] false))
 
-
-
+(update-thing! [] tree-changed)

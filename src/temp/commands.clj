@@ -117,8 +117,7 @@
                              (:mode world))]
     (-> world
         (fun)
-        (assoc-in [:command] "")
-        (prepare-tree)) 
+        (assoc-in [:command] "")) 
     world))
 
 (defn text-input-key-pressed [world event]
@@ -131,11 +130,10 @@
                     (catch Exception e
                       (do
                         (println! "invalid input:" (:text world))
-                        world)))
-            world (-> world
-                      (dissoc-in [:text])
-                      (assoc-in [:text-input] false))]
-        (prepare-tree world))
+                        world)))]
+        (-> world
+            (dissoc-in [:text])
+            (assoc-in [:text-input] false)))
 
       :backspace
       (if (empty? (:text world))

@@ -56,11 +56,12 @@
             names)))
 
 (defn layer-mode-released [world {:keys [x y]}]
-  (let [layer-box (:layer-box world)]    
-    (if (and (not (nil? (:selected-part world)))
-             (inside-box? layer-box x y))
-      (let [index (get-layer-index layer-box x)]
-        (-> world
-            (move-parts-to-layer (:selected-part world) index)
-            (dissoc-in [:selected-part])))
-      (dissoc-in world [:selected-part]))))
+  (let [layer-box (:layer-box world)
+        world (if (and (not (nil? (:selected-part world)))
+                       (inside-box? layer-box x y))
+                (let [index (get-layer-index layer-box x)]
+                  (-> world
+                      (move-parts-to-layer (:selected-part world) index)
+                      (dissoc-in [:selected-part])))
+                (dissoc-in world [:selected-part]))]
+    (tree-changed world)))

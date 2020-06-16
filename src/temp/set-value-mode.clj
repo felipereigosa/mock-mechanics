@@ -47,9 +47,7 @@
                                 (/ value
                                    (reduce + (:track-lengths part)))
                                 value)]
-                    (-> w
-                        (assoc-in [:parts part-name key] value)
-                        (prepare-tree)))))))
+                        (assoc-in w [:parts part-name key] value))))))
 
 (defn set-property [world x y]
   (if-let [region (get-region-at (:set-value-box world) x y)]
@@ -69,22 +67,19 @@
                     (assoc-in [:value-part] part-name)
                     (assoc-in [:press-time] (get-current-time)))]
       (case (:type part)
-        :wagon (let [transform (:transform part)
-                     inverse-transform (get-inverse-transform transform)
-                     local-point (apply-transform inverse-transform point)
-                     mouse-line (unproject-point world [x y])]
-                 (-> world
-                     (assoc-in [:force] {:part-name part-name
-                                         :velocity 0
-                                         :line mouse-line
-                                         :point local-point})
-                     (prepare-tree)))
+        :wagon
+        (let [transform (:transform part)
+              inverse-transform (get-inverse-transform transform)
+              local-point (apply-transform inverse-transform point)
+              mouse-line (unproject-point world [x y])]
+          (assoc-in world [:force] {:part-name part-name
+                                    :velocity 0
+                                    :line mouse-line
+                                    :point local-point}))
         :track
-        (-> world
-            (assoc-in [:track-force] {:part-name part-name
-                                      :point point
-                                      :start-value (:value part)})
-            (prepare-tree))
+        (assoc-in world [:track-force] {:part-name part-name
+                                        :point point
+                                        :start-value (:value part)})        
         world))))
 
 (defn special-track-moved [world x y]

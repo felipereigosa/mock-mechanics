@@ -17,7 +17,6 @@
                 y-axis (apply-transform rotation-transform [0 1 0])]
             (-> world
                 (assoc-in [:edited-part] part-name)
-                (create-weld-groups)
                 (assoc-in [:sink-line] [point y-axis])
                 (assoc-in [:offset] offset)))))
       world)))

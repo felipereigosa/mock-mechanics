@@ -178,4 +178,6 @@
       (move-part-moved world event :grain grain-size))))
 
 (defn add-mode-released [world event]
-  (move-part-released world event))
+  (-> world
+      (move-part-released event)
+      (tree-changed)))

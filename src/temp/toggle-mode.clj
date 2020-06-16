@@ -1,6 +1,12 @@
 
 (ns temp.core)
 
+(defn toggle-mode-entered [world]
+  (tree-changed world))
+
+(defn toggle-mode-exited [world]
+  (tree-changed world))
+
 (defn toggle-mode-pressed [world {:keys [x y]}]
   (let [box (:toggle-box world)]
     (if (inside-box? box x y)
@@ -11,7 +17,9 @@
       (if-let [part-name (get-part-at world x y)]
         (let [property (nth (get-in world [:properties])
                             (:selected-property world))]
-          (update-in world [:parts part-name property] not))
+          (-> world
+              (update-in [:parts part-name property] not)
+              (tree-changed)))
         world))))
 
 (defn toggle-mode-draw [world]

@@ -271,18 +271,14 @@
         transform (combine-transforms relative-transform parent-transform)]
     (assoc-in world [:parts part-name :transform] transform)))
 
+(declare use-root-relative-transform)
+
 (defn set-probe-values [world]
-  (let [probe-relative-transforms
-        (filter (fn [[name value]]
-                  (= (:type value) :probe))
-                (:root-relative-transforms world))
-        probe-names (keys probe-relative-transforms)
-        positions (map (fn [[probe-name {:keys [root-name transform]}]]
-                         (let [root (get-in world [:weld-groups root-name])
-                               root-transform (:transform root)
-                               transform (combine-transforms transform root-transform)]
+  (let [probe-names (get-parts-with-type (:parts world) :probe)
+        positions (map (fn [probe-name]
+                         (let [transform (use-root-relative-transform world probe-name)]
                            (get-transform-position transform)))
-                       probe-relative-transforms)
+                       probe-names)
         close-pairs (mapcat (fn [i]
                               (map (fn [j]
                                      (let [p1 (nth positions i)
@@ -301,8 +297,6 @@
                 (assoc-in w [:parts probe-name :value] 0)))
             world
             probe-names)))
-
-(declare use-root-relative-transform)
 
 (defn draw-buttons! [world]
   (let [button-names (get-parts-with-type (:parts world) :button)]
@@ -356,14 +350,6 @@
 
 (declare save-checkpoint!)
 
-(defn prepare-tree [world]
-  (if (= (:mode world) :simulation)
-    world
-    (-> world
-        (compute-transforms :parts)
-        (create-weld-groups)
-        (save-checkpoint!))))
-
 (defn select-part [world part-name]
   (let [part (get-in world [:parts part-name])
         type (:type part)
@@ -400,3 +386,44 @@
                    (:snap part))]
         (assoc-in world [:parts part-name :value] 
                   (snap-value (:value part) snap))))))
+
+(declare create-weld-groups)
+
+(defn tree-changed [world]
+  (println! "tree changed" (rand))
+  (-> world
+      (compute-transforms :parts)
+      (save-checkpoint!)
+      (create-weld-groups) ;;########## async-create-weld-groups
+      ))
+
+;; (do
+;; 1
+
+;; (def the-thread (atom nil))
+
+;; (defn function [] ;; async-create-weld-groups [world]
+;;   (println! "use-weld-groups = false")
+
+;;   (.start
+;;    (new Thread
+;;         (proxy [Runnable] []
+;;           (run []
+;;             (reset! the-thread this)
+;;             (try
+;;               (dotimes [i 10]
+;;                 (if (not= this @the-thread)
+;;                   (throw (new Exception "exited")))
+;;                 (println! "compute weld groups" i @running @exit-early)
+;;                 (sleep 300))
+;;               (println! "reset world and use-weld-groups = true")
+;;               (catch Exception e
+;;                 (println! "exited early")
+;;                 )))))))   
+
+;; (clear-output!)
+;; (let []
+;;   (println! (function))
+;;   ))
+
+;; (reset! the-thread nil)
