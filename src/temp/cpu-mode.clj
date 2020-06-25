@@ -155,7 +155,7 @@
     (if-let [text (try
                     (read-string (str "(script" (slurp filename) ")"))
                     (catch Exception e
-                      (println! "eof found on script")))]
+                      (user-message! "eof found on script")))]
       (let [code (process-code text inputs outputs)]
         (.start
          (new Thread
@@ -165,8 +165,7 @@
                     ((eval code) pin-name)
                     (catch Exception e
                       (do
-                        (println! "script failed")
-                        (println! (.getMessage e)))))))))))
+                        (user-message! "script failed"))))))))))
     world))
 
 (defn pin-value-changed [world cpu-name pin-name]
@@ -559,10 +558,10 @@
           cpu-box (:cpu-box world)]
       (if-let [pin-name (get-pin-at cpu cpu-box x y)]
         (let [type (get-in world [:parts pin-name :type])]
-          (println! (kw->str type) "value = " value)
+          (user-message! (kw->str type) "value = " value)
           (assoc-in world [:parts pin-name :value] value))
         (do
-          (println! "no pin selected")
+          (user-message! "no pin selected")
           world
           )))
     world))

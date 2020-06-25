@@ -115,13 +115,12 @@
       (= (:type target) :cylinder)
       (let [normal (vector-normalize
                     (get-collision-normal world collision))]
-        (println! normal)
         (if (or (vector= normal [0 1 0])
                 (vector= normal [0 -1 0]))
           true
-          (println! "can't place on the side of cylinder")))
+          (user-message! "can't place on the side of cylinder")))
       :else
-      (println! "can't place part on" (no-colon (:type target))))))
+      (user-message! "can't place part on" (no-colon (:type target))))))
 
 (defn add-mode-pressed [world event]
   (let [{:keys [x y]} event]
@@ -132,7 +131,8 @@
             (show-hint :add region))
         world)
       (let [type (:add-type world)
-            color (get-in world [:info type :color])]
+            color (get-in world [:info type :color])
+            world (tree-will-change world)]
         (case (:add-type world)
           :wagon
           (add-wagon world color x y)

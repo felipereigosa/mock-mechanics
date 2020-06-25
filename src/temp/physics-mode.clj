@@ -169,9 +169,9 @@
         physical-part-names (map first (filter is-physical-part? parts))
         bodies (map #(create-part-body % parts groups)
                     physical-part-names)]
-      (doseq [{:keys [body]} bodies]
-        (add-body-to-planet (:planet world) body))
-      (assoc-in world [:bodies] bodies)))
+    (doseq [{:keys [body]} bodies]
+      (add-body-to-planet (:planet world) body))
+    (assoc-in world [:bodies] bodies)))
 
 (defn recompute-body-transforms! [world]
   (doseq [b (:bodies world)]

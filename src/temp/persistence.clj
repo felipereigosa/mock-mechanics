@@ -65,7 +65,7 @@
 
 (defn save-machine-callback [world text]
   (save-machine! world (str "resources/machines/" text ".clj"))
-  (println! "saved machine" text)
+  (user-message! "saved machine" text)
   (set-title! text)
   (assoc-in world [:last-saved-machine] text))
 
@@ -90,22 +90,25 @@
                        parts)
         spheres (vec (map (fn [{:keys [position rotation]}]
                      (make-sphere world position rotation))
-                   sphere-transforms))]
+                          sphere-transforms))]
     (-> world
+        
         (assoc-in [:parts] parts)
         (assoc-in [:spheres] spheres)
         (assoc-in [:parts :ground-part :transform] (make-transform [0 -0.1 0] [1 0 0 0]))
         (assoc-in [:camera] camera)
         (assoc-in [:visible-layers] (or visible-layers [1]))
         (compute-camera)
-        (tree-changed))))
+        (create-weld-groups)
+        (save-checkpoint!)
+        (assoc-in [:use-weld-groups] true))))
 
 (defn load-machine-callback [world text]
   (let [world (-> world
                   (new-file)
                   (load-machine (str "resources/machines/"
                                      text ".clj")))]
-    (println! "loaded machine" text)
+    (user-message! "loaded machine" text)
     (set-title! text)
     (assoc-in world [:last-saved-machine] text)))
 

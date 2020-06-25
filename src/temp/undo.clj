@@ -28,26 +28,21 @@
     (swap! undo-index inc))
   world)
 
-;; (defn copy-world [dest source fields]
-;;   (prepare-tree (reduce (fn [w field]
-;;                           (assoc-in w [field] (get-in source [field])))
-;;                         dest
-;;                         fields)))
+(defn copy-world [dest source fields]
+  (tree-changed (reduce (fn [w field]
+                          (assoc-in w [field] (get-in source [field])))
+                        dest
+                        fields)))
 
 (defn undo! [world]
-  ;; (let [index (mod (- @undo-index 2) (count @undo-ring))
-  ;;       saved-world (nth @undo-ring index)]
-  ;;   (swap! undo-index dec)
-  ;;   (copy-world world saved-world @undo-fields))
-  (println! "undo")
-  world
-  )
+  (let [index (mod (- @undo-index 2) (count @undo-ring))
+        saved-world (nth @undo-ring index)]
+    (swap! undo-index dec)
+    (copy-world world saved-world @undo-fields)))
 
 (defn redo! [world]
-  ;; (let [index (mod @undo-index (count @undo-ring))
-  ;;       saved-world (nth @undo-ring index)]
-  ;;   (swap! undo-index inc)
-  ;;   (copy-world world saved-world @undo-fields))
-  (println! "redo")
-  world
-  )
+  (let [index (mod @undo-index (count @undo-ring))
+        saved-world (nth @undo-ring index)]
+    (swap! undo-index inc)
+    (copy-world world saved-world @undo-fields)))
+  

@@ -59,7 +59,7 @@
           l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
           increase-vector (map * (:normal world) [l l l])
           scale-offset (vector-multiply (second adjust-line) d)]
-      (println! (format "side: %.2f" l))
+      (user-message! (format "side: %.2f" l))
       (-> world
           (set-block-size block-name scale center increase-vector)
           (assoc-in [:scale-offset] scale-offset)))
@@ -141,7 +141,7 @@
           center (:original-center world)
           normal (second adjust-line)
           l (within (+ (apply max scale) d) grain-size 10)]
-      (println! (format "length: %.2f" l))
+      (user-message! (format "length: %.2f" l))
       (-> world
           (set-track-size track-name scale center l)
           (assoc-in [:track-length] l)))
@@ -201,7 +201,7 @@
               d (snap-value d grain-size)
               l (max (+ d (second scale)) 0.1)
               scale-offset (vector-multiply (second adjust-line) d)]
-          (println! (format "height: %.2f" l))
+          (user-message! (format "height: %.2f" l))
           (-> world
               (set-block-size part-name scale center [0 (* l (second normal)) 0])
               (assoc-in [:scale-offset] scale-offset)))
@@ -209,7 +209,7 @@
               d (snap-value d grain-size)
               d2 (max (+ (first scale) (* d 2)) 0.1)
               new-scale [d2 (second scale) d2]]
-          (println! (format "diameter: %.2f" d2))
+          (user-message! (format "diameter: %.2f" d2))
           (assoc-in world [:parts part-name :scale] new-scale))))
     world))
 
@@ -258,13 +258,13 @@
         (let [grain-size 0.1
               d (snap-value d grain-size)
               l (max (+ d (second scale)) 0.1)]
-          (println! (format "height: %.2f" l))
+          (user-message! (format "height: %.2f" l))
           (set-block-size world part-name scale center [0 l 0]))
         (let [grain-size 0.05
               d (snap-value d grain-size)
               d2 (max (+ (first scale) (* d 2)) 0.1)
               new-scale [d2 (second scale) d2]]
-          (println! (format "diameter: %.2f" d2))
+          (user-message! (format "diameter: %.2f" d2))
           (assoc-in world [:parts part-name :scale] new-scale))))
     world))
 
@@ -295,7 +295,7 @@
           d (snap-value d grain-size)
           d2 (within (* d 2) 0.1 10)
           new-scale (vec (repeat 3 d2))]
-      (println! (format "diameter: %.2f" d2))
+      (user-message! (format "diameter: %.2f" d2))
       (assoc-in world [:parts part-name :scale] new-scale))
     world))
 
@@ -313,7 +313,7 @@
         :cone (scale-cone-pressed world event)
         :sphere (scale-sphere-pressed world event)
         (do
-          (println! "can't scale" (no-colon type))
+          (user-message! "can't scale" (no-colon type))
           world)))
     world))
 

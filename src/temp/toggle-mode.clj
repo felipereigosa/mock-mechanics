@@ -13,7 +13,9 @@
       (let [start-x (- (:x box) (/ (:w box) 2))
             n (dec (count (:properties world)))
             index (within (int (/ (- x start-x) 100)) 0 n)]
-        (assoc-in world [:selected-property] index))
+        (-> world
+            (assoc-in [:selected-property] index)
+            (tree-changed)))
       (if-let [part-name (get-part-at world x y)]
         (let [property (nth (get-in world [:properties])
                             (:selected-property world))]

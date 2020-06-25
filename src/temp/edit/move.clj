@@ -67,7 +67,7 @@
           point (get-normalized-plane-point plane point grain-size)
           v (vector-subtract point (first plane))
           point (vector-add point offset)]
-      (println! "move:" (vec (map #(format "%.2f" %) v)))
+      (user-message! "move:" (vec (map #(format "%.2f" %) v)))
       (update-in world [:parts part-name]
                  #(set-part-position % point)))
     world))
@@ -89,7 +89,7 @@
     (let [type (get-in world [:parts part-name :type])]
       (if (= type :wagon)
         (do
-          (println! "can't move wagon")
+          (user-message! "can't move wagon")
           world)
         (move-part-pressed world part-name point)))
     world))

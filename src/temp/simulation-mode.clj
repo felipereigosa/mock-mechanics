@@ -1,6 +1,12 @@
 
 (ns temp.core)
 
+(declare create-part-bodies)
+
+(defn simulation-mode-entered [w]
+  (while (not (:use-weld-groups @world)))
+  w)
+
 (defn simulation-mode-pressed [world {:keys [x y]}]
   (if-let [{:keys [part-name point]} (get-part-collision world x y)]
     (let [part (get-in world [:parts part-name])

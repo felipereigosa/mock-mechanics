@@ -260,7 +260,7 @@
                        (assoc-in [:points node-index coord-index] value)
                        (normalize-function)))))
     (do
-      (println! "Invalid value")
+      (user-message! "Invalid value")
       world)))
 
 (defn set-node-values-callback [world node text]
@@ -268,7 +268,7 @@
     (if (or (not (= (count values) 2))
             (some nil? values))
       (do
-        (println! "Invalid format")
+        (user-message! "Invalid format")
         world)
       (let [[x y] values
             [function-name node-index] node]
@@ -375,11 +375,11 @@
                  (> (second values) 0))
           (vec values)
           (do
-            (println! "invalid snap format")
+            (user-message! "invalid snap format")
             nil)))
       (if (<= value 0.0)
         (do
-          (println! "disable snap")
+          (user-message! "disable snap")
           nil)
         value))))
 
@@ -401,7 +401,7 @@
           [function-name index] node
           value (get-in chip [:functions function-name
                               :points index])]
-      (println! (apply format "node value = %.2f, %.2f" (map float value)))
+      (user-message! (apply format "node value = %.2f, %.2f" (map float value)))
       (-> world
           (assoc-in [:original-node] coords)
           (assoc-in [:moving-node] node)
@@ -430,7 +430,7 @@
           world (assoc-in world [:parts chip-name
                                  :functions function-name :points]
                           new-points)]
-      (println! "move node:" (apply format "%.2f, %.2f" coords))
+      (user-message! "move node:" (apply format "%.2f, %.2f" coords))
       (redraw world))
     world))
 
@@ -528,7 +528,7 @@
     (let [part (get-in world [:parts function-name])]
       (if (= (:type part) :wagon)
         (do
-          (println! "track lengths: "
+          (user-message! "track lengths: "
                     (vec (map #(format "%.2f" %)
                               (:track-lengths part)))
                     (format "%.2f" (reduce + (:track-lengths part))))

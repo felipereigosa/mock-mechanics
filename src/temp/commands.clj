@@ -80,7 +80,10 @@
    "C-t" #(change-mode % :toggle)
    "C-s" #(change-mode % :simulation)
 
-   "A-n" #(new-file %)
+   "A-n" #(-> %
+              (new-file)
+              (tree-changed))
+   
    "A-c" #(view-all-parts %)
    "A-s" #(save-version %)
    "C-x s" #(read-input % save-machine-callback)
@@ -129,7 +132,7 @@
                     (callback world (:text world))
                     (catch Exception e
                       (do
-                        (println! "invalid input:" (:text world))
+                        (user-message! "invalid input:" (:text world))
                         world)))]
         (-> world
             (dissoc-in [:text])

@@ -48,4 +48,6 @@
     (-> world
         (fun event)
         (reset-wagons)
+        (compute-transforms :parts)
+        (save-checkpoint!)
         (redraw))))

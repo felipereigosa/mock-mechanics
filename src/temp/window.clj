@@ -14,6 +14,7 @@
 (import org.lwjgl.glfw.GLFWKeyCallback)
 (import org.lwjgl.glfw.GLFWScrollCallback)
 (import org.lwjgl.glfw.GLFWWindowSizeCallback)
+(import org.lwjgl.glfw.GLFWWindowFocusCallback)
 (import org.lwjgl.glfw.GLFWWindowMaximizeCallback)                       
 (import java.awt.image.BufferedImage)
 (import javax.imageio.ImageIO)
@@ -56,6 +57,7 @@
 (defn mouse-released [world event] world)
 (defn mouse-scrolled [world event] world)
 (defn window-changed [world event] world)
+(defn window-focused [world focused] world)
 
 ;;###########################################
 (def window-width (atom 640))
@@ -170,6 +172,17 @@
     (GLFW/glfwSetWindowSizeCallback window handler)
     handler))
 
+(defn create-window-focus-handler! [window]
+  (let [handler (proxy [GLFWWindowFocusCallback] []
+                  (invoke [window focused]
+                    (try
+                      (swap! world
+                             (fn [w]
+                               (window-focused w focused)))
+                      (catch Exception e))))]
+    (GLFW/glfwSetWindowFocusCallback window handler)
+    handler))
+
 (defn loop! [window]
   (try
     (reset! world (create-world))
@@ -213,6 +226,7 @@
       (create-mouse-motion-handler! window)
       (create-mouse-scroll-handler! window)
       (create-window-size-handler! window)
+      (create-window-focus-handler! window)
           
       (GLFW/glfwMakeContextCurrent window)
       (GLFW/glfwSwapInterval 1)

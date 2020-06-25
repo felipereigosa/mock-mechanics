@@ -11,6 +11,7 @@
         wh (:window-height world)
         x (- ww width 10)
         y (- wh 6)]
+    (fill-rect! :black x y 250 32)
     (draw-text! :gray text x y size)))
 
 (defn draw-buffer! [world]
@@ -51,6 +52,8 @@
                     (str truncated-output line))))
   (draw-buffer! @world)
   nil)
+
+(def user-message! println!)
 
 (defn clear-output! []
   (reset! output "")

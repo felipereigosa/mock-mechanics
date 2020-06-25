@@ -2,7 +2,6 @@
 (ns temp.core)
 
 (declare get-parts-with-type)
-(declare compute-transforms)
 (declare get-tail-transform)
 (declare get-part-position)
 (declare save-version)
@@ -11,6 +10,7 @@
 (declare redo!)
 (declare show-hint)
 (declare change-mode)
+(declare tree-changed)
 
 (defn get-function-value [function t interpolator]
   (let [final-time (first (last function))]
@@ -64,8 +64,7 @@
       (reset-camera)
       (change-mode :simulation)
       (assoc-in [:visible-layers] [1])
-      (redraw)
-      (tree-changed)))
+      (redraw)))
 
 (defn place-box [world name & {:keys [rx ry wx wy ox oy]}]
   (let [{:keys [x y w h]} (get-in world [name])

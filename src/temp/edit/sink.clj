@@ -8,7 +8,7 @@
       (let [type (get-in world [:parts part-name :type])]
         (if (= type :wagon)
           (do
-            (println! "can't sink wagon")
+            (user-message! "can't sink wagon")
             world)
           (let [part (get-in world [:parts part-name])
                 part-position (get-part-position world part-name)

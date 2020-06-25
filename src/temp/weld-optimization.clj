@@ -51,7 +51,7 @@
           normals (map #(apply-transform rotation-transform %)
                        (vec (partition 3 (:normals model))))
           part-color (let [color (get-color (:color part))
-                           color (get-color :purple) ;;##########
+                           ;; color (get-color :purple) ;;##########
                            r (/ (get-red color) 255.0)
                            g (/ (get-green color) 255.0)
                            b (/ (get-blue color) 255.0)]
@@ -66,6 +66,8 @@
                    (if (empty? (:colors model))
                      (repeat (count vertices) part-color)
                      (partition 4 (:colors model))))]
+      (if (not= (Thread/currentThread) @the-thread)
+        (throw (new Exception)))
       {:vertices vertices
        :normals normals
        :colors colors})))
@@ -151,9 +153,11 @@
     (get-in world [:parts part-name :transform])))
 
 (defn create-weld-groups [world]
+  (reset! the-thread (Thread/currentThread))
+  
   (let [groups (segregate-parts world)
-        parts (:parts (compute-transforms
-                       (reset-part-values world) :parts))
+        world (compute-transforms world :parts)
+        parts (:parts (compute-transforms (reset-part-values world) :parts))
         info (:info world)
         property (if (= (:mode world) :toggle)
                    (nth (get-in world [:properties])
@@ -167,19 +171,7 @@
                                  {(first names) mesh}))
                              groups)]
     (-> world
-        (create-part-bodies parts groups)
         (compute-root-relative-transforms parts groups)
         (assoc-in [:weld-groups] weld-groups)
+        (create-part-bodies parts groups)
         (compute-transforms :weld-groups))))
-
-(do
-1
-(update-thing! [] tree-changed)
-(set-thing! [:use-weld-groups] true))
-
-(do
-1
-(update-thing! [] #(compute-transforms % :parts))
-(set-thing! [:use-weld-groups] false))
-
-(update-thing! [] tree-changed)

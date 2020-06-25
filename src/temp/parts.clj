@@ -237,9 +237,6 @@
                        (= (:type part) type))
                      parts)))
 
-(defn print-parts! []
-  (println! (keys (:parts @world))))
-
 (defn get-tail-transform [track]
   (let [track-transform (:transform track)
         y-offset (* -0.5 (second (:scale track)))]
@@ -247,15 +244,27 @@
      (make-transform [0 y-offset 0] [1 0 0 0])
      track-transform)))
 
+(defn get-toggle-color [world part]
+  (let [property-index (:selected-property world)
+        property (get-in world [:properties property-index])]
+    (if (get part property)
+      :red
+      :white)))
+
 (defn draw-part! [world part]
   (let [info (get-in world [:info (:type part)])
         transform (if (= (:type part) :track)
                     (get-tail-transform part)
                     (:transform part))
-        mesh (-> (:model info)
+        
+        mesh (if (= (:mode world) :toggle)
+               (set-mesh-color (or (:white-model info)
+                                   (:model info))
+                               (get-toggle-color world part))
+               (set-mesh-color (:model info) (:color part)))
+        mesh (-> mesh
                  (assoc-in [:transform] transform)
-                 (assoc-in [:scale] (:scale part))
-                 (set-mesh-color (:color part)))]
+                 (assoc-in [:scale] (:scale part)))]
     (draw-mesh! world mesh)))
 
 (defn get-part-offset [part]
@@ -389,41 +398,32 @@
 
 (declare create-weld-groups)
 
+(def the-thread (atom nil))
+
+(defn tree-will-change [world]
+  (reset! the-thread nil)
+  (assoc-in world [:use-weld-groups] false))
+
+(defn async-create-weld-groups [w]
+  (.start
+   (new Thread
+        (proxy [Runnable] []
+          (run []
+            (try
+              (let [fast-world (create-weld-groups w)]
+                (set-thing! [:weld-groups]
+                            (:weld-groups fast-world))
+
+                (set-thing! [:root-relative-transforms]
+                            (:root-relative-transforms fast-world))
+
+                (set-thing! [:bodies] (:bodies fast-world))
+                
+                (set-thing! [:use-weld-groups] true))
+              (catch Exception e))))))
+  w)
+
 (defn tree-changed [world]
-  (println! "tree changed" (rand))
   (-> world
-      (compute-transforms :parts)
-      (save-checkpoint!)
-      (create-weld-groups) ;;########## async-create-weld-groups
-      ))
-
-;; (do
-;; 1
-
-;; (def the-thread (atom nil))
-
-;; (defn function [] ;; async-create-weld-groups [world]
-;;   (println! "use-weld-groups = false")
-
-;;   (.start
-;;    (new Thread
-;;         (proxy [Runnable] []
-;;           (run []
-;;             (reset! the-thread this)
-;;             (try
-;;               (dotimes [i 10]
-;;                 (if (not= this @the-thread)
-;;                   (throw (new Exception "exited")))
-;;                 (println! "compute weld groups" i @running @exit-early)
-;;                 (sleep 300))
-;;               (println! "reset world and use-weld-groups = true")
-;;               (catch Exception e
-;;                 (println! "exited early")
-;;                 )))))))   
-
-;; (clear-output!)
-;; (let []
-;;   (println! (function))
-;;   ))
-
-;; (reset! the-thread nil)
+      (assoc-in [:use-weld-groups] false)
+      (async-create-weld-groups)))

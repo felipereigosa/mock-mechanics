@@ -75,7 +75,7 @@
                 (create-picture "resources/edit-menu.svg" 210 575 -1 50))
       (assoc-in [:edit-subcommand] :move)
 
-      (assoc-in [:use-weld-groups] false) ;;############################
+      (assoc-in [:use-weld-groups] true)
       (assoc-in [:graph-snap-value] 0.05)
 
       (assoc-in [:graph-menu]
@@ -91,7 +91,7 @@
       (assoc-in [:mode] :simulation)
 
       (assoc-in [:track-head-model]
-                (create-cube-mesh [0 0 0] [1 0 0 0] [0.2 0.2 0.2] :white))
+                (create-cube-mesh [0 -10000 0] [1 0 0 0] [0.2 0.2 0.2] :white))
       
       (place-elements)
       ))
@@ -152,13 +152,6 @@
           mesh (assoc-in mesh [:transform] transform)]
       (draw-mesh! world mesh)))
 
-  (if-let [edited-part (:edited-part world)]
-    (let [part (get-in world [:parts edited-part])
-          part (if (in? (:type part) [:button :lamp])
-                 (assoc-in part [:color] :black)
-                 part)]
-      (draw-part! world part)))
-
   (draw-selection! world)
 
   (draw-buttons! world)
@@ -202,7 +195,9 @@
 (defn action-menu-pressed [world x y]
   (if-let [region (get-region-at (:action-menu world) x y)]
     (let [world (case region
-                  :new (new-file world)
+                  :new (-> world
+                           (new-file)
+                           (tree-changed))
                   :view (view-all-parts world)
                   :save (save-version world)
                   :load (read-input world load-last-version-callback)
@@ -224,8 +219,6 @@
         world (-> world
                   (assoc-in [:press-time] (get-current-time))
                   (assoc-in [:press-point] [x y]))]
-    (if (= (:button event) :left)
-      (function))
     (cond
       (inside-box? (:action-menu world) x y)
       (action-menu-pressed world x y)
@@ -269,4 +262,3 @@
     (-> world
         (recompute-viewport width height)
         (place-elements))))
-
