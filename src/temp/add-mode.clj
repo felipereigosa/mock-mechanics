@@ -78,16 +78,17 @@
         [a b c] (nth triangles index)
         v1 (vector-subtract b a)
         v2 (vector-subtract c a)
-        normal (vector-normalize (vector-cross-product v1 v2))
-
-        transform (get-in world [:parts (:track-head world) :transform])
-        position (apply-transform transform normal)
-        normal-rotation (make-transform [0 0 0]
-                                        (quaternion-from-normal normal))
-        rotation (get-rotation-component transform)
-        final-rotation (combine-transforms normal-rotation rotation)
-        rotation (get-transform-rotation final-rotation)]
-    (make-transform position rotation)))
+        normal (vector-normalize (vector-cross-product v1 v2))]
+    (if (vector= normal [0 -1 0])
+      nil
+      (let [transform (get-in world [:parts (:track-head world) :transform])
+            position (apply-transform transform normal)
+            normal-rotation (make-transform [0 0 0]
+                                            (quaternion-from-normal normal))
+            rotation (get-rotation-component transform)
+            final-rotation (combine-transforms normal-rotation rotation)
+            rotation (get-transform-rotation final-rotation)]
+        (make-transform position rotation)))))
 
 (defn place-part-at [world part-name collision]
   (let [parent-name (:part-name collision)

@@ -23,6 +23,24 @@
         (assoc-in [:parts block-name :scale] (map abs new-scale))
         (assoc-in [:parts block-name :transform] new-transform))))
 
+(do
+1
+
+(defn get-child-local-direction [world parent-name child-name]
+  (let [parent (get-in world [:parts parent-name])
+        relative-transform (get-in parent [:children child-name])
+        rotation (get-rotation-component relative-transform)]
+    (apply-transform rotation [0 1 0])))
+
+(defn save-moveable-children-transforms [world normal part-name]
+  (let [children (get-in world [:parts part-name :children])
+        moving-children (filter (fn [child-name]
+                                  (let [direction (get-child-local-direction world part-name child-name)]
+                                    (vector= direction normal)))                                
+                                (keys children))]
+    (assoc-in world [:saved-children-transforms]
+              (select-keys children moving-children))))
+
 (defn scale-block-pressed [world event]
   (let [x (:x event)
         y (:y event)]
@@ -43,8 +61,26 @@
             (assoc-in [:adjust-line] [point (vector-normalize v)])
             (assoc-in [:original-scale] scale)
             (assoc-in [:original-center] center)
-            (assoc-in [:normal] normal)))
+            (assoc-in [:normal] normal)
+            (save-moveable-children-transforms normal part-name)))
         world)))
+
+(defn move-children [world part-name]
+  (let [part (get-in world [:parts part-name])
+        v (vector-multiply (:scale-offset world) 0.5)
+        rotation (get-rotation-component (:transform part))
+        v (apply-transform (get-inverse-transform rotation) v)
+        offset-transform (make-transform v [1 0 0 0])]
+    (reduce (fn [w child-name]
+              (if-let [old-transform (get (:saved-children-transforms world)
+                                          child-name)]
+                (let [new-transform (combine-transforms old-transform
+                                                        offset-transform)]
+                  (assoc-in w [:parts part-name :children child-name]
+                                new-transform))
+                (create-relative-transform w child-name part-name)))
+            world
+            (keys (:children part)))))
 
 (defn scale-block-moved [world event]
   (if-let [block-name (:edited-part world)]
@@ -56,48 +92,27 @@
           scale (:original-scale world)
           center (:original-center world)
           normal (:normal world)
-          l (within (+ d (abs (reduce + (map * normal scale)))) 0.1 10)
-          increase-vector (map * (:normal world) [l l l])
+          l1 (+ d (abs (reduce + (map * normal scale))))
+          l2 (within l1 0.1 10)
+          increase-vector (map * (:normal world) [l2 l2 l2])
           scale-offset (vector-multiply (second adjust-line) d)]
-      (user-message! (format "side: %.2f" l))
+      (user-message! (format "side: %.2f" l2))
       (-> world
           (set-block-size block-name scale center increase-vector)
-          (assoc-in [:scale-offset] scale-offset)))
+          (assoc-in [:scale-offset] scale-offset)
+          (#(if (float= l1 l2)
+             (move-children % block-name)
+             %))))
     world))
-
-(defn get-child-local-direction [world parent-name child-name]
-  (let [parent (get-in world [:parts parent-name])
-        relative-transform (get-in parent [:children child-name])
-        rotation (get-rotation-component relative-transform)]
-    (apply-transform rotation [0 1 0])))
-
-(defn move-children [world block-name]
-  (let [block (get-in world [:parts block-name])
-        children-names (keys (:children block))
-        offset-transform (make-transform (:scale-offset world) [1 0 0 0])
-        moving-children (filter (fn [child-name]
-                                  (let [direction (get-child-local-direction world block-name child-name)]
-                                    (vector= direction (:normal world))))                                
-                                children-names)]
-    (reduce (fn [w child-name]
-              (if (in? child-name moving-children)
-                (let [old-transform (get-in w [:parts child-name :transform])
-                      new-transform (combine-transforms old-transform offset-transform)]
-                  (-> w
-                      (assoc-in [:parts child-name :transform] new-transform)
-                      (create-relative-transform child-name block-name)))
-                (create-relative-transform w child-name block-name)))
-            world
-            children-names)))
 
 (defn scale-block-released [world event]
   (if-let [block-name (:edited-part world)]
     (let [parent-name (get-parent-part world block-name)]
       (-> world
           (create-relative-transform block-name parent-name)
-          (move-children block-name)
           (dissoc-in [:edited-part])))
     world))
+)
 
 (defn set-track-size [world track-name original-scale original-center height]
   (let [track (get-in world [:parts track-name])
@@ -185,7 +200,8 @@
             (assoc-in [:adjust-line] [point v])
             (assoc-in [:original-scale] scale)
             (assoc-in [:original-center] center)
-            (assoc-in [:normal] local-normal)))
+            (assoc-in [:normal] local-normal)
+            (save-moveable-children-transforms local-normal part-name)))
         world)))
 
 (defn scale-cylinder-moved [world event]
@@ -199,12 +215,16 @@
       (if (vector= (vector-cross-product normal [0 1 0]) [0 0 0])
         (let [grain-size 0.1
               d (snap-value d grain-size)
-              l (max (+ d (second scale)) 0.1)
+              l1 (+ d (second scale))
+              l2 (max l1  0.1)
               scale-offset (vector-multiply (second adjust-line) d)]
-          (user-message! (format "height: %.2f" l))
+          (user-message! (format "height: %.2f" l2))
           (-> world
-              (set-block-size part-name scale center [0 (* l (second normal)) 0])
-              (assoc-in [:scale-offset] scale-offset)))
+              (set-block-size part-name scale center [0 (* l2 (second normal)) 0])
+              (assoc-in [:scale-offset] scale-offset)
+              (#(if (float= l1 l2)
+                  (move-children % part-name)
+                  %))))
         (let [grain-size 0.05
               d (snap-value d grain-size)
               d2 (max (+ (first scale) (* d 2)) 0.1)
@@ -218,7 +238,6 @@
     (let [parent-name (get-parent-part world part-name)]
       (-> world
           (create-relative-transform part-name parent-name)
-          (move-children part-name)
           (dissoc-in [:edited-part])))
     world))
 
@@ -335,3 +354,4 @@
                 :sphere (scale-sphere-released world event)
                 world)]
     (dissoc-in world [:scale-type])))
+

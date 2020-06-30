@@ -1,13 +1,13 @@
 
 (ns temp.core)
 
-(load "set-value-mode")
+(load "property-mode")
 (load "simulation-mode")
 (load "toggle-mode")
 (load "add-mode")
 (load "edit-mode")
 (load "graph-mode")
-(load "cpu-mode")
+(load "motherboard-mode")
 (load "color-mode")
 (load "layer-mode")
 (load "physics-mode")

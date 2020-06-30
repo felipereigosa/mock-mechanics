@@ -1,9 +1,6 @@
 
 (ns temp.core)
 
-(do
-1
-
 (defn create-info []
   {:ground
    {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
@@ -120,10 +117,10 @@
                  :frequency 440}
     }
 
-   :cpu
-   {:model (create-model-mesh "resources/cpu.obj"
+   :motherboard
+   {:model (create-model-mesh "resources/motherboard.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
-    :white-model (create-model-mesh "resources/cpu.obj"
+    :white-model (create-model-mesh "resources/motherboard.obj"
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.3 0.07 0.3]
@@ -162,8 +159,6 @@
     :properties {:value 0}
     }
    })
-(set-thing! [:info] (create-info))
-)
 
 (defn create-ground-part []
   {:type :ground
@@ -184,7 +179,7 @@
                (assoc-in part [:dark-color] (get-dark-color color))
                part)
 
-        part (if (= type :cpu)
+        part (if (= type :motherboard)
                (assoc-in part [:tab] 0)
                part)
 
@@ -342,7 +337,7 @@
                 property (nth (get-in world [:properties])
                               (:selected-property world))
                 color (if (and (float= (:value lamp) 0)
-                               (in? (:mode world) [:simulation :cpu :set-value]))
+                               (in? (:mode world) [:simulation :motherboard :value]))
                         (:dark-color lamp)
                         (:color lamp))
                 

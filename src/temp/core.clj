@@ -35,7 +35,7 @@
 
 (defn create-world []
   (-> (create-base-world)
-      (assoc-in [:num-lines] 6)
+      (assoc-in [:num-lines] 1)
       (assoc-in [:background-meshes :grid] (create-grid-mesh 24 0.5))
       (assoc-in [:info] (create-info))
       (assoc-in [:parts] {})
@@ -48,11 +48,11 @@
                               :w 685 :h 150
                               :buffer (new-image 685 150)
                               })
-      (assoc-in [:cpu-box] {:x 343 :y 530
+      (assoc-in [:motherboard-box] {:x 343 :y 530
                             :w 685 :h 150
                             :buffer (new-image 685 150)})
-      (assoc-in [:set-value-box]
-                (create-picture "resources/set-value-menu.svg" 240 340 -1 60))
+      (assoc-in [:property-box]
+                (create-picture "resources/property-menu.svg" 240 340 -1 60))
       (assoc-in [:layer-box] {:x 343 :y 575 :w 480 :h 60})
       (assoc-in [:toggle-box] {:x 343 :y 575 :w 500 :h 60})
       (assoc-in [:visible-layers] [1])
@@ -81,8 +81,8 @@
       (assoc-in [:graph-menu]
                 (create-picture "resources/graph-menu.svg" 210 575 -1 30))
 
-      (assoc-in [:cpu-menu]
-                (create-picture "resources/cpu-menu.svg" 210 575 -1 30))
+      (assoc-in [:motherboard-menu]
+                (create-picture "resources/motherboard-menu.svg" 210 575 -1 30))
       (assoc-in [:selected-property] 0)
       (assoc-in [:properties] [:free :physics :collision :.])
 
@@ -100,7 +100,7 @@
 
 (defn update-world [world elapsed]
   (cond
-    (in? (:mode world) [:simulation :graph :cpu])
+    (in? (:mode world) [:simulation :graph :motherboard])
     (let [world (-> world
                     (set-probe-values)
                     (save-values)
@@ -110,13 +110,13 @@
                                           :weld-groups
                                           :parts))
                     (reverse-collisions)
-                    (update-cpus)
+                    (update-motherboards)
                     )]
       (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)
       world)
 
-    (= (:mode world) :set-value)
+    (= (:mode world) :property)
     (-> world
         (apply-force elapsed)
         (compute-transforms (if (:use-weld-groups world)
@@ -128,8 +128,8 @@
   (doseq [mesh (vals (:background-meshes world))]
     (draw-mesh! world mesh))
 
-  (doseq [mesh (vals (:meshes world))]
-    (draw-mesh! world mesh))
+  ;; (doseq [mesh (vals (:meshes world))]
+  ;;   (draw-mesh! world mesh))
 
   (if (> (get-in world [:camera :x-angle]) 0)
     (draw-mesh! world (:other-ground world)))
@@ -202,7 +202,8 @@
                   :save (save-version world)
                   :load (read-input world load-last-version-callback)
                   :undo (undo! world)
-                  :redo (redo! world))]
+                  :redo (redo! world)
+                  :cancel (cancel-action world))]
       (show-hint world :action region))
     world))
 

@@ -1,6 +1,6 @@
 (defproject temp "0.1.0-SNAPSHOT"
 
-  :dependencies [[org.clojure/clojure "1.10.0"]
+  :dependencies [[org.clojure/clojure "1.10.1"]
                  [org.clojars.nakkaya/vecmath "1"]
                  [org.clojars.nakkaya/jbullet "20101010"]
                  [matrix/matrix "1.0.0"]
@@ -8,6 +8,8 @@
                  ]
   :main ^:skip-aot temp.core
   :target-path "target/%s"
+
+  :jvm-opts ["--illegal-access=deny"]
 
   :resource-paths ["libs/lwjgl.jar"
                    "libs/lwjgl-natives-linux.jar"

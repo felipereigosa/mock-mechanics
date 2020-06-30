@@ -629,6 +629,7 @@
 (defn -main [& args]
   (window-init!)
   (reset! out *out*)
+  nil
   )
 
 (defn create-base-world []

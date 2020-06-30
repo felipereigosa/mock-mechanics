@@ -1,25 +1,22 @@
 
 (ns temp.core)
 
-(do
-1
-
 (defn get-bindings []
   {"C-d" #(change-mode % :debug)
    
    "C-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)
+   ":add c" #(assoc-in % [:add-type] :cylinder)
+   ":add v" #(assoc-in % [:add-type] :cone)
+   ":add s" #(assoc-in % [:add-type] :sphere)
    ":add w" #(assoc-in % [:add-type] :wagon)
    ":add t" #(assoc-in % [:add-type] :track)
    ":add g" #(assoc-in % [:add-type] :chip)
-   ":add c" #(assoc-in % [:add-type] :cpu)
+   ":add m" #(assoc-in % [:add-type] :motherboard)
    ":add p" #(assoc-in % [:add-type] :probe)
-   ":add a" #(assoc-in % [:add-type] :button)
-   ":add s" #(assoc-in % [:add-type] :sphere)
-   ":add h" #(assoc-in % [:add-type] :cylinder)
-   ":add v" #(assoc-in % [:add-type] :cone)
+   ":add S-b" #(assoc-in % [:add-type] :button)
    ":add l" #(assoc-in % [:add-type] :lamp)
-   ":add o" #(assoc-in % [:add-type] :speaker)
+   ":add S-s" #(assoc-in % [:add-type] :speaker)
 
    "C-e" #(change-mode % :edit)
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)
@@ -43,18 +40,18 @@
    ":graph C-x s" #(set-snap-value %)
    ":graph l" #(assoc-in % [:graph-subcommand] :print-lengths)
 
-   "C-q" #(change-mode % :cpu)
-   ":cpu s" #(toggle-script %)
-   ":cpu m" #(assoc-in % [:cpu-subcommand] :move)
-   ":cpu a" #(assoc-in % [:cpu-subcommand] :and)
-   ":cpu o" #(assoc-in % [:cpu-subcommand] :or)
-   ":cpu n" #(assoc-in % [:cpu-subcommand] :not)
-   ":cpu d" #(assoc-in % [:cpu-subcommand] :delete)
-   ":cpu c" #(assoc-in % [:cpu-subcommand] :connect)
-   ":cpu t" #(assoc-in % [:cpu-subcommand] :toggle)
-   ":cpu r" #(assoc-in % [:cpu-subcommand] :run)
-   ":cpu 1" #(assoc-in % [:cpu-subcommand] :on)
-   ":cpu 0" #(assoc-in % [:cpu-subcommand] :off)
+   "C-m" #(change-mode % :motherboard)
+   ":motherboard s" #(toggle-script %)
+   ":motherboard m" #(assoc-in % [:motherboard-subcommand] :move)
+   ":motherboard a" #(assoc-in % [:motherboard-subcommand] :and)
+   ":motherboard o" #(assoc-in % [:motherboard-subcommand] :or)
+   ":motherboard n" #(assoc-in % [:motherboard-subcommand] :not)
+   ":motherboard d" #(assoc-in % [:motherboard-subcommand] :delete)
+   ":motherboard c" #(assoc-in % [:motherboard-subcommand] :connect)
+   ":motherboard t" #(assoc-in % [:motherboard-subcommand] :toggle)
+   ":motherboard r" #(assoc-in % [:motherboard-subcommand] :run)
+   ":motherboard 1" #(assoc-in % [:motherboard-subcommand] :on)
+   ":motherboard 0" #(assoc-in % [:motherboard-subcommand] :off)
 
    "C-c" #(change-mode % :color)
    ":color r" #(assoc-in % [:current-color] :red)
@@ -74,9 +71,9 @@
    ":layer 7" #(set-layer % 7)
    ":layer 8" #(set-layer % 8)
 
-   "C-p" #(change-mode % :physics)
+   "C-x p" #(change-mode % :physics)
 
-   "C-v" #(change-mode % :set-value)
+   "C-p" #(change-mode % :property)
    "C-t" #(change-mode % :toggle)
    "C-s" #(change-mode % :simulation)
 
@@ -92,9 +89,7 @@
    "A-right" #(redo! %)
    })
 
-(set-thing! [:bindings] (get-bindings)))
-
-(defn get-key [code control-pressed alt-pressed]
+(defn get-key [code control-pressed alt-pressed shift-pressed]
   (if-let [name (get-in keymap [code])]
     (let [name (if (keyword? name)
                  (subs (str name) 1)
@@ -102,6 +97,7 @@
       (cond
         control-pressed (str "C-" name)
         alt-pressed (str "A-" name)
+        shift-pressed (str "S-" name)
         :else name))
     nil))
 
@@ -147,6 +143,14 @@
                  (fn [text]
                    (apply str (concat text key)))))))
 
+(defn cancel-action [world]
+  (-> world
+      (assoc-in [:command] "")
+      (assoc-in [:graph-subcommand] :move)
+      (assoc-in [:motherboard-subcommand] :move)
+      (assoc-in [:text] "")
+      (assoc-in [:text-input] false)))
+
 (defn key-pressed [world event]
   (let [key-name (get-in keymap [(:code event)])]
     (cond
@@ -155,18 +159,13 @@
         (= key-name :alt) (assoc-in world [:alt-pressed] true)
 
         (= key-name :esc)
-        (do
-          (-> world
-              (assoc-in [:command] "")
-              (assoc-in [:graph-subcommand] :move)
-              (assoc-in [:cpu-subcommand] :move)
-              (assoc-in [:text] "")
-              (assoc-in [:text-input] false)))
+        (cancel-action world)
 
         :else
         (if-let [key (get-key (:code event)
                               (:control-pressed world)
-                              (:alt-pressed world))]
+                              (:alt-pressed world)
+                              (:shift-pressed world))]
           (cond
             (:text-input world)
             (text-input-key-pressed world event)

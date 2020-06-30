@@ -45,17 +45,17 @@
     rigid-body))
 
 (defn add-body-to-planet [planet body]
-  (.addRigidBody planet body 1 1))
+  (.addRigidBody planet body 1 3))
 
 (defn remove-body [planet body]
   (.removeRigidBody planet body))
 
 (defn create-ground [planet]
-  (add-body-to-planet planet (create-static-plane [0 1 0] 0))
-  (add-body-to-planet planet (create-static-plane [1 0 0] -6))
-  (add-body-to-planet planet (create-static-plane [-1 0 0] -6))
-  (add-body-to-planet planet (create-static-plane [0 0 1] -6))
-  (add-body-to-planet planet (create-static-plane [0 0 -1] -6))
+  (.addRigidBody planet (create-static-plane [0 1 0] 0) 2 1)
+  (.addRigidBody planet (create-static-plane [1 0 0] -6) 2 1)
+  (.addRigidBody planet (create-static-plane [-1 0 0] -6) 2 1)
+  (.addRigidBody planet (create-static-plane [0 0 1] -6) 2 1)
+  (.addRigidBody planet (create-static-plane [0 0 -1] -6) 2 1)
   planet)
 
 (defn create-body [shape mass transform]

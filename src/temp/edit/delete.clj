@@ -16,8 +16,8 @@
     (= part-name (:selected-chip world))
     (dissoc-in world [:selected-chip])
 
-    (= part-name (:selected-cpu world))
-    (dissoc-in world [:selected-cpu])
+    (= part-name (:selected-motherboard world))
+    (dissoc-in world [:selected-motherboard])
 
     :else world))
 

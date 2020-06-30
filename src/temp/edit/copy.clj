@@ -45,9 +45,9 @@
                 (assoc-in connection [:points] new-points)}))
            connections))
 
-(defn fix-cpu-references [cpu copied-parts suffix]
+(defn fix-motherboard-references [motherboard copied-parts suffix]
   (let [pred #(in? % copied-parts)]
-    (-> cpu
+    (-> motherboard
         (update-in [:pins] #(change-keys % suffix pred))
         (update-in [:connections]
                    #(fix-connections % copied-parts suffix)))))
@@ -59,8 +59,8 @@
     (reduce (fn [ps new-name]
               (let [part (get-in ps [new-name])]
                 (case (:type part)
-                  :cpu (update-in ps [new-name]
-                           #(fix-cpu-references % old-names suffix))
+                  :motherboard (update-in ps [new-name]
+                           #(fix-motherboard-references % old-names suffix))
                   :chip (update-in ps [new-name]
                            #(fix-chip-references % old-names suffix))
                   ps)))

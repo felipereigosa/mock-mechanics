@@ -71,7 +71,7 @@
     world))
   
 (defn reverse-collisions [world]
-  (if (= (:mode world) :set-value)
+  (if (= (:mode world) :property)
     world
     (if-let [pairs (get-colliding-pairs world)]
       (let [world (reduce (fn [w pair]

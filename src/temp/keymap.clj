@@ -92,6 +92,3 @@
              GLFW/GLFW_KEY_LEFT_SUPER              :super
              GLFW/GLFW_KEY_RIGHT_SUPER             :super
              })
-
-;; (defn get-key-state [key]
-;;   (GLFW/glfwGetKey @the-window key))

@@ -40,9 +40,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.175"
-     inkscape:cx="-1987.1409"
-     inkscape:cy="780.88736"
+     inkscape:zoom="0.24748737"
+     inkscape:cx="-416.99104"
+     inkscape:cy="508.16787"
      inkscape:document-units="mm"
      inkscape:current-layer="layer2"
      showgrid="false"
@@ -395,7 +395,7 @@
        inkscape:label="#rect817-6-7" />
     <rect
        style="display:inline;opacity:1;fill:#ff0000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="cpu"
+       id="motherboard"
        width="52.160713"
        height="52.160713"
        x="16.536476"
@@ -411,7 +411,7 @@
        inkscape:label="#rect817-5-5" />
     <rect
        style="display:inline;opacity:1;fill:#ff0000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="set-value"
+       id="property"
        width="52.160713"
        height="52.160713"
        x="16.53651"

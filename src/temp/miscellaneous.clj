@@ -54,6 +54,7 @@
 
 (declare delete-all-parts)
 (declare delete-all-spheres)
+(declare create-physics-world)
 
 (defn new-file [world]
   (set-title! "-")  
@@ -64,6 +65,7 @@
       (reset-camera)
       (change-mode :simulation)
       (assoc-in [:visible-layers] [1])
+      (create-physics-world)
       (redraw)))
 
 (defn place-box [world name & {:keys [rx ry wx wy ox oy]}]
@@ -106,10 +108,10 @@
         (place-box :layer-box :wx 0.5 :ry -0.5 :oy oy)
         (place-box :graph-box :wx 0.5 :ry -0.5 :oy (- oy menu-offset))
         (place-box :graph-menu :wx 0.5 :ry -0.5 :oy oy)
-        (place-box :cpu-box :wx 0.5 :ry -0.5 :oy (- oy menu-offset))
-        (place-box :cpu-menu :wx 0.5 :ry -0.5 :oy oy)
+        (place-box :motherboard-box :wx 0.5 :ry -0.5 :oy (- oy menu-offset))
+        (place-box :motherboard-menu :wx 0.5 :ry -0.5 :oy oy)
         (place-box :toggle-box :wx 0.5 :ry -0.5 :oy oy)
-        (place-box :set-value-box :wx 0.5 :ry -0.5 :oy oy)
+        (place-box :property-box :wx 0.5 :ry -0.5 :oy oy)
         )))
 
 (defn point-between-points? [p p1 p2 d]

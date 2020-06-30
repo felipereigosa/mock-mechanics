@@ -111,11 +111,12 @@
     (let [transform (get-in world [:parts track-head-name :transform])
           mesh (:track-head-model world)
           scale (:scale mesh)
-          line (unproject-point world [x y])]
+          line (unproject-point world [x y])
+          collision (get-mesh-collision mesh transform scale line)]
       {:part-name track-head-name
        :track-head true
-       :collision (get-mesh-collision
-                   mesh transform scale line)})
+       :collision collision
+       :distance (second collision)})
     nil))
 
 (defn get-ground-collision [world x y]
@@ -125,6 +126,15 @@
      :point (line-plane-intersection line plane)}))
 
 (defn get-collision [world x y]
-  (or (get-track-head-collision world x y)
-      (get-part-collision world x y)
-      (get-ground-collision world x y)))
+  (let [c-track-head (get-track-head-collision world x y)
+        c-part (get-part-collision world x y)
+        c-ground (get-ground-collision world x y)]
+    (cond
+      (and (nil? c-track-head)
+           (nil? c-part))
+      c-ground
+
+      (distance-comparator (:distance c-track-head)
+                           (:distance c-part)) c-track-head
+      
+      :else c-part)))

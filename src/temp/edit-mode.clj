@@ -57,7 +57,7 @@
                   :copy (copy-mode-moved world event)
                   :scale (scale-mode-moved world event)
                   world)]
-      (edit-children world))))
+      (edit-children world))))    
 
 (defn edit-mode-released [world event]
   (if (:region-pressed world)

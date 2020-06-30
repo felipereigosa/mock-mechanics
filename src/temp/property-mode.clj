@@ -2,7 +2,7 @@
 (ns temp.core)
 
 (defn get-properties [world]
-  (if-let [part-name (:value-part world)]
+  (if-let [part-name (:selected-part world)]
     (let [part (get-in world [:parts part-name])
           properties (get-in world [:info (:type part) :properties])]
       (map (fn [property]
@@ -19,8 +19,11 @@
            (keys properties)))
     []))
 
-(defn set-value-mode-draw [world]
-  (let [box (:set-value-box world)
+(defn property-mode-entered [world]
+  (assoc-in world [:selected-part] nil))
+  
+(defn property-mode-draw [world]
+  (let [box (:property-box world)
         {:keys [x y w h image regions]} box
         properties (get-properties world)
         get-region (fn [name i]
@@ -37,7 +40,7 @@
         (draw-text-in-box! value-text :white 16 value-region)))))
 
 (defn set-part-value [world key]
-  (let [part-name (:value-part world)
+  (let [part-name (:selected-part world)
         part (get-in world [:parts part-name])]
     (read-input world
                 (fn [w text]
@@ -50,7 +53,7 @@
                         (assoc-in w [:parts part-name key] value))))))
 
 (defn set-property [world x y]
-  (if-let [region (get-region-at (:set-value-box world) x y)]
+  (if-let [region (get-region-at (:property-box world) x y)]
     (let [index (read-string (str (last (str region))))
           properties (get-properties world)]
       (if (< index (count properties))
@@ -58,13 +61,13 @@
         world))
     world))
 
-(defn set-value-mode-pressed [world {:keys [x y]}]
-  (if (inside-box? (:set-value-box world) x y)
+(defn property-mode-pressed [world {:keys [x y]}]
+  (if (inside-box? (:property-box world) x y)
     (set-property world x y)
     (let [{:keys [part-name point]} (get-part-collision world x y)
           part (get-in world [:parts part-name])
           world (-> world
-                    (assoc-in [:value-part] part-name)
+                    (assoc-in [:selected-part] part-name)
                     (assoc-in [:press-time] (get-current-time)))]
       (case (:type part)
         :wagon
@@ -107,7 +110,7 @@
         new-value (+ start-value s)]
     (assoc-in world [:parts part-name :value] new-value)))
 
-(defn set-value-mode-moved [world {:keys [x y]}]
+(defn property-mode-moved [world {:keys [x y]}]
   (cond
     (:force world)
     (let [mouse-line (unproject-point world [x y])
@@ -126,13 +129,13 @@
 
     :else world))
 
-(defn set-value-mode-released [world {:keys [x y]}]
-  (let [box (:set-value-box world)
+(defn property-mode-released [world {:keys [x y]}]
+  (let [box (:property-box world)
         world (if (and
                    (not (inside-box? box x y))
                    (< (- (get-current-time) (:press-time world)) 200))
-                (select-part world (:value-part world))
-                (snap-part world (:value-part world)))]
+                (select-part world (:selected-part world))
+                (snap-part world (:selected-part world)))]
     (-> world
         (dissoc-in [:force])
         (dissoc-in [:track-force]))))

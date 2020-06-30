@@ -34,7 +34,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="0.24748737"
-     inkscape:cx="1434.5265"
+     inkscape:cx="1573.9276"
      inkscape:cy="-102.4402"
      inkscape:document-units="mm"
      inkscape:current-layer="layer2"
@@ -811,7 +811,7 @@
        inkscape:label="#rect817-7-4" />
     <rect
        style="fill:#ff0000;fill-opacity:1;stroke:none;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       id="cpu"
+       id="motherboard"
        width="52.160713"
        height="52.160713"
        x="439.74445"
