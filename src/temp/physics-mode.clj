@@ -93,7 +93,9 @@
         world (-> world
                   (assoc-in [:planet] (create-planet))
                   (assoc-in [:sphere-radius] r)
-                  (assoc-in [:sphere-mesh] mesh))]
+                  (assoc-in [:sphere-mesh] mesh)
+                  (assoc-in [:bodies] [])
+                  (assoc-in [:spheres] []))]
     (create-ground (:planet world))
     world))
 

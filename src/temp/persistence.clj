@@ -81,6 +81,10 @@
 
 (declare make-sphere)
 
+(defn inprint [w text]
+  (println! text)
+  w)
+
 (defn load-machine [world filename]
   (let [{:keys [parts camera
                 visible-layers
@@ -92,7 +96,6 @@
                      (make-sphere world position rotation))
                           sphere-transforms))]
     (-> world
-        
         (assoc-in [:parts] parts)
         (assoc-in [:spheres] spheres)
         (assoc-in [:parts :ground-part :transform] (make-transform [0 -0.1 0] [1 0 0 0]))
@@ -129,3 +132,14 @@
                                                (apply max))]
                    (str "." (format "%03d" number))))]
     (load-machine-callback world (str text number))))
+
+;; (do
+;; 1
+
+;; (clear-output!)
+;; (let [world @world
+;;       ]
+;;   (set-thing! [] (load-machine world "resources/machines/mixer.025.clj"))
+;;   ;; (set-thing! [] (load-machine world "resources/machines/decider.011.clj"))
+;;   nil
+;;   ))

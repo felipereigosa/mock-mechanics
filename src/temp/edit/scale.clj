@@ -87,7 +87,7 @@
     (let [adjust-line (:adjust-line world)
           mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point adjust-line mouse-line)
-          grain-size 0.1
+          grain-size (if (:shift-pressed world) 0.5 0.1)
           d (snap-value d grain-size)
           scale (:original-scale world)
           center (:original-center world)
@@ -150,7 +150,7 @@
     (let [adjust-line (:adjust-line world)
           mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point adjust-line mouse-line)
-          grain-size 0.1
+          grain-size (if (:shift-pressed world) 0.5 0.1)
           d (snap-value d grain-size)
           scale (:original-scale world)
           center (:original-center world)
@@ -213,7 +213,7 @@
           center (:original-center world)
           normal (:normal world)]
       (if (vector= (vector-cross-product normal [0 1 0]) [0 0 0])
-        (let [grain-size 0.1
+        (let [grain-size (if (:shift-pressed world) 0.5 0.1)
               d (snap-value d grain-size)
               l1 (+ d (second scale))
               l2 (max l1  0.1)
@@ -225,7 +225,7 @@
               (#(if (float= l1 l2)
                   (move-children % part-name)
                   %))))
-        (let [grain-size 0.05
+        (let [grain-size (if (:shift-pressed world) 0.25 0.05)
               d (snap-value d grain-size)
               d2 (max (+ (first scale) (* d 2)) 0.1)
               new-scale [d2 (second scale) d2]]
@@ -274,12 +274,12 @@
           scale (:original-scale world)
           center (:original-center world)]
       (if (= (:normal world) [0 1 0])
-        (let [grain-size 0.1
+        (let [grain-size (if (:shift-pressed world) 0.5 0.1)
               d (snap-value d grain-size)
               l (max (+ d (second scale)) 0.1)]
           (user-message! (format "height: %.2f" l))
           (set-block-size world part-name scale center [0 l 0]))
-        (let [grain-size 0.05
+        (let [grain-size (if (:shift-pressed world) 0.25 0.05)
               d (snap-value d grain-size)
               d2 (max (+ (first scale) (* d 2)) 0.1)
               new-scale [d2 (second scale) d2]]
@@ -310,7 +310,7 @@
     (let [adjust-line (:adjust-line world)
           mouse-line (unproject-point world [x y])
           d (line-line-closest-point adjust-line mouse-line)
-          grain-size 0.05
+          grain-size (if (:shift-pressed world) 0.25 0.05)
           d (snap-value d grain-size)
           d2 (within (* d 2) 0.1 10)
           new-scale (vec (repeat 3 d2))]

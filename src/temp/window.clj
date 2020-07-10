@@ -183,6 +183,8 @@
     (GLFW/glfwSetWindowFocusCallback window handler)
     handler))
 
+(def last-time (atom (get-current-time)))
+
 (defn loop! [window]
   (try
     (reset! world (create-world))
@@ -198,7 +200,10 @@
       (draw-world! @world)
       (catch Exception e))
     (try
-      (swap! world (fn [w] (update-world w 16)))
+      (let [current-time (get-current-time)
+            elapsed (- current-time @last-time)]
+        (reset! last-time current-time)
+        (swap! world (fn [w] (update-world w elapsed))))
       (catch Exception e))
 
     (GLFW/glfwSwapBuffers window)

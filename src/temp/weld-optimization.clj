@@ -170,6 +170,13 @@
                                               (assoc-in [:parts] names))]
                                  {(first names) mesh}))
                              groups)]
+
+    ;; (dotimes [i 20]
+    ;;   (println! "recomputing..." i)
+    ;;   (if (not= (Thread/currentThread) @the-thread)
+    ;;     (throw (new Exception)))
+    ;;   (sleep 100))
+    
     (-> world
         (compute-root-relative-transforms parts groups)
         (assoc-in [:weld-groups] weld-groups)

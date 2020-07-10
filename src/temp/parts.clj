@@ -352,8 +352,6 @@
                          (assoc-in [:color] (get-color-vector color)))]
             (draw-mesh! world mesh)))))))
 
-(declare save-checkpoint!)
-
 (defn select-part [world part-name]
   (let [part (get-in world [:parts part-name])
         type (:type part)

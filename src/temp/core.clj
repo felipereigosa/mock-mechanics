@@ -110,8 +110,7 @@
                                           :weld-groups
                                           :parts))
                     (reverse-collisions)
-                    (update-motherboards)
-                    )]
+                    (update-motherboards))]
       (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)
       world)

@@ -3,6 +3,10 @@
 
 (defn get-bindings []
   {"C-d" #(change-mode % :debug)
+
+   "C-x A-n" (fn [w]
+               (user-message! "hard reset")
+               (create-world))
    
    "C-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)
@@ -129,6 +133,7 @@
                     (catch Exception e
                       (do
                         (user-message! "invalid input:" (:text world))
+                        (println! ">" e (.getMessage e))
                         world)))]
         (-> world
             (dissoc-in [:text])
