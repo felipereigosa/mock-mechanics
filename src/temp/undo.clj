@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (def undo-ring (atom nil))
 (def undo-index (atom nil))

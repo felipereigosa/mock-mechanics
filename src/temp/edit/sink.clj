@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn sink-mode-pressed [world event]
   (let [x (:x event)

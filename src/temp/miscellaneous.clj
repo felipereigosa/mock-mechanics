@@ -1,11 +1,10 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (declare get-parts-with-type)
 (declare get-tail-transform)
 (declare get-part-position)
 (declare save-version)
-(declare load-last-version-callback)
 (declare undo!)
 (declare redo!)
 (declare show-hint)

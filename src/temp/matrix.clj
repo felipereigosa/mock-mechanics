@@ -1,5 +1,5 @@
 
-(in-ns 'temp.core)
+(ns temp.core (:gen-class))
 
 (import android.opengl.Matrix)
 

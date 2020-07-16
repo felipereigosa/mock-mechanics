@@ -1,6 +1,5 @@
 
-
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (declare compute-subtree-transforms)
   

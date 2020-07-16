@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn get-bindings []
   {"C-d" #(change-mode % :debug)
@@ -86,9 +86,10 @@
               (tree-changed))
    
    "A-c" #(view-all-parts %)
-   "A-s" #(save-version %)
-   "C-x s" #(read-input % save-machine-callback)
-   "A-l" #(read-input % load-last-version-callback)
+
+   "A-s" #(save-machine-version %)
+   "A-o" #(open-machine-version %)
+   
    "A-left" #(undo! %)
    "A-right" #(redo! %)
    })
@@ -149,6 +150,7 @@
                    (apply str (concat text key)))))))
 
 (defn cancel-action [world]
+  (reset! output "")
   (-> world
       (assoc-in [:command] "")
       (assoc-in [:graph-subcommand] :move)

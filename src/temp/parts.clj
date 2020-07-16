@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn create-info []
   {:ground
@@ -20,9 +20,9 @@
     }
 
    :cylinder
-   {:model (create-model-mesh "resources/cylinder.obj"
+   {:model (create-model-mesh "res/cylinder.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :collision-model (create-model-mesh "resources/cylinder-collision.obj"
+    :collision-model (create-model-mesh "res/cylinder-collision.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
@@ -32,10 +32,10 @@
     }
 
    :sphere
-   {:model (create-model-mesh "resources/sphere.obj"
+   {:model (create-model-mesh "res/sphere.obj"
                               [0 0 0] [1 0 0 0]
                               [1 1 1] :white)
-    :collision-model (create-model-mesh "resources/sphere-collision.obj"
+    :collision-model (create-model-mesh "res/sphere-collision.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
@@ -45,9 +45,9 @@
     }
 
    :cone
-   {:model (create-model-mesh "resources/cone.obj"
+   {:model (create-model-mesh "res/cone.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :collision-model (create-model-mesh "resources/cone-collision.obj"
+    :collision-model (create-model-mesh "res/cone-collision.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.5 0.5 0.5]
@@ -79,7 +79,7 @@
     }
 
    :track
-   {:model (create-model-mesh "resources/track.obj"
+   {:model (create-model-mesh "res/track.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0.2 0 0] [-0.2 0 0]
              [0 0.2 0]
@@ -92,9 +92,9 @@
     }
 
    :chip
-   {:model (create-model-mesh "resources/chip.obj"
+   {:model (create-model-mesh "res/chip.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
-    :white-model (create-model-mesh "resources/chip.obj"
+    :white-model (create-model-mesh "res/chip.obj"
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
     :poinpts []
     :scale [0.3 0.07 0.3]
@@ -103,11 +103,11 @@
     }
    
    :speaker
-   {:model (create-model-mesh "resources/speaker.obj"
+   {:model (create-model-mesh "res/speaker.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
-    :white-model (create-model-mesh "resources/speaker.obj"
+    :white-model (create-model-mesh "res/speaker.obj"
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :collision-model (create-model-mesh "resources/cylinder-collision.obj"
+    :collision-model (create-model-mesh "res/cylinder-collision.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.4 0.1 0.4]
@@ -118,9 +118,9 @@
     }
 
    :motherboard
-   {:model (create-model-mesh "resources/motherboard.obj"
+   {:model (create-model-mesh "res/motherboard.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
-    :white-model (create-model-mesh "resources/motherboard.obj"
+    :white-model (create-model-mesh "res/motherboard.obj"
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.3 0.07 0.3]
@@ -130,11 +130,11 @@
     }
 
    :button
-   {:model (create-model-mesh "resources/button.obj"
+   {:model (create-model-mesh "res/button.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
-    :white-model (create-model-mesh "resources/button.obj"
+    :white-model (create-model-mesh "res/button.obj"
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :cap (create-model-mesh "resources/cylinder.obj"
+    :cap (create-model-mesh "res/cylinder.obj"
                             [0 0 0] [1 0 0 0] [0.4 0.2 0.4] :red)
     :points []
     :scale [0.5 0.2 0.5]
@@ -144,13 +144,13 @@
     }
 
    :lamp
-   {:model (create-model-mesh "resources/lamp-base.obj"
+   {:model (create-model-mesh "res/lamp-base.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] nil)
-    :white-model (create-model-mesh "resources/lamp-base.obj"
+    :white-model (create-model-mesh "res/lamp-base.obj"
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :bulb (create-model-mesh "resources/bulb.obj"
+    :bulb (create-model-mesh "res/bulb.obj"
                              [0 0 0] [1 0 0 0] [0.3 0.3 0.3] :red)
-    :collision-model (create-model-mesh "resources/cylinder-collision.obj"
+    :collision-model (create-model-mesh "res/cylinder-collision.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.4 0.2 0.4]

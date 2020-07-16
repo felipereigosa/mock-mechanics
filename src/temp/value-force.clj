@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn get-weld-parent-part [world part-name]
   (let [weld-groups (:weld-groups world)]

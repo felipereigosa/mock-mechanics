@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn get-scaled-transform [scale transform]
   (let [[sx sy sz] scale

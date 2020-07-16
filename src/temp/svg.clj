@@ -1,5 +1,5 @@
 
-(in-ns 'temp.core)
+(ns temp.core (:gen-class))
 
 (import org.apache.batik.transcoder.image.ImageTranscoder)
 (import java.io.FileInputStream)
@@ -107,54 +107,20 @@
                                  :color color}}))
                       rects))))
 
-(defn get-absolute-svg-regions [document box]
-  (let [bx (:x box)
-        by (:y box)
-        bw (:w box)
-        bh (:h box)
-        regions (get-svg-regions document)]
-    (apply merge
-           (map (fn [[name region]]
-                  (let [{:keys [x y w h]} region
-                        region (-> region
-                                   (assoc-in [:x] (+ (* x bw) bx (- (/ bw 2))))
-                                   (assoc-in [:y] (+ (* y bh) by (- (/ bh 2))))
-                                   (assoc-in [:w] (* w bw))
-                                   (assoc-in [:h] (* h bh)))]
-                    {name region}))
-                regions))))
+;; (defn get-absolute-svg-regions [document box]
+;;   (let [bx (:x box)
+;;         by (:y box)
+;;         bw (:w box)
+;;         bh (:h box)
+;;         regions (get-svg-regions document)]
+;;     (apply merge
+;;            (map (fn [[name region]]
+;;                   (let [{:keys [x y w h]} region
+;;                         region (-> region
+;;                                    (assoc-in [:x] (+ (* x bw) bx (- (/ bw 2))))
+;;                                    (assoc-in [:y] (+ (* y bh) by (- (/ bh 2))))
+;;                                    (assoc-in [:w] (* w bw))
+;;                                    (assoc-in [:h] (* h bh)))]
+;;                     {name region}))
+;;                 regions))))
 
-(defn create-picture [filename x y w h]
-  (let [document (read-xml filename)
-        image (if (= w -1)
-                (parse-svg-from-map-with-height document h)
-                (parse-svg-from-map-with-width document w))
-        picture {:x x
-                 :y y
-                 :w (get-image-width image)
-                 :h (get-image-height image)
-                 :image image}
-        regions (get-svg-regions document)]
-    (assoc-in picture [:regions] regions)))
-
-(defn get-absolute-region [region box]
-  (let [bx (:x box)
-        by (:y box)
-        bw (:w box)
-        bh (:h box)
-        {:keys [x y w h]} region]
-    (-> region
-        (assoc-in [:x] (+ (* x bw) bx (- (/ bw 2))))
-        (assoc-in [:y] (+ (* y bh) by (- (/ bh 2))))
-        (assoc-in [:w] (* w bw))
-        (assoc-in [:h] (* h bh)))))
-
-(defn get-region-at [picture x y]
-  (first (find-if (fn [[name region]]
-                    (inside-box? (get-absolute-region region picture) x y))
-                  (:regions picture))))
-
-
-
-    
-  

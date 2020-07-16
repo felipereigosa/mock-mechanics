@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn get-properties [world]
   (if-let [part-name (:selected-part world)]

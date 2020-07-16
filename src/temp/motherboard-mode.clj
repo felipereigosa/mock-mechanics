@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn snap-point [[x y]]
   [(snap-value x 10)
@@ -152,11 +152,9 @@
         inputs (get-sorted-pin-list world motherboard-name :input)
         outputs (get-sorted-pin-list world motherboard-name :output)
         filename (:script motherboard)]
-    (if-let [text (try
-                    (read-string (str "(script" (slurp filename) ")"))
-                    (catch Exception e
-                      (user-message! "eof found on script")))]
-      (let [code (process-code text inputs outputs)]
+    (try
+      (let [text (read-string (slurp filename))
+            code (process-code text inputs outputs)]
         (.start
          (new Thread
               (proxy [Runnable] []
@@ -164,8 +162,9 @@
                   (try
                     ((eval code) pin-name)
                     (catch Exception e
-                      (do
-                        (user-message! "script failed"))))))))))
+                      (user-message! "script failed"))))))))
+      (catch Exception e
+        (user-message! "script failed")))
     world))
 
 (defn pin-value-changed [world motherboard-name pin-name]
@@ -549,7 +548,7 @@
       (dissoc-in world [:parts selected-motherboard :script])
       (read-input world
                   #(assoc-in %1 [:parts selected-motherboard :script]
-                             (str "resources/scripts/" %2 ".clj"))))
+                             (str "machines/" %2 ".clj"))))
     world))
 
 (defn change-component [world value {:keys [x y]}]

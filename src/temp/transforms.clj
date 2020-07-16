@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (import javax.vecmath.Matrix4f)
 (import javax.vecmath.Quat4f)

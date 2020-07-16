@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (import [com.bulletphysics.collision.dispatch DefaultCollisionConfiguration
          CollisionDispatcher])
@@ -87,7 +87,7 @@
 (defn create-physics-world [world]
   (let [r 0.2
         d (* r 2)
-        mesh (create-model-mesh "resources/physical-sphere.obj"
+        mesh (create-model-mesh "res/physical-sphere.obj"
                                 [0 0 0] [1 0 0 0]
                                 [d d d] nil)
         world (-> world
@@ -220,4 +220,3 @@
   (if-let [sphere (get-sphere-at world x y)]
     (delete-sphere world sphere)
     (add-sphere world x y)))
-

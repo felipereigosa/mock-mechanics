@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (declare move-part-pressed)
 (declare move-part-moved)

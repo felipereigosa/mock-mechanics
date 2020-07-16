@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (import org.lwjgl.glfw.GLFW)
 (import org.lwjgl.system.MemoryUtil)
@@ -201,7 +201,8 @@
       (catch Exception e))
     (try
       (let [current-time (get-current-time)
-            elapsed (- current-time @last-time)]
+            elapsed (- current-time @last-time)
+            ]
         (reset! last-time current-time)
         (swap! world (fn [w] (update-world w elapsed))))
       (catch Exception e))
@@ -329,8 +330,8 @@
   (keyword (apply str (clojure.string/replace name #"_" "-"))))
 
 (defn create-program [base-name]
-  (let [v-name (str "resources/" base-name "-vert.glsl")
-        f-name (str "resources/" base-name "-frag.glsl")
+  (let [v-name (str "res/" base-name "-vert.glsl")
+        f-name (str "res/" base-name "-frag.glsl")
         index (compile-program v-name f-name)
         attribute-names (get-attribute-names index)
         uniform-names (get-uniform-names index)
@@ -964,7 +965,7 @@
         texture-line (find-line lines "map_Kd")]
     {name {:diffuse (parse-line (find-line lines "Kd"))
            :texture (if texture-line
-                      (str "resources/" (subs texture-line 7)))}}))
+                      (str "res/" (subs texture-line 7)))}}))
 
 (defn parse-materials [filename]
   (with-open [reader (clojure.java.io/reader filename)]

@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn set-object-color [world x y]
   (let [[r g b] (get-in world [:color-palette :regions

@@ -1,5 +1,6 @@
 
-(in-ns 'temp.core)
+(ns temp.core (:gen-class))
+
 (import java.awt.Color)
 
 (require '[clojure.set :refer [difference union map-invert]])

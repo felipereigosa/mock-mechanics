@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn set-block-size [world block-name original-scale
                       original-center increase]

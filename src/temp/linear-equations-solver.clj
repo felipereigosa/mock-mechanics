@@ -1,4 +1,5 @@
-(in-ns 'temp.core)
+
+(ns temp.core (:gen-class))
 
 (defn get-row [matrix n]
   (nth matrix n))

@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (import '(javax.sound.midi MidiSystem Synthesizer))
 

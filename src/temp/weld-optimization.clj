@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (declare get-parts-with-type)
 (declare get-tail-transform)

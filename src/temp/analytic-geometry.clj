@@ -1,5 +1,5 @@
 
-(in-ns 'temp.core)
+(ns temp.core (:gen-class))
 
 (defn line-get-point [[pl vl] k]
   (vector-add pl (vector-multiply vl k)))

@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn get-tree-with-root [parts root-name]
   (let [root (get-in parts [root-name])

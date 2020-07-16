@@ -1,5 +1,8 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
+
+(declare get-body-transform)
+(declare make-sphere)
 
 (defn get-simple-transform [transform]
   {:position (get-transform-position transform)
@@ -50,10 +53,31 @@
         (modify-field :color get-complex-color)
         (assoc-in [:children] children))))
 
-(declare get-body-transform)
+(defn extract-number [name]
+  (let [r-index (.indexOf name "_")
+        l-index (.indexOf name "." (inc r-index))]
+    (if (= l-index -1)
+      nil
+      (parse-int (subs name (inc r-index) l-index)))))
 
-(defn save-machine! [world filename]
-  (let [parts (map-map (fn [[name part]]
+(defn get-last-version-filename [root-name]
+  (let [all-filenames (get-files-at "machines/")
+        filenames (filter #(.startsWith % (str root-name "_"))
+                          all-filenames)
+        number (->> (map extract-number filenames)
+                    (apply max))]
+    (str "machines/" root-name "_" (format "%03d" number) ".mch")))
+
+(defn increment-filename [filename]
+  (let [number (extract-number filename)
+        prefix (subs filename 0 (.lastIndexOf filename "_"))]
+    (str prefix "_" (format "%03d" (inc number)) ".mch")))
+
+(defn save-machine [world text]
+  (let [filename (if (:last-saved-machine world)
+                   (increment-filename (get-last-version-filename text))
+                   (str "machines/" text "_000.mch"))
+        parts (map-map (fn [[name part]]
                          {name (get-simple-part part)})
                        (:parts world))
         sphere-transforms (vec (map (comp get-simple-transform get-body-transform)
@@ -61,85 +85,49 @@
     (spit filename {:parts parts
                     :camera (:camera world)
                     :visible-layers (:visible-layers world)
-                    :sphere-transforms sphere-transforms})))
-
-(defn save-machine-callback [world text]
-  (save-machine! world (str "resources/machines/" text ".clj"))
-  (user-message! "saved machine" text)
-  (set-title! text)
-  (assoc-in world [:last-saved-machine] text))
-
-(defn save-version [world]
-  (if-let [last-saved (:last-saved-machine world)]
-    (let [[root number] (split last-saved #"\.")
-          number (if (nil? number)
-                   0
-                   (parse-int number))
-          new-name (str root "." (format "%03d" (inc number)))]
-      (save-machine-callback world new-name))
-    (read-input world save-machine-callback)))
-
-(declare make-sphere)
-
-(defn inprint [w text]
-  (println! text)
-  w)
-
-(defn load-machine [world filename]
-  (let [{:keys [parts camera
-                visible-layers
-                sphere-transforms]} (read-string (slurp filename))
-        parts (map-map (fn [[name part]]
-                         {name (get-complex-part part (:info world))})
-                       parts)
-        spheres (vec (map (fn [{:keys [position rotation]}]
-                     (make-sphere world position rotation))
-                          sphere-transforms))]
-    (-> world
-        (assoc-in [:parts] parts)
-        (assoc-in [:spheres] spheres)
-        (assoc-in [:parts :ground-part :transform] (make-transform [0 -0.1 0] [1 0 0 0]))
-        (assoc-in [:camera] camera)
-        (assoc-in [:visible-layers] (or visible-layers [1]))
-        (compute-camera)
-        (create-weld-groups)
-        (save-checkpoint!)
-        (assoc-in [:use-weld-groups] true))))
-
-(defn load-machine-callback [world text]
-  (let [world (-> world
-                  (new-file)
-                  (load-machine (str "resources/machines/"
-                                     text ".clj")))]
-    (user-message! "loaded machine" text)
+                    :sphere-transforms sphere-transforms})
+    (user-message! "saved machine" filename)
     (set-title! text)
     (assoc-in world [:last-saved-machine] text)))
 
-(defn extract-number [name]
-  (let [r-index (.indexOf name ".")
-        l-index (.indexOf name "." (inc r-index))]
-    (if (= l-index -1)
-      nil
-      (parse-int (subs name (inc r-index) l-index)))))
+(defn save-machine-version [world]
+  (if-let [root-name (:last-saved-machine world)]
+    (save-machine world root-name)
+    (read-input world #(save-machine %1 %2))))
 
-(defn load-last-version-callback [world text]
-  (let [all-files (get-files-at "resources/machines")
-        text-files (filter #(.startsWith % text) all-files)
-        number (if (= (count text-files) 1)
-                 ""
-                 (let [number (->> (map extract-number text-files)
-                                               (filter not-nil?)
-                                               (apply max))]
-                   (str "." (format "%03d" number))))]
-    (load-machine-callback world (str text number))))
+(defn create-spheres [world sphere-transforms]
+  (assoc-in world [:spheres]
+            (vec (map (fn [{:keys [position rotation]}]
+                        (make-sphere world position rotation))
+                      sphere-transforms))))
 
-;; (do
-;; 1
+(defn open-machine [world text]
+  (try
+    (let [filename (get-last-version-filename text)
+          {:keys [parts camera
+                  visible-layers
+                  sphere-transforms]} (read-string (slurp filename))
+          parts (map-map (fn [[name part]]
+                           {name (get-complex-part part (:info world))})
+                         parts)
+          world (-> world
+                    (new-file)
+                    (assoc-in [:parts] parts)
+                    (create-spheres sphere-transforms)
+                    (assoc-in [:parts :ground-part :transform] (make-transform [0 -0.1 0] [1 0 0 0]))
+                    (assoc-in [:camera] camera)
+                    (assoc-in [:visible-layers] (or visible-layers [1]))
+                    (compute-camera)
+                    (create-weld-groups)
+                    (save-checkpoint!)
+                    (assoc-in [:use-weld-groups] true)
+                    (assoc-in [:last-saved-machine] text))]
+      (user-message! "opened machine" filename)
+      (set-title! text)
+      world)
+    (catch Exception e
+      (user-message! "cannot open" text)
+      world)))
 
-;; (clear-output!)
-;; (let [world @world
-;;       ]
-;;   (set-thing! [] (load-machine world "resources/machines/mixer.025.clj"))
-;;   ;; (set-thing! [] (load-machine world "resources/machines/decider.011.clj"))
-;;   nil
-;;   ))
+(defn open-machine-version [world]
+  (read-input world #(open-machine %1 %2)))

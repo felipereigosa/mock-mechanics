@@ -1,5 +1,5 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn get-block-plane [block normal]
   (let [transform (:transform block)

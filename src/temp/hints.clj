@@ -1,11 +1,11 @@
 
-(ns temp.core)
+(ns temp.core (:gen-class))
 
 (defn show-hint [world menu action]
   (let [texts {:action {:new "Alt + N,New File"
                         :view "Alt + C,Reset Camera"
                         :save "Alt + S,Save"
-                        :load "Alt + L,Load"
+                        :open "Alt + O,Open"
                         :undo "Alt + ←,Undo"
                         :redo "Alt + →,Redo"
                         :cancel "Esc,Cancel Action"
