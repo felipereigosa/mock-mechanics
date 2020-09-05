@@ -50,7 +50,10 @@
                                 (/ value
                                    (reduce + (:track-lengths part)))
                                 value)]
-                        (assoc-in w [:parts part-name key] value))))))
+                    (-> w
+                        (assoc-in [:parts part-name key] value)
+                        (tree-changed)))))))
+
 
 (defn set-property [world x y]
   (if-let [region (get-region-at (:property-box world) x y)]
@@ -68,7 +71,8 @@
           part (get-in world [:parts part-name])
           world (-> world
                     (assoc-in [:selected-part] part-name)
-                    (assoc-in [:press-time] (get-current-time)))]
+                    (assoc-in [:press-time] (get-current-time))
+                    (tree-will-change))]
       (case (:type part)
         :wagon
         (let [transform (:transform part)
@@ -138,4 +142,5 @@
                 (snap-part world (:selected-part world)))]
     (-> world
         (dissoc-in [:force])
-        (dissoc-in [:track-force]))))
+        (dissoc-in [:track-force])
+        (tree-changed))))

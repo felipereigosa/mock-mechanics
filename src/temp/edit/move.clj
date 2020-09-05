@@ -5,14 +5,18 @@
   (let [transform (:transform block)
         rotation-transform (get-rotation-component transform)
         inverse-rotation (get-inverse-transform rotation-transform)
-        normal (vector-normalize (apply-transform inverse-rotation normal))
+        local-normal (vector-normalize (apply-transform inverse-rotation normal))
         [a1 a2] (map #(apply-transform rotation-transform %)
-                     (filter #(float= 0.0 (vector-dot-product % normal))
+                     (filter #(float= 0.0 (vector-dot-product % local-normal))
                              [[1 0 0] [0 1 0] [0 0 1]]))
+        n2 (vector-cross-product a2 a1)
+        [a1 a2] (if (neg? (vector-dot-product normal n2))
+                  [a2 a1]
+                  [a1 a2])
         a (vector-add
            (get-transform-position transform)
            (apply-transform rotation-transform
-                            (map #(* %1 %2 0.5) normal
+                            (map #(* %1 %2 0.5) local-normal
                                  (:scale block))))
         b (vector-add a a1)
         c (vector-add a a2)]
@@ -41,17 +45,18 @@
         parent-name (get-parent-part world part-name)
         parent (get-in world [:parts parent-name])
                 offset (vector-subtract part-position point)
-        plane (case (:type parent)
+        original-plane (case (:type parent)
                 :ground [[0.25 0 0.25] [1.25 0 0.25] [0.25 0 1.25]]
                 :track (get-track-plane parent)
                 (get-block-plane parent vy))
-        y-offset (vector-multiply vy (point-plane-distance point plane))
-        plane (map #(vector-add % y-offset) plane)
+        y-offset (vector-multiply vy (point-plane-distance point original-plane))
+        plane (map #(vector-add % y-offset) original-plane)
         xz-offset (vector-subtract offset (vector-project offset vy))
         plane (map #(vector-subtract % xz-offset) plane)]
     (-> world
         (assoc-in [:edited-part] part-name)
         (assoc-in [:plane] plane)
+        (assoc-in [:original-plane] original-plane)
         (assoc-in [:offset] offset))))
 
 (defn move-part-moved [world {:keys [x y]} & {:keys [grain]}]
@@ -66,8 +71,15 @@
                            0.05))
           point (get-normalized-plane-point plane point grain-size)
           v (vector-subtract point (first plane))
-          point (vector-add point offset)]
-      (user-message! "move:" (vec (map #(format "%.2f" %) v)))
+          point (vector-add point offset)
+          [a b c] (:original-plane world)
+          v1 (vector-subtract b a)
+          v2 (vector-subtract c a)
+          v (vector-subtract point a)
+          ox (vector-scalar-projection v v1)
+          oy (vector-scalar-projection v v2)]
+      (user-message! "x = " (format "%.2f" ox)
+                     ", y = " (format "%.2f" oy))      
       (update-in world [:parts part-name]
                  #(set-part-position % point)))
     world))

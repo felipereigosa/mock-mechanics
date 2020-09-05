@@ -73,5 +73,5 @@
                   world)]
       (if (and (:control-pressed world)
                (in? (:edit-subcommand world) [:copy :translate]))
-        world
+        (assoc-in world [:use-weld-groups] true)
         (tree-changed world)))))

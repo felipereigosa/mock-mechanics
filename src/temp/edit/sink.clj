@@ -25,10 +25,20 @@
   (if-let [part-name (:edited-part world)]
     (let [mouse-line (unproject-point world [(:x event) (:y event)])
           d (line-line-closest-point (:sink-line world) mouse-line)
-          grain-size 0.05
+          grain-size (if (:shift-pressed world)
+                       0.25
+                       0.05)
           d (* grain-size (round (/ d grain-size)))
           snapped-position (vector-add (line-get-point (:sink-line world) d)
-                                       (:offset world))]
+                                       (:offset world))
+          part (get-in world [:parts part-name])
+          parent-name (get-parent-part world part-name)
+          parent (get-in world [:parts parent-name])
+          vy (apply-rotation (:transform part) [0 1 0])
+          plane (get-block-plane parent vy)
+          h (- (point-plane-distance snapped-position plane)
+               (get-part-offset part))]
+      (user-message! "height = " (format "%.2f" h))
       (-> world
           (update-in [:parts part-name]
                      #(set-part-position % snapped-position))

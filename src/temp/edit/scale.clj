@@ -332,7 +332,7 @@
         :cone (scale-cone-pressed world event)
         :sphere (scale-sphere-pressed world event)
         (do
-          (user-message! "can't scale" (no-colon type))
+          (user-message! "can't scale" (kw->str type))
           world)))
     world))
 

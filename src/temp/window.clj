@@ -59,9 +59,9 @@
 (defn window-changed [world event] world)
 (defn window-focused [world focused] world)
 
-;;###########################################
-(def window-width (atom 640))
-(def window-height (atom 480))
+(def window-width (atom 800))
+(def window-height (atom 600))
+(def time-since-update (atom 0))
 
 (defn recompute-viewport [world width height]
   (let [projection-matrix (get-perspective-matrix
@@ -100,11 +100,13 @@
                           (= action GLFW/GLFW_PRESS)
                           (try
                             (swap! world (fn [w] (key-pressed w {:code key})))
+                            (reset! time-since-update 0)
                             (catch Exception e))
 
                           (= action GLFW/GLFW_RELEASE)
                           (try
                             (swap! world (fn [w] (key-released w {:code key})))
+                            (reset! time-since-update 0)
                             (catch Exception e)))))]
 
     (GLFW/glfwSetKeyCallback window key-handler)
@@ -116,16 +118,19 @@
                           (let [event {:x @mouse-x
                                        :y @mouse-y
                                        :button (get-button-name button)}]
-                            (reset! mouse-button (get-button-name button))
                             (cond
                               (= action GLFW/GLFW_PRESS)
                               (try
+                                (reset! mouse-button (get-button-name button))
                                 (swap! world (fn [w] (mouse-pressed w event)))
+                                (reset! time-since-update 0)
                                 (catch Exception e))
 
                               (= action GLFW/GLFW_RELEASE)
                               (try
                                 (swap! world (fn [w] (mouse-released w event)))
+                                (reset! mouse-button nil)
+                                (reset! time-since-update 0)
                                 (catch Exception e))))))]
 
     (GLFW/glfwSetMouseButtonCallback window mouse-handler)
@@ -141,8 +146,11 @@
                                           (fn [w]
                                             (mouse-moved w {:x x :y y
                                                             :button @mouse-button})))
+                                   (when (or @mouse-button
+                                             (and (= (:mode @world) :add)
+                                                  (= (:add-type @world) :track)))
+                                     (reset! time-since-update 0))
                                    (catch Exception e))))]
-
     (GLFW/glfwSetCursorPosCallback window mouse-motion-handler)
     mouse-motion-handler))
 
@@ -155,6 +163,7 @@
                                             (mouse-scrolled w {:x @mouse-x
                                                                :y @mouse-y
                                                                :amount y})))
+                                   (reset! time-since-update 0)
                                    (catch Exception e))))]
 
     (GLFW/glfwSetScrollCallback window mouse-scroll-handler)
@@ -168,6 +177,7 @@
                              (fn [w]
                                (window-changed w {:width width
                                                   :height height})))
+                      (reset! time-since-update 0)
                       (catch Exception e))))]
     (GLFW/glfwSetWindowSizeCallback window handler)
     handler))
@@ -185,30 +195,61 @@
 
 (def last-time (atom (get-current-time)))
 
+(defn chip-active? [world chip-name]
+  (let [elapsed 16 ;;#########################################
+        dt (float (/ elapsed 1000))
+        chip (get-in world [:parts chip-name])]
+    (not (>= (:time chip) (+ (:final-time chip)) dt))))
+
+(declare get-parts-with-type)
+
+(defn any-chip-active? [world]
+  (let [chip-names (get-parts-with-type (:parts world) :chip)]
+    (some #(chip-active? world %) chip-names)))
+
+(defn update-and-draw! [window]
+  (try ;;####################################################
+    (run-pending!)
+    (catch Exception e))
+  
+  (if (or (< @time-since-update 200)
+          (not (empty? (:spheres @world)))
+          (not (nil? (:force @world))))
+    (let [current-time (get-current-time)
+          elapsed (within (- current-time @last-time) 0 40)]
+      ;; (println "update" (rand)) ;;#######################
+      (reset! last-time current-time)
+      (GL11/glClear (bit-or GL11/GL_COLOR_BUFFER_BIT
+                            GL11/GL_DEPTH_BUFFER_BIT))
+      (try
+        (draw-world! @world)
+        (catch Exception e))
+      (try
+        (swap! world (fn [w] (update-world w elapsed)))
+        (catch Exception e))
+
+      (GLFW/glfwSwapBuffers window)
+
+      (swap! time-since-update #(+ elapsed %))
+
+      (if (and (in? (:mode @world) [:simulation :graph :motherboard])
+               (any-chip-active? @world))
+        (reset! time-since-update 0))
+      )
+    (sleep 5))
+  
+  (GLFW/glfwPollEvents)
+  )
+
 (defn loop! [window]
   (try
     (reset! world (create-world))
     (catch Exception e))
 
+  (reset! time-since-update 0)
+  
   (while (not (GLFW/glfwWindowShouldClose window))
-    (GL11/glClear (bit-or GL11/GL_COLOR_BUFFER_BIT
-                          GL11/GL_DEPTH_BUFFER_BIT))
-    (try
-      (run-pending!)
-      (catch Exception e))
-    (try
-      (draw-world! @world)
-      (catch Exception e))
-    (try
-      (let [current-time (get-current-time)
-            elapsed (- current-time @last-time)
-            ]
-        (reset! last-time current-time)
-        (swap! world (fn [w] (update-world w elapsed))))
-      (catch Exception e))
-
-    (GLFW/glfwSwapBuffers window)
-    (GLFW/glfwPollEvents)))
+    (update-and-draw! window)))
 
 (def the-window (atom nil))
 
@@ -219,10 +260,10 @@
     (GLFW/glfwWindowHint GLFW/GLFW_VISIBLE GLFW/GLFW_FALSE)
     (GLFW/glfwWindowHint GLFW/GLFW_RESIZABLE GLFW/GLFW_TRUE)
     (GLFW/glfwWindowHint GLFW/GLFW_SAMPLES 8)
-    (GLFW/glfwWindowHint GLFW/GLFW_MAXIMIZED GLFW/GLFW_TRUE)
+    (GLFW/glfwWindowHint GLFW/GLFW_MAXIMIZED GLFW/GLFW_FALSE)
 
-    (let [width 640
-          height 480
+    (let [width @window-width
+          height @window-height
           window (GLFW/glfwCreateWindow width height "-"
                                         MemoryUtil/NULL MemoryUtil/NULL)]
 
@@ -256,6 +297,9 @@
 
 (defn set-title! [text]
   (GLFW/glfwSetWindowTitle @the-window text))
+
+(defn set-window-size! [width height]
+  (GLFW/glfwSetWindowSize @the-window width height))
 
 (defmacro gl-thread [form]
   `(reset! to-run (fn [] ~form)))
@@ -595,18 +639,6 @@
     (gl-thread (reset-texture mesh))
     nil))
 
-(defn clear-top! []
-  (let [mesh (get-in @world [:ortho-mesh])
-        image (:image mesh)
-        g (get-image-graphics image)
-        w (get-image-width image)
-        h (get-image-height image)]
-    (.setComposite g (AlphaComposite/getInstance AlphaComposite/CLEAR))
-    (.fillRect g 0 0 w (- h 100))
-    (.setComposite g (AlphaComposite/getInstance AlphaComposite/SRC_OVER))
-    (gl-thread (reset-texture mesh)))
-  nil)
-
 (def redraw-flag (atom true))
 
 (defn draw-world! [world]
@@ -615,7 +647,6 @@
     (catch Exception e))
 
   (when @redraw-flag
-    (clear-top!)
     (try
       (draw-2d! world)
       (catch Exception e))
@@ -626,11 +657,23 @@
   )
 
 (defn redraw! []
+  (reset! time-since-update 0)
   (reset! redraw-flag true))
-
+  
 (defn redraw [world]
+  (reset! time-since-update 0)
   (reset! redraw-flag true)
   world)
+
+(defn redraw-after-delay! [delay]
+  (.start
+   (new Thread
+        (proxy [Runnable] []
+          (run []
+            (try
+              (sleep delay)
+              (redraw!)
+              (catch Exception e)))))))
 
 (defn -main [& args]
   (window-init!)
@@ -647,7 +690,7 @@
   (-> {}
       (assoc-in [:programs :basic] (create-program "basic"))
       (assoc-in [:programs :flat] (create-program "flat"))
-      (assoc-in [:programs :textured] (create-program "textured"))
+      (assoc-in [:programs :textured] (create-program "flat"))
       (assoc-in [:programs :ortho] (create-program "ortho"))
       (assoc-in [:programs :colored] (create-program "colored"))
       (recompute-viewport @window-width @window-height)
@@ -659,7 +702,6 @@
   (gl-thread
    (try
      (reset! world (create-world))
-     (redraw!)
      (catch Exception e))))
 
 (defn set-mesh-position [mesh position]
@@ -906,7 +948,10 @@
 
 (defn create-mesh [vertices position rotation
                    scale skin tex-coords normals]
-  (let [vertices (vec (flatten vertices))
+  (let [scale (if (vector? scale)
+                scale
+                (vec (repeat 3 scale)))
+        vertices (vec (flatten vertices))
         normals (if (empty? normals)
                   (vec (compute-normals vertices))
                   (vec (flatten normals)))
@@ -920,15 +965,16 @@
       (string? skin)
       (let [texture-id (GL11/glGenTextures)
             tex-coords (vec (flatten tex-coords))]
-        (-> base-mesh
-            (assoc-in [:draw-fn] draw-textured-mesh!)
-            (assoc-in [:program] :textured)
-            (assoc-in [:image] (open-image skin))
-            (assoc-in [:texture-file] skin)
-            (assoc-in [:texture-coordinates] tex-coords)
-            (assoc-in [:texture-coordinates-buffer] (get-float-buffer tex-coords))
-            (assoc-in [:texture-id] texture-id)
-            (set-texture)))
+        ;; (-> base-mesh
+        ;;     (assoc-in [:draw-fn] draw-textured-mesh!)
+        ;;     (assoc-in [:program] :textured)
+        ;;     (assoc-in [:image] (open-image skin))
+        ;;     (assoc-in [:texture-file] skin)
+        ;;     (assoc-in [:texture-coordinates] tex-coords)
+        ;;     (assoc-in [:texture-coordinates-buffer] (get-float-buffer tex-coords))
+        ;;     (assoc-in [:texture-id] texture-id)
+        ;;     (set-texture))
+        )
 
       (sequential? skin)
       (let [colors (vec (flatten skin))]

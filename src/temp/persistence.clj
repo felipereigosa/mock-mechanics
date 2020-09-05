@@ -86,7 +86,7 @@
                     :camera (:camera world)
                     :visible-layers (:visible-layers world)
                     :sphere-transforms sphere-transforms})
-    (user-message! "saved machine" filename)
+    (user-message! "saved " filename)
     (set-title! text)
     (assoc-in world [:last-saved-machine] text)))
 
@@ -122,7 +122,7 @@
                     (save-checkpoint!)
                     (assoc-in [:use-weld-groups] true)
                     (assoc-in [:last-saved-machine] text))]
-      (user-message! "opened machine" filename)
+      (user-message! "opened " filename)
       (set-title! text)
       world)
     (catch Exception e

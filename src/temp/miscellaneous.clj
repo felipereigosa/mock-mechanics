@@ -56,7 +56,7 @@
 (declare create-physics-world)
 
 (defn new-file [world]
-  (set-title! "-")  
+  (set-title! "-")
   (-> world
       (dissoc-in [:last-saved-machine])
       (delete-all-parts)

@@ -8,13 +8,13 @@
       (let [part (get-in world [:parts part-name])]
         (-> world
             (assoc-in [:edited-part] part-name)
-            (assoc-in [:start-point] [x y])
+            (assoc-in [:edit-start-point] [x y])
             (assoc-in [:original-transform] (:transform part))))
       world)))
 
 (defn rotate-mode-moved [world event]
   (if-let [part-name (:edited-part world)]
-    (let [dx (/ (- (:x event) (first (:start-point world)))
+    (let [dx (/ (- (:x event) (first (:edit-start-point world)))
                 (:window-width world))
           grain (if (:shift-pressed world)
                   15
@@ -23,6 +23,7 @@
           rotation (make-transform [0 0 0] [0 1 0 angle])
           original-transform (:original-transform world)          
           transform (combine-transforms rotation original-transform)]
+      (user-message! "angle = " (format "%.2f" (float angle)))
       (-> world
           (assoc-in [:parts part-name :transform] transform)
           (assoc-in [:rotation-angle] angle)))

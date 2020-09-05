@@ -2,13 +2,7 @@
 (ns temp.core (:gen-class))
 
 (defn get-bindings []
-  {"C-d" #(change-mode % :debug)
-
-   "C-x A-n" (fn [w]
-               (user-message! "hard reset")
-               (create-world))
-   
-   "C-a" #(change-mode % :add)
+  {"A-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)
    ":add c" #(assoc-in % [:add-type] :cylinder)
    ":add v" #(assoc-in % [:add-type] :cone)
@@ -20,31 +14,29 @@
    ":add p" #(assoc-in % [:add-type] :probe)
    ":add S-b" #(assoc-in % [:add-type] :button)
    ":add l" #(assoc-in % [:add-type] :lamp)
-   ":add S-s" #(assoc-in % [:add-type] :speaker)
+   ":add S-l" #(assoc-in % [:add-type] :speaker)
 
-   "C-e" #(change-mode % :edit)
+   "A-e" #(change-mode % :edit)
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)
    ":edit s" #(assoc-in % [:edit-subcommand] :scale)
    ":edit m" #(assoc-in % [:edit-subcommand] :move)
    ":edit t" #(assoc-in % [:edit-subcommand] :translate)
    ":edit c" #(assoc-in % [:edit-subcommand] :copy)
    ":edit r" #(assoc-in % [:edit-subcommand] :rotate)
-   ":edit v" #(assoc-in % [:edit-subcommand] :sink)          
+   ":edit h" #(assoc-in % [:edit-subcommand] :sink)          
 
-   "C-g" #(change-mode % :graph)
+   "A-g" #(change-mode % :graph)
    ":graph m" #(assoc-in % [:graph-subcommand] :move)
    ":graph x" #(assoc-in % [:graph-subcommand] :set-x)
    ":graph y" #(assoc-in % [:graph-subcommand] :set-y)
-   ":graph C-x x" #(assoc-in % [:graph-subcommand] :set-both)
    ":graph a" #(assoc-in % [:graph-subcommand] :add)
    ":graph d" #(assoc-in % [:graph-subcommand] :delete)
    ":graph r" #(run-selected-chip %)
    ":graph t" #(assoc-in % [:graph-subcommand] :toggle-relative)
    ":graph v" #(reset-graph-view %)
-   ":graph C-x s" #(set-snap-value %)
    ":graph l" #(assoc-in % [:graph-subcommand] :print-lengths)
 
-   "C-m" #(change-mode % :motherboard)
+   "A-m" #(change-mode % :motherboard)
    ":motherboard s" #(toggle-script %)
    ":motherboard m" #(assoc-in % [:motherboard-subcommand] :move)
    ":motherboard a" #(assoc-in % [:motherboard-subcommand] :and)
@@ -54,10 +46,8 @@
    ":motherboard c" #(assoc-in % [:motherboard-subcommand] :connect)
    ":motherboard t" #(assoc-in % [:motherboard-subcommand] :toggle)
    ":motherboard r" #(assoc-in % [:motherboard-subcommand] :run)
-   ":motherboard 1" #(assoc-in % [:motherboard-subcommand] :on)
-   ":motherboard 0" #(assoc-in % [:motherboard-subcommand] :off)
 
-   "C-c" #(change-mode % :color)
+   "A-c" #(change-mode % :color)
    ":color r" #(assoc-in % [:current-color] :red)
    ":color g" #(assoc-in % [:current-color] :green)
    ":color b" #(assoc-in % [:current-color] :blue)
@@ -65,7 +55,7 @@
    ":color w" #(assoc-in % [:current-color] :white)
    ":color d" #(assoc-in % [:current-color] :black)
 
-   "C-l" #(change-mode % :layer)
+   "A-l" #(change-mode % :layer)
    ":layer 1" #(set-layer % 1)
    ":layer 2" #(set-layer % 2)
    ":layer 3" #(set-layer % 3)
@@ -75,23 +65,22 @@
    ":layer 7" #(set-layer % 7)
    ":layer 8" #(set-layer % 8)
 
-   "C-x p" #(change-mode % :physics)
+   "A-x p" #(change-mode % :physics)
+   "A-p" #(change-mode % :property)
+   "A-t" #(change-mode % :toggle)
+   "A-s" #(change-mode % :simulation)
 
-   "C-p" #(change-mode % :property)
-   "C-t" #(change-mode % :toggle)
-   "C-s" #(change-mode % :simulation)
-
-   "A-n" #(-> %
+   "C-n" #(-> %
               (new-file)
               (tree-changed))
    
-   "A-c" #(view-all-parts %)
+   "C-c" #(view-all-parts %)
 
-   "A-s" #(save-machine-version %)
-   "A-o" #(open-machine-version %)
+   "C-s" #(save-machine-version %)
+   "C-o" #(open-machine-version %)
    
-   "A-left" #(undo! %)
-   "A-right" #(redo! %)
+   "C-z" #(undo! %)
+   "C-r" #(redo! %)
    })
 
 (defn get-key [code control-pressed alt-pressed shift-pressed]
@@ -134,7 +123,6 @@
                     (catch Exception e
                       (do
                         (user-message! "invalid input:" (:text world))
-                        (println! ">" e (.getMessage e))
                         world)))]
         (-> world
             (dissoc-in [:text])

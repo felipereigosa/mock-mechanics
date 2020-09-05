@@ -55,13 +55,16 @@
 
 (defn point-plane-distance [point plane]
   (let [[a b c] plane
-        v1 (vector-subtract b a)
-        v2 (vector-subtract c a)
+        v1 (vector-subtract c a)
+        v2 (vector-subtract b a)
         normal (vector-cross-product v1 v2)
         line [point normal]
         projected-point (line-plane-intersection line plane)
-        to-point (vector-subtract point projected-point)]
-    (vector-length to-point)))
+        to-point (vector-subtract point projected-point)
+        sign (if (pos? (vector-dot-product normal to-point))
+               1
+               -1)]
+    (* sign (vector-length to-point))))
 
 (defn point-above-plane? [point plane]
   (let [[a b c] plane

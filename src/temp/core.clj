@@ -10,7 +10,6 @@
 (load "transforms")
 (load "window")
 (load "xml")
-(load "svg")
 (load "picture")
 (load "keymap")
 (load "debug")
@@ -34,9 +33,161 @@
 (do
 1
 
+(defn my-draw-textured-mesh! [world mesh transform]
+  ;; (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
+  ;;       program (get-in world [:programs (:program mesh)])
+  ;;       program-index (:index program)
+  ;;       attributes (:attributes program)
+  ;;       uniforms (:uniforms program)
+  ;;       model-matrix (multiply-matrices
+  ;;                     (apply get-scale-matrix (:scale mesh))
+  ;;                     (get-transform-matrix transform))
+  ;;       view-matrix (:view-matrix world)
+  ;;       projection-matrix (:projection-matrix world)
+  ;;       mv-matrix (multiply-matrices model-matrix view-matrix)
+  ;;       mvp-matrix (multiply-matrices mv-matrix projection-matrix)
+  ;;       itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
+  ;;   (GL20/glUseProgram program-index)
+  ;;   (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
+  ;;                            (get-float-buffer itmv-matrix))
+
+  ;;   (GL20/glUniformMatrix4fv (:mvp-matrix uniforms) false
+  ;;                            (get-float-buffer mvp-matrix))
+
+  ;;   (GL20/glVertexAttribPointer (:position attributes) 3 GL11/GL_FLOAT
+  ;;                               false 0 (:vertices-buffer mesh))
+  ;;   (GL20/glEnableVertexAttribArray (:position attributes))
+
+  ;;   (GL20/glVertexAttribPointer (:normal attributes) 3 GL11/GL_FLOAT
+  ;;                               false 0 (:normals-buffer mesh))
+  ;;   (GL20/glEnableVertexAttribArray (:normal attributes))
+
+  ;;   (GL20/glVertexAttribPointer
+  ;;    (:texture-coordinates attributes) 2 GL11/GL_FLOAT
+  ;;    false 0 (:texture-coordinates-buffer mesh))
+  ;;   (GL20/glEnableVertexAttribArray (:texture-coordinates attributes))
+  ;;   (GL13/glActiveTexture GL13/GL_TEXTURE0)
+  ;;   (GL11/glBindTexture GL11/GL_TEXTURE_2D (:texture-id mesh))
+  ;;   (GL20/glUniform1i (:texture-diffuse uniforms) 0)
+
+  ;;   (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)
+  ;;   )
+    (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
+        program (get-in world [:programs (:program mesh)])
+        program-index (:index program)
+        attributes (:attributes program)
+        uniforms (:uniforms program)
+        model-matrix (multiply-matrices
+                      (apply get-scale-matrix (:scale mesh))
+                      (get-transform-matrix transform))
+        view-matrix (:view-matrix world)
+        projection-matrix (:projection-matrix world)
+        mv-matrix (multiply-matrices model-matrix view-matrix)
+        mvp-matrix (multiply-matrices mv-matrix projection-matrix)
+        itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
+
+    (GL20/glUseProgram program-index)
+    (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
+                             (get-float-buffer itmv-matrix))
+
+    (GL20/glUniformMatrix4fv (:mvp-matrix uniforms) false
+                             (get-float-buffer mvp-matrix))
+
+    (GL20/glVertexAttribPointer (:position attributes) 3 GL11/GL_FLOAT
+                                false 0 (:vertices-buffer mesh))
+
+    (GL20/glEnableVertexAttribArray (:position attributes))
+
+    (GL20/glVertexAttribPointer (:normal attributes) 3 GL11/GL_FLOAT
+                                false 0 (:normals-buffer mesh))
+    (GL20/glEnableVertexAttribArray (:normal attributes))
+
+    (if-let [[r g b a] (:color mesh)]
+      (GL20/glUniform4f (:material-color uniforms) r g b a)
+      (do
+        (GL20/glVertexAttribPointer (:texture-coordinates attributes) 2 GL11/GL_FLOAT
+                                    false 0 (:texture-coordinates-buffer mesh))
+        (GL20/glEnableVertexAttribArray (:texture-coordinates attributes))
+        (GL13/glActiveTexture GL13/GL_TEXTURE0)
+        (GL11/glBindTexture GL11/GL_TEXTURE_2D (:texture-id mesh))
+        (GL20/glUniform1i (:texture-diffuse uniforms) 0)))
+
+    (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices))
+  )
+
+(defn my-create-mesh [vertices position rotation
+                   scale skin tex-coords normals]
+  (let [scale (if (vector? scale)
+                scale
+                (vec (repeat 3 scale)))
+        vertices (vec (flatten vertices))
+        normals (if (empty? normals)
+                  (vec (compute-normals vertices))
+                  (vec (flatten normals)))
+        base-mesh {:vertices vertices
+                   :vertices-buffer (get-float-buffer vertices)
+                   :normals normals
+                   :normals-buffer (get-float-buffer normals)
+                   :transform (make-transform position rotation)
+                   :scale scale}]
+    (cond
+      (string? skin)
+      (let [texture-id (GL11/glGenTextures)
+            tex-coords (vec (flatten tex-coords))
+            ]
+        (-> base-mesh
+            (assoc-in [:color] [1 0 0 1])
+            (assoc-in [:draw-fn] my-draw-textured-mesh!)
+            (assoc-in [:program] :textured)
+            (assoc-in [:image] (open-image skin))
+            (assoc-in [:texture-file] skin)
+            (assoc-in [:texture-coordinates] tex-coords)
+            (assoc-in [:texture-coordinates-buffer]
+                      (get-float-buffer tex-coords))
+            (assoc-in [:texture-id] texture-id)
+            (set-texture)
+            ))        
+
+      (sequential? skin)
+      (let [colors (vec (flatten skin))]
+        (-> base-mesh
+            (assoc-in [:colors] colors)
+            (assoc-in [:colors-buffer] (get-float-buffer colors))
+            (assoc-in [:draw-fn] draw-colored-mesh!)
+            (assoc-in [:program] :colored)))
+
+      :else
+      (let [color (get-color skin)
+            r (/ (get-red color) 255.0)
+            g (/ (get-green color) 255.0)
+            b (/ (get-blue color) 255.0)]
+        (-> base-mesh
+            (assoc-in [:color] [r g b 1.0])
+            (assoc-in [:draw-fn] draw-lighted-mesh!)
+            (assoc-in [:program] :flat))))))
+
 (defn create-world []
   (-> (create-base-world)
-      (assoc-in [:num-lines] 6)
+      (assoc-in [:dial] ;;###################################
+                ;; (create-model-mesh "res/dial.obj"
+                ;;               [0 1 0] [1 0 0 0] 0.5 nil)
+
+                (my-create-mesh [[0 0 0]
+                                 [1 0 0]
+                                 [0 1 0]]
+                                [0 0 0]
+                                [1 0 0 0]
+                                1
+                                "res/numbers.png"
+                                [[0 0]
+                                 [1 0]
+                                 [0 1]]
+                                [[0 0 1]
+                                 [0 0 1]
+                                 [0 0 1]]))
+            
+      (merge (read-string (str "{" (slurp "settings.clj") "}")))
+      (assoc-in [:num-lines] 1)
       (assoc-in [:background-meshes :grid] (create-grid-mesh 24 0.5))
       (assoc-in [:info] (create-info))
       (assoc-in [:parts] {})
@@ -50,8 +201,8 @@
                               :buffer (new-image 685 150)
                               })
       (assoc-in [:motherboard-box] {:x 343 :y 530
-                            :w 685 :h 150
-                            :buffer (new-image 685 150)})
+                                    :w 685 :h 150
+                                    :buffer (new-image 685 150)})
       (assoc-in [:property-box]
                 (create-picture "property-menu" 240 340 -1 60))
       (assoc-in [:layer-box] {:x 343 :y 575 :w 480 :h 60})
@@ -92,9 +243,13 @@
       (assoc-in [:mode] :simulation)
 
       (assoc-in [:track-head-model]
-                (create-cube-mesh [0 -10000 0] [1 0 0 0] [0.2 0.2 0.2] :white))
-      
+                (create-cube-mesh [0 -10000 0] [1 0 0 0] 0.2 :white))
       (place-elements)
+
+      ;; (assoc-in [:update-cube] ;;###################################
+      ;;           (create-cube-mesh [0 0 0] [1 0 0 0] 0.1 :red))
+
+      (create-weld-groups)
       ))
 (reset-world!)
 )
@@ -123,13 +278,25 @@
         (compute-transforms (if (:use-weld-groups world)
                               :weld-groups
                               :parts)))
-    :else world))
+    :else world)
+  )
+
+(defn draw-update-cube! [world] ;;#########################
+  (if-let [mesh (:update-cube world)]
+    (let [green-value (if (float= (second (:color mesh)) 1.0)
+                        0.0
+                        1.0)]
+      (set-thing! [:update-cube :color 1] green-value)
+      (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
+      (draw-mesh! world mesh)))
+  )
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
     (draw-mesh! world mesh))
 
-  ;; (doseq [mesh (vals (:meshes world))]
+  (draw-mesh! world (:dial world))
+  ;; (doseq [mesh (vals (:meshes world))] ;;##################
   ;;   (draw-mesh! world mesh))
 
   (if (> (get-in world [:camera :x-angle]) 0)
@@ -144,8 +311,7 @@
       (if (or (= name :ground-part)
               (not (in? (:layer part) (:visible-layers world))))
         nil
-        (draw-part! world part)))
-    )
+        (draw-part! world part))))
 
   (if-let [track-head-name (:track-head world)]
     (let [transform (get-in world [:parts track-head-name :transform])
@@ -154,37 +320,44 @@
       (draw-mesh! world mesh)))
 
   (draw-selection! world)
-
   (draw-buttons! world)
   (draw-lamps! world)
 
-  (draw-debug-meshes!)
+  (draw-debug-meshes!) ;;##############################
+  ;; (draw-update-cube! world) ;;#########################
   )
 
 (do
 1
 
+(defn show-buttons? [world]
+  (or
+   (= (:show-buttons world) :always)
+   (and
+    (= (:show-buttons world) :no-sim)
+    (not (= (:mode world) :simulation)))))
+
 (defn draw-2d! [world]
   (clear!)
 
-  (let [{:keys [image x y w h]} (:action-menu world)]
-    (fill-rect! (make-color 70 70 70) x y (+ 20 w) (+ 20 h))
-    (draw-image! image x y))
+  (when (show-buttons? world)
+    (let [{:keys [image x y w h]} (:action-menu world)]
+      (fill-rect! (make-color 70 70 70) x y (+ 20 w) (+ 20 h))
+      (draw-image! image x y))
 
-  (let [{:keys [image x y w h]} (:mode-menu world)]
-    (fill-rect! (make-color 70 70 70) x y (+ 20 w) (+ 20 h))
-    (draw-image! image x y))
+    (let [{:keys [image x y w h]} (:mode-menu world)]
+      (fill-rect! (make-color 70 70 70) x y (+ 20 w) (+ 20 h))
+      (draw-image! image x y))
+    )
   
   (if-let [fun (get-function (:mode world) :draw)]
     (fun world))
 
   (draw-buffer! world)
-
-  (if-let [hint (:hint world)]
-    (draw-hint world hint))
-
+  (draw-hint! world)
   )
 (redraw!))
+
 
 (defn mouse-scrolled [world event]
   (if (and (= (:mode world) :graph)
@@ -222,10 +395,14 @@
                   (assoc-in [:press-time] (get-current-time))
                   (assoc-in [:press-point] [x y]))]
     (cond
-      (inside-box? (:action-menu world) x y)
+      (and
+       (show-buttons? world)
+       (inside-box? (:action-menu world) x y))
       (action-menu-pressed world x y)
 
-      (inside-box? (:mode-menu world) x y)
+      (and
+       (show-buttons? world)
+       (inside-box? (:mode-menu world) x y))
       (mode-menu-pressed world x y)
 
       (and

@@ -121,7 +121,7 @@
           true
           (user-message! "can't place on the side of cylinder")))
       :else
-      (user-message! "can't place part on" (no-colon (:type target))))))
+      (user-message! "can't place part on" (kw->str (:type target))))))
 
 (defn add-mode-pressed [world event]
   (let [{:keys [x y]} event]

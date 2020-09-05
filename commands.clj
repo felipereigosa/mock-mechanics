@@ -1,0 +1,92 @@
+
+  {;; "C-d" #(change-mode % :debug)
+
+   ;; "C-x A-n" (fn [w]
+   ;;             (user-message! "hard reset")
+   ;;             (create-world))
+   
+   "C-a" #(change-mode % :add)
+   ":add b" #(assoc-in % [:add-type] :block)
+   ":add c" #(assoc-in % [:add-type] :cylinder)
+   ":add v" #(assoc-in % [:add-type] :cone)
+   ":add s" #(assoc-in % [:add-type] :sphere)
+   ":add w" #(assoc-in % [:add-type] :wagon)
+   ":add t" #(assoc-in % [:add-type] :track)
+   ":add g" #(assoc-in % [:add-type] :chip)
+   ":add m" #(assoc-in % [:add-type] :motherboard)
+   ":add p" #(assoc-in % [:add-type] :probe)
+   ":add C-x b" #(assoc-in % [:add-type] :button)
+   ":add l" #(assoc-in % [:add-type] :lamp)
+   ":add C-x l" #(assoc-in % [:add-type] :speaker)
+
+   "C-e" #(change-mode % :edit)
+   ":edit d" #(assoc-in % [:edit-subcommand] :delete)
+   ":edit s" #(assoc-in % [:edit-subcommand] :scale)
+   ":edit m" #(assoc-in % [:edit-subcommand] :move)
+   ":edit t" #(assoc-in % [:edit-subcommand] :translate)
+   ":edit c" #(assoc-in % [:edit-subcommand] :copy)
+   ":edit r" #(assoc-in % [:edit-subcommand] :rotate)
+   ":edit h" #(assoc-in % [:edit-subcommand] :sink)          
+
+   "C-g" #(change-mode % :graph)
+   ":graph m" #(assoc-in % [:graph-subcommand] :move)
+   ":graph x" #(assoc-in % [:graph-subcommand] :set-x)
+   ":graph y" #(assoc-in % [:graph-subcommand] :set-y)
+   ;; ":graph C-x x" #(assoc-in % [:graph-subcommand] :set-both)
+   ":graph a" #(assoc-in % [:graph-subcommand] :add)
+   ":graph d" #(assoc-in % [:graph-subcommand] :delete)
+   ":graph r" #(run-selected-chip %)
+   ":graph t" #(assoc-in % [:graph-subcommand] :toggle-relative)
+   ":graph v" #(reset-graph-view %)
+   ;; ":graph C-x s" #(set-snap-value %)
+   ":graph l" #(assoc-in % [:graph-subcommand] :print-lengths)
+
+   "C-m" #(change-mode % :motherboard)
+   ":motherboard s" #(toggle-script %)
+   ":motherboard m" #(assoc-in % [:motherboard-subcommand] :move)
+   ":motherboard a" #(assoc-in % [:motherboard-subcommand] :and)
+   ":motherboard o" #(assoc-in % [:motherboard-subcommand] :or)
+   ":motherboard n" #(assoc-in % [:motherboard-subcommand] :not)
+   ":motherboard d" #(assoc-in % [:motherboard-subcommand] :delete)
+   ":motherboard c" #(assoc-in % [:motherboard-subcommand] :connect)
+   ":motherboard t" #(assoc-in % [:motherboard-subcommand] :toggle)
+   ":motherboard r" #(assoc-in % [:motherboard-subcommand] :run)
+   ;; ":motherboard 1" #(assoc-in % [:motherboard-subcommand] :on)
+   ;; ":motherboard 0" #(assoc-in % [:motherboard-subcommand] :off)
+
+   "C-c" #(change-mode % :color)
+   ":color r" #(assoc-in % [:current-color] :red)
+   ":color g" #(assoc-in % [:current-color] :green)
+   ":color b" #(assoc-in % [:current-color] :blue)
+   ":color y" #(assoc-in % [:current-color] :yellow)
+   ":color w" #(assoc-in % [:current-color] :white)
+   ":color d" #(assoc-in % [:current-color] :black)
+
+   "C-l" #(change-mode % :layer)
+   ":layer 1" #(set-layer % 1)
+   ":layer 2" #(set-layer % 2)
+   ":layer 3" #(set-layer % 3)
+   ":layer 4" #(set-layer % 4)
+   ":layer 5" #(set-layer % 5)
+   ":layer 6" #(set-layer % 6)
+   ":layer 7" #(set-layer % 7)
+   ":layer 8" #(set-layer % 8)
+
+   "C-x p" #(change-mode % :physics)
+
+   "C-p" #(change-mode % :property)
+   "C-t" #(change-mode % :toggle)
+   "C-s" #(change-mode % :simulation)
+
+   "A-n" #(-> %
+              (new-file)
+              (tree-changed))
+   
+   "A-c" #(view-all-parts %)
+
+   "A-s" #(save-machine-version %)
+   "A-o" #(open-machine-version %)
+   
+   "A-left" #(undo! %)
+   "A-right" #(redo! %)
+   }

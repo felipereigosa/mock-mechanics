@@ -5,12 +5,13 @@
                  [org.clojars.nakkaya/jbullet "20101010"]
                  [matrix/matrix "1.0.0"]
                  [batik/batik "1.7.1"]
+
                  [lwjgl/lwjgl "1.0.0"]
                  [lwjgl/lwjgl-natives-linux "1.0.0"]
+                 
                  [lwjgl/lwjgl-glfw "1.0.0"]
                  [lwjgl/lwjgl-glfw-natives-linux "1.0.0"]
-                 [lwjgl/lwjgl-jemalloc "1.0.0"]
-                 [lwjgl/lwjgl-jemalloc-natives-linux "1.0.0"]
+                 
                  [lwjgl/lwjgl-opengl "1.0.0"]
                  [lwjgl/lwjgl-opengl-natives-linux "1.0.0"]
                  ]

@@ -125,9 +125,7 @@
                               (get-in @world [:parts name :value]))
                   activate (fn [name]
                              (update-thing! [] #(activate-chip % name)))
-                  chip-active? (fn [name]
-                                 (let [chip (get-thing! [:parts name])]
-                                   (not (>= (:time chip) (:final-time chip)))))
+                  println println!
                   wait (fn [pred]
                          (while (pred) (sleep 50)))]]
     `(do

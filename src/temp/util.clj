@@ -264,9 +264,6 @@
 (defn third [coll]
   (nth coll 2))
 
-(defn no-colon [keyword]
-  (subs (str keyword) 1))
-
 (defn create-groups [acc header? lines]
   (if (empty? lines)
     acc

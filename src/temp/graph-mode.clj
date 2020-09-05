@@ -1,4 +1,3 @@
-
 (ns temp.core (:gen-class))
 
 (defn local->global [graph-box view [t v]]
@@ -98,6 +97,7 @@
         border-color (if (= (:graph-subcommand world) :move)
                        :black
                        :white)]
+
     (clear buffer border-color)
     (fill-rect buffer :black hw hh (- w 14) (- h 14))
     (fill-rect! :black x (+ y hh 15) w 30)
@@ -111,11 +111,9 @@
       (let [chip (get-in world [:parts chip-name])
             view (:view chip)]
         (draw-grid graph-box view)
-
         (doseq [[part-name function] (sort-by #(:z (second %)) < (:functions chip))]
           (let [color (get-in world [:parts part-name :color])]
-            (draw-function! (:graph-box world) view function color)))
-        )
+            (draw-function! (:graph-box world) view function color))))
       (draw-graph-cross graph-box))
 
     (draw-image! buffer x y)
@@ -260,7 +258,7 @@
                        (assoc-in [:points node-index coord-index] value)
                        (normalize-function)))))
     (do
-      (user-message! "Invalid value")
+      (user-message! "invalid value")
       world)))
 
 (defn set-node-values-callback [world node text]
@@ -268,7 +266,7 @@
     (if (or (not (= (count values) 2))
             (some nil? values))
       (do
-        (user-message! "Invalid format")
+        (user-message! "invalid format")
         world)
       (let [[x y] values
             [function-name node-index] node]

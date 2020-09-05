@@ -337,7 +337,7 @@
                 property (nth (get-in world [:properties])
                               (:selected-property world))
                 color (if (and (float= (:value lamp) 0)
-                               (in? (:mode world) [:simulation :motherboard :value]))
+                               (in? (:mode world) [:simulation :motherboard :property]))
                         (:dark-color lamp)
                         (:color lamp))
                 
@@ -367,12 +367,14 @@
               (get-in world [:info type :model]))]
     (if (= type :ground)
       world
-      (-> world
-          (assoc-in [:selection :time] (get-current-time))
-          (assoc-in [:selection :mesh] mesh)
-          (assoc-in [:selection :mesh :color] color)
-          (assoc-in [:selection :mesh :scale] scale)
-          (assoc-in [:selection :mesh :transform] transform)))))
+      (do
+        (redraw-after-delay! 350)
+        (-> world
+            (assoc-in [:selection :time] (get-current-time))
+            (assoc-in [:selection :mesh] mesh)
+            (assoc-in [:selection :mesh :color] color)
+            (assoc-in [:selection :mesh :scale] scale)
+            (assoc-in [:selection :mesh :transform] transform))))))
 
 (defn draw-selection! [world]
   (if-let [{:keys [mesh time]} (:selection world)]
