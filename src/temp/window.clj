@@ -12,7 +12,7 @@
 (import org.lwjgl.glfw.GLFWCursorPosCallback)
 (import org.lwjgl.glfw.GLFWMouseButtonCallback)
 (import org.lwjgl.glfw.GLFWKeyCallback)
-(import org.lwjgl.glfw.GLFWScrollCallback)
+(import org.lwjgl.glfw.GLFWScreateollCallback)
 (import org.lwjgl.glfw.GLFWWindowSizeCallback)
 (import org.lwjgl.glfw.GLFWWindowFocusCallback)
 (import org.lwjgl.glfw.GLFWWindowMaximizeCallback)                       
@@ -690,7 +690,7 @@
   (-> {}
       (assoc-in [:programs :basic] (create-program "basic"))
       (assoc-in [:programs :flat] (create-program "flat"))
-      (assoc-in [:programs :textured] (create-program "flat"))
+      (assoc-in [:programs :textured] (create-program "textured"))
       (assoc-in [:programs :ortho] (create-program "ortho"))
       (assoc-in [:programs :colored] (create-program "colored"))
       (recompute-viewport @window-width @window-height)

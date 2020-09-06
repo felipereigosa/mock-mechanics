@@ -51,6 +51,7 @@
     (swap! output (fn [output]
                     (str truncated-output line))))
   (draw-buffer! @world)
+  (redraw!)
   nil)
 
 (def user-message! println!)
@@ -58,6 +59,7 @@
 (defn clear-output! []
   (reset! output "")
   (draw-buffer! @world)
+  (redraw!)
   nil)
 
 (defn toggle-output [world]

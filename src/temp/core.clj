@@ -72,6 +72,7 @@
 
   ;;   (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)
   ;;   )
+
     (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
         program (get-in world [:programs (:program mesh)])
         program-index (:index program)
@@ -102,15 +103,19 @@
                                 false 0 (:normals-buffer mesh))
     (GL20/glEnableVertexAttribArray (:normal attributes))
 
-    (if-let [[r g b a] (:color mesh)]
-      (GL20/glUniform4f (:material-color uniforms) r g b a)
-      (do
-        (GL20/glVertexAttribPointer (:texture-coordinates attributes) 2 GL11/GL_FLOAT
-                                    false 0 (:texture-coordinates-buffer mesh))
-        (GL20/glEnableVertexAttribArray (:texture-coordinates attributes))
-        (GL13/glActiveTexture GL13/GL_TEXTURE0)
-        (GL11/glBindTexture GL11/GL_TEXTURE_2D (:texture-id mesh))
-        (GL20/glUniform1i (:texture-diffuse uniforms) 0)))
+    ;; (if-let [[r g b a] (:color mesh)]
+    ;;   (GL20/glUniform4f (:material-color uniforms) r g b a)
+    ;;   (do
+    ;;     (GL20/glVertexAttribPointer (:texture-coordinates attributes) 2 GL11/GL_FLOAT
+    ;;                                 false 0 (:texture-coordinates-buffer mesh))
+    ;;     (GL20/glEnableVertexAttribArray (:texture-coordinates attributes))
+    ;;     (GL13/glActiveTexture GL13/GL_TEXTURE0)
+    ;;     (GL11/glBindTexture GL11/GL_TEXTURE_2D (:texture-id mesh))
+    ;;     (GL20/glUniform1i (:texture-diffuse uniforms) 0)))
+
+    (GL13/glActiveTexture GL13/GL_TEXTURE0)
+    (GL11/glBindTexture GL11/GL_TEXTURE_2D (:texture-id mesh))
+    (GL20/glUniform1i (:texture-diffuse uniforms) 0)
 
     (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices))
   )
@@ -130,41 +135,21 @@
                    :normals-buffer (get-float-buffer normals)
                    :transform (make-transform position rotation)
                    :scale scale}]
-    (cond
-      (string? skin)
-      (let [texture-id (GL11/glGenTextures)
-            tex-coords (vec (flatten tex-coords))
-            ]
-        (-> base-mesh
-            (assoc-in [:color] [1 0 0 1])
-            (assoc-in [:draw-fn] my-draw-textured-mesh!)
-            (assoc-in [:program] :textured)
-            (assoc-in [:image] (open-image skin))
-            (assoc-in [:texture-file] skin)
-            (assoc-in [:texture-coordinates] tex-coords)
-            (assoc-in [:texture-coordinates-buffer]
-                      (get-float-buffer tex-coords))
-            (assoc-in [:texture-id] texture-id)
-            (set-texture)
-            ))        
-
-      (sequential? skin)
-      (let [colors (vec (flatten skin))]
-        (-> base-mesh
-            (assoc-in [:colors] colors)
-            (assoc-in [:colors-buffer] (get-float-buffer colors))
-            (assoc-in [:draw-fn] draw-colored-mesh!)
-            (assoc-in [:program] :colored)))
-
-      :else
-      (let [color (get-color skin)
-            r (/ (get-red color) 255.0)
-            g (/ (get-green color) 255.0)
-            b (/ (get-blue color) 255.0)]
-        (-> base-mesh
-            (assoc-in [:color] [r g b 1.0])
-            (assoc-in [:draw-fn] draw-lighted-mesh!)
-            (assoc-in [:program] :flat))))))
+    (let [texture-id (GL11/glGenTextures)
+          tex-coords (vec (flatten tex-coords))
+          ]
+      (-> base-mesh
+          ;; (assoc-in [:color] [1 0 0 1])
+          (assoc-in [:draw-fn] my-draw-textured-mesh!)
+          (assoc-in [:program] :textured)
+          (assoc-in [:image] (open-image skin))
+          ;; (assoc-in [:texture-file] skin)
+          ;; (assoc-in [:texture-coordinates] tex-coords)
+          ;; (assoc-in [:texture-coordinates-buffer]
+          ;;           (get-float-buffer tex-coords))
+          (assoc-in [:texture-id] texture-id)
+          (set-texture)
+          ))))
 
 (defn create-world []
   (-> (create-base-world)
@@ -178,16 +163,17 @@
                                 [0 0 0]
                                 [1 0 0 0]
                                 1
-                                "res/numbers.png"
+                                "res/square.png"
                                 [[0 0]
                                  [1 0]
                                  [0 1]]
                                 [[0 0 1]
                                  [0 0 1]
-                                 [0 0 1]]))
+                                 [0 0 1]])
+                )
             
       (merge (read-string (str "{" (slurp "settings.clj") "}")))
-      (assoc-in [:num-lines] 1)
+      (assoc-in [:num-lines] 6)
       (assoc-in [:background-meshes :grid] (create-grid-mesh 24 0.5))
       (assoc-in [:info] (create-info))
       (assoc-in [:parts] {})
@@ -296,6 +282,7 @@
     (draw-mesh! world mesh))
 
   (draw-mesh! world (:dial world))
+  
   ;; (doseq [mesh (vals (:meshes world))] ;;##################
   ;;   (draw-mesh! world mesh))
 
@@ -313,16 +300,11 @@
         nil
         (draw-part! world part))))
 
-  (if-let [track-head-name (:track-head world)]
-    (let [transform (get-in world [:parts track-head-name :transform])
-          mesh (:track-head-model world)
-          mesh (assoc-in mesh [:transform] transform)]
-      (draw-mesh! world mesh)))
+  (draw-track-head! world)
 
   (draw-selection! world)
   (draw-buttons! world)
   (draw-lamps! world)
-
   (draw-debug-meshes!) ;;##############################
   ;; (draw-update-cube! world) ;;#########################
   )
@@ -441,4 +423,3 @@
     (-> world
         (recompute-viewport width height)
         (place-elements))))
-

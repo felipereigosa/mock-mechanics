@@ -415,14 +415,10 @@
           chip (get-in world [:parts chip-name])
           view (:view chip)
           coords (global->local graph-box view [x y])
-          coords (snap-coords coords (:graph-snap-value world))
-          original-node (:original-node world)
-          offset (vector-subtract original-node coords)
-          coords (if (:shift-pressed world)
-                   (if (< (abs (first offset)) (abs (second offset)))
-                     [(first original-node) (second coords)]
-                     [(first coords) (second original-node)])
-                   coords)
+          grain (if (:shift-pressed world)
+                  0.5
+                  (:graph-snap-value world))
+          coords (snap-coords coords grain)
           new-points (-> (get-in chip [:functions function-name :points])
                          (assoc-in [index] coords))
           world (assoc-in world [:parts chip-name

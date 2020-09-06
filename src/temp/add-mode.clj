@@ -155,30 +155,42 @@
                   (move-part-moved event :grain 0.25)))))))))
 
 (defn set-track-head [world x y]
-  (let [line (unproject-point world [x y])
-        track-names (get-parts-with-type (:parts world) :track)
-        track-distances (remove-nil
-                         (map (fn [track-name]
-                                (let [track (get-in world [:parts track-name])
-                                      p (get-transform-position (:transform track))
-                                      d (point-line-distance p line)]
-                                  (if (< d 0.25)
-                                    [track-name d]
-                                    nil)))                                 
-                              track-names))
-        track-name (first (first (sort-by second track-distances)))]
-    (assoc-in world [:track-head] track-name)))
+  (if (= (:add-type world) :track)
+    (let [line (unproject-point world [x y])
+          track-names (get-parts-with-type (:parts world) :track)
+          track-distances (remove-nil
+                           (map (fn [track-name]
+                                  (let [track (get-in world [:parts track-name])
+                                        p (get-transform-position (:transform track))
+                                        d (point-line-distance p line)]
+                                    (if (< d 0.25)
+                                      [track-name d]
+                                      nil)))                                 
+                                track-names))
+          track-name (first (first (sort-by second track-distances)))]
+      (assoc-in world [:track-head] track-name))
+    (assoc-in world [:track-head] nil)))    
 
 (defn add-mode-moved [world event]
-  (if (and (= (:add-type world) :track)
-           (nil? (:edited-part world)))
-    (set-track-head world (:x event) (:y event))
-    (let [grain-size (if (:shift-pressed world)
-                       0.05
-                       0.25)]
-      (move-part-moved world event :grain grain-size))))
+  (let [world (set-track-head world (:x event) (:y event))
+        grain-size (if (:shift-pressed world)
+                     0.05
+                     0.25)]
+    (move-part-moved world event :grain grain-size)))
 
 (defn add-mode-released [world event]
   (-> world
       (move-part-released event)
       (tree-changed)))
+
+(defn add-mode-exited [world]
+  (assoc-in world [:track-head] nil))
+
+(defn draw-track-head! [world]
+  (if (and (= (:mode world) :add)
+           (= (:add-type world) :track))
+    (if-let [track-head-name (:track-head world)]
+      (let [transform (get-in world [:parts track-head-name :transform])
+            mesh (:track-head-model world)
+            mesh (assoc-in mesh [:transform] transform)]
+        (draw-mesh! world mesh)))))
