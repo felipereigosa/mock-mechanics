@@ -12,7 +12,7 @@
 (import org.lwjgl.glfw.GLFWCursorPosCallback)
 (import org.lwjgl.glfw.GLFWMouseButtonCallback)
 (import org.lwjgl.glfw.GLFWKeyCallback)
-(import org.lwjgl.glfw.GLFWScreateollCallback)
+(import org.lwjgl.glfw.GLFWScrollCallback)
 (import org.lwjgl.glfw.GLFWWindowSizeCallback)
 (import org.lwjgl.glfw.GLFWWindowFocusCallback)
 (import org.lwjgl.glfw.GLFWWindowMaximizeCallback)                       
@@ -907,7 +907,7 @@
     (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)))
 
 (defn draw-textured-mesh! [world mesh transform]
-  (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
+    (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
         program (get-in world [:programs (:program mesh)])
         program-index (:index program)
         attributes (:attributes program)
@@ -920,6 +920,7 @@
         mv-matrix (multiply-matrices model-matrix view-matrix)
         mvp-matrix (multiply-matrices mv-matrix projection-matrix)
         itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
+
     (GL20/glUseProgram program-index)
     (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
                              (get-float-buffer itmv-matrix))
@@ -929,22 +930,22 @@
 
     (GL20/glVertexAttribPointer (:position attributes) 3 GL11/GL_FLOAT
                                 false 0 (:vertices-buffer mesh))
+
     (GL20/glEnableVertexAttribArray (:position attributes))
 
     (GL20/glVertexAttribPointer (:normal attributes) 3 GL11/GL_FLOAT
                                 false 0 (:normals-buffer mesh))
     (GL20/glEnableVertexAttribArray (:normal attributes))
 
-    (GL20/glVertexAttribPointer
-     (:texture-coordinates attributes) 2 GL11/GL_FLOAT
-     false 0 (:texture-coordinates-buffer mesh))
+    (GL20/glVertexAttribPointer (:texture-coordinates attributes) 2 GL11/GL_FLOAT
+                                false 0 (:texture-coordinates-buffer mesh))
     (GL20/glEnableVertexAttribArray (:texture-coordinates attributes))
+
     (GL13/glActiveTexture GL13/GL_TEXTURE0)
     (GL11/glBindTexture GL11/GL_TEXTURE_2D (:texture-id mesh))
     (GL20/glUniform1i (:texture-diffuse uniforms) 0)
 
-    (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)
-    ))
+    (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)))
 
 (defn create-mesh [vertices position rotation
                    scale skin tex-coords normals]
@@ -965,16 +966,15 @@
       (string? skin)
       (let [texture-id (GL11/glGenTextures)
             tex-coords (vec (flatten tex-coords))]
-        ;; (-> base-mesh
-        ;;     (assoc-in [:draw-fn] draw-textured-mesh!)
-        ;;     (assoc-in [:program] :textured)
-        ;;     (assoc-in [:image] (open-image skin))
-        ;;     (assoc-in [:texture-file] skin)
-        ;;     (assoc-in [:texture-coordinates] tex-coords)
-        ;;     (assoc-in [:texture-coordinates-buffer] (get-float-buffer tex-coords))
-        ;;     (assoc-in [:texture-id] texture-id)
-        ;;     (set-texture))
-        )
+        (-> base-mesh
+            (assoc-in [:draw-fn] draw-textured-mesh!)
+            (assoc-in [:program] :textured)
+            (assoc-in [:image] (open-image skin))
+            (assoc-in [:texture-coordinates] tex-coords)
+            (assoc-in [:texture-coordinates-buffer]
+                      (get-float-buffer tex-coords))
+            (assoc-in [:texture-id] texture-id)
+            (set-texture)))
 
       (sequential? skin)
       (let [colors (vec (flatten skin))]
@@ -1061,19 +1061,29 @@
                           (or (.startsWith line "o")
                               (.startsWith line "v")
                               (.startsWith line "vn")
+                              (.startsWith line "vt")
                               (.startsWith line "f")
                               (.startsWith line "usemtl")))
                         (line-seq reader))
           v (map parse-line (filter #(.startsWith % "v") lines))
           n (map parse-line (filter #(.startsWith % "vn") lines))
+          t (map parse-line (filter #(.startsWith % "vt") lines))
           faces (mapcat parse-line-with-slashes
                         (filter #(.startsWith % "f") lines))
           vertices (use-indices v (map first faces))
           normals (use-indices n (map last faces))
+          texture-name (some :texture (vals materials))
+          texture-coords (if texture-name
+                           (use-indices t (map #(nth % 1) faces))
+                           [])
+          texture-coords (map (fn [[u v]]
+                                [u (- 1.0 v)])
+                              texture-coords)
           skin (or color
+                   texture-name
                    (create-colors lines materials))]
       (create-mesh vertices position rotation scale
-                   skin [] normals))))
+                   skin texture-coords normals))))
 
 (defn draw-lines! [world mesh transform]
   (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)

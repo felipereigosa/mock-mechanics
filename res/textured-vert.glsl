@@ -1,15 +1,11 @@
 
-
-// attribute vec2 texture_coordinates;
-// varying vec2 f_texture_coordinates;
-
-//   f_texture_coordinates = texture_coordinates;
-
 attribute vec4 position;
 attribute vec3 normal;
 varying vec4 fColor;
 uniform mat4 mvp_matrix;
 uniform mat4 itmv_matrix;
+attribute vec2 texture_coordinates;
+varying vec2 f_texture_coordinates;
 
 void main() {
   vec3 light_direction = vec3(0, -1, -1);
@@ -30,4 +26,5 @@ void main() {
 
   gl_Position = mvp_matrix * position;
   fColor = vertex_color;
+  f_texture_coordinates = texture_coordinates;
 }

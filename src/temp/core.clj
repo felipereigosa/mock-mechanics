@@ -33,147 +33,17 @@
 (do
 1
 
-(defn my-draw-textured-mesh! [world mesh transform]
-  ;; (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
-  ;;       program (get-in world [:programs (:program mesh)])
-  ;;       program-index (:index program)
-  ;;       attributes (:attributes program)
-  ;;       uniforms (:uniforms program)
-  ;;       model-matrix (multiply-matrices
-  ;;                     (apply get-scale-matrix (:scale mesh))
-  ;;                     (get-transform-matrix transform))
-  ;;       view-matrix (:view-matrix world)
-  ;;       projection-matrix (:projection-matrix world)
-  ;;       mv-matrix (multiply-matrices model-matrix view-matrix)
-  ;;       mvp-matrix (multiply-matrices mv-matrix projection-matrix)
-  ;;       itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
-  ;;   (GL20/glUseProgram program-index)
-  ;;   (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
-  ;;                            (get-float-buffer itmv-matrix))
-
-  ;;   (GL20/glUniformMatrix4fv (:mvp-matrix uniforms) false
-  ;;                            (get-float-buffer mvp-matrix))
-
-  ;;   (GL20/glVertexAttribPointer (:position attributes) 3 GL11/GL_FLOAT
-  ;;                               false 0 (:vertices-buffer mesh))
-  ;;   (GL20/glEnableVertexAttribArray (:position attributes))
-
-  ;;   (GL20/glVertexAttribPointer (:normal attributes) 3 GL11/GL_FLOAT
-  ;;                               false 0 (:normals-buffer mesh))
-  ;;   (GL20/glEnableVertexAttribArray (:normal attributes))
-
-  ;;   (GL20/glVertexAttribPointer
-  ;;    (:texture-coordinates attributes) 2 GL11/GL_FLOAT
-  ;;    false 0 (:texture-coordinates-buffer mesh))
-  ;;   (GL20/glEnableVertexAttribArray (:texture-coordinates attributes))
-  ;;   (GL13/glActiveTexture GL13/GL_TEXTURE0)
-  ;;   (GL11/glBindTexture GL11/GL_TEXTURE_2D (:texture-id mesh))
-  ;;   (GL20/glUniform1i (:texture-diffuse uniforms) 0)
-
-  ;;   (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)
-  ;;   )
-
-    (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
-        program (get-in world [:programs (:program mesh)])
-        program-index (:index program)
-        attributes (:attributes program)
-        uniforms (:uniforms program)
-        model-matrix (multiply-matrices
-                      (apply get-scale-matrix (:scale mesh))
-                      (get-transform-matrix transform))
-        view-matrix (:view-matrix world)
-        projection-matrix (:projection-matrix world)
-        mv-matrix (multiply-matrices model-matrix view-matrix)
-        mvp-matrix (multiply-matrices mv-matrix projection-matrix)
-        itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
-
-    (GL20/glUseProgram program-index)
-    (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
-                             (get-float-buffer itmv-matrix))
-
-    (GL20/glUniformMatrix4fv (:mvp-matrix uniforms) false
-                             (get-float-buffer mvp-matrix))
-
-    (GL20/glVertexAttribPointer (:position attributes) 3 GL11/GL_FLOAT
-                                false 0 (:vertices-buffer mesh))
-
-    (GL20/glEnableVertexAttribArray (:position attributes))
-
-    (GL20/glVertexAttribPointer (:normal attributes) 3 GL11/GL_FLOAT
-                                false 0 (:normals-buffer mesh))
-    (GL20/glEnableVertexAttribArray (:normal attributes))
-
-    ;; (if-let [[r g b a] (:color mesh)]
-    ;;   (GL20/glUniform4f (:material-color uniforms) r g b a)
-    ;;   (do
-    ;;     (GL20/glVertexAttribPointer (:texture-coordinates attributes) 2 GL11/GL_FLOAT
-    ;;                                 false 0 (:texture-coordinates-buffer mesh))
-    ;;     (GL20/glEnableVertexAttribArray (:texture-coordinates attributes))
-    ;;     (GL13/glActiveTexture GL13/GL_TEXTURE0)
-    ;;     (GL11/glBindTexture GL11/GL_TEXTURE_2D (:texture-id mesh))
-    ;;     (GL20/glUniform1i (:texture-diffuse uniforms) 0)))
-
-    (GL13/glActiveTexture GL13/GL_TEXTURE0)
-    (GL11/glBindTexture GL11/GL_TEXTURE_2D (:texture-id mesh))
-    (GL20/glUniform1i (:texture-diffuse uniforms) 0)
-
-    (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices))
-  )
-
-(defn my-create-mesh [vertices position rotation
-                   scale skin tex-coords normals]
-  (let [scale (if (vector? scale)
-                scale
-                (vec (repeat 3 scale)))
-        vertices (vec (flatten vertices))
-        normals (if (empty? normals)
-                  (vec (compute-normals vertices))
-                  (vec (flatten normals)))
-        base-mesh {:vertices vertices
-                   :vertices-buffer (get-float-buffer vertices)
-                   :normals normals
-                   :normals-buffer (get-float-buffer normals)
-                   :transform (make-transform position rotation)
-                   :scale scale}]
-    (let [texture-id (GL11/glGenTextures)
-          tex-coords (vec (flatten tex-coords))
-          ]
-      (-> base-mesh
-          ;; (assoc-in [:color] [1 0 0 1])
-          (assoc-in [:draw-fn] my-draw-textured-mesh!)
-          (assoc-in [:program] :textured)
-          (assoc-in [:image] (open-image skin))
-          ;; (assoc-in [:texture-file] skin)
-          ;; (assoc-in [:texture-coordinates] tex-coords)
-          ;; (assoc-in [:texture-coordinates-buffer]
-          ;;           (get-float-buffer tex-coords))
-          (assoc-in [:texture-id] texture-id)
-          (set-texture)
-          ))))
-
 (defn create-world []
   (-> (create-base-world)
-      (assoc-in [:dial] ;;###################################
-                ;; (create-model-mesh "res/dial.obj"
-                ;;               [0 1 0] [1 0 0 0] 0.5 nil)
-
-                (my-create-mesh [[0 0 0]
-                                 [1 0 0]
-                                 [0 1 0]]
-                                [0 0 0]
-                                [1 0 0 0]
-                                1
-                                "res/square.png"
-                                [[0 0]
-                                 [1 0]
-                                 [0 1]]
-                                [[0 0 1]
-                                 [0 0 1]
-                                 [0 0 1]])
-                )
+      ;; (assoc-in [:small-gear] ;;###################################
+      ;;           (create-model-mesh "res/small-gear.obj"
+      ;;                              [0 1 0] [1 0 0 0] 0.25 :gray))
+      ;; (assoc-in [:large-gear] ;;###################################
+      ;;           (create-model-mesh "res/large-gear.obj"
+      ;;                         [0.75 1 0] [0 1 0 10] 0.25 :gray))
             
       (merge (read-string (str "{" (slurp "settings.clj") "}")))
-      (assoc-in [:num-lines] 6)
+      (assoc-in [:num-lines] 1)
       (assoc-in [:background-meshes :grid] (create-grid-mesh 24 0.5))
       (assoc-in [:info] (create-info))
       (assoc-in [:parts] {})
@@ -240,10 +110,26 @@
 (reset-world!)
 )
 
+(defn draw-cable! [world part-a part-b]
+  (let [mesh (get-in world [:info :cylinder :model])
+        position-a (get-transform-position
+                    (get-in world [:parts part-a :transform]))
+        position-b (get-transform-position
+                    (get-in world [:parts part-b :transform]))
+        mid-point (vector-multiply (vector-add position-a position-b) 0.5)
+        v (vector-subtract position-b position-a)
+        mesh (set-mesh-position mesh mid-point)
+        mesh (point-mesh-towards mesh v)
+        l (vector-length v)
+        mesh (assoc-in mesh [:scale] [0.05 l 0.05])
+        mesh (assoc-in mesh [:color] [0.6 0.6 0.6 1])]
+    (draw-mesh! world mesh)))
+
 (defn update-world [world elapsed]
   (cond
     (in? (:mode world) [:simulation :graph :motherboard])
     (let [elapsed 16 ;;######################
+          v  (get-in world [:parts :wagon9806 :value])
           world (-> world
                     (set-probe-values)
                     (save-values)
@@ -252,6 +138,7 @@
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
+                    (assoc-in [:parts :wagon9807 :value] v)
                     (reverse-collisions)
                     (update-motherboards))]
       (recompute-body-transforms! world)
@@ -281,7 +168,20 @@
   (doseq [mesh (vals (:background-meshes world))]
     (draw-mesh! world mesh))
 
-  (draw-mesh! world (:dial world))
+  (draw-cable! world :block9823 :sphere9816)
+  (draw-cable! world :sphere9816 :block9823-copy9824)
+  
+  ;; (if-let [transform (get-in world [:parts :cylinder9250 :transform])]
+  ;;   (let [mesh (:small-gear world)
+  ;;         mesh (assoc-in mesh [:transform] transform)]
+  ;;     (draw-mesh! world mesh)))
+  ;; (if-let [transform (get-in world [:parts :cylinder9251 :transform])]
+  ;;   (let [mesh (:large-gear world)
+  ;;         mesh (assoc-in mesh [:transform] transform)]
+  ;;     (draw-mesh! world mesh)))
+
+  ;; (draw-mesh! world (:small-gear world))
+  ;; (draw-mesh! world (:large-gear world))
   
   ;; (doseq [mesh (vals (:meshes world))] ;;##################
   ;;   (draw-mesh! world mesh))
@@ -339,7 +239,6 @@
   (draw-hint! world)
   )
 (redraw!))
-
 
 (defn mouse-scrolled [world event]
   (if (and (= (:mode world) :graph)
@@ -423,3 +322,9 @@
     (-> world
         (recompute-viewport width height)
         (place-elements))))
+
+;; (println! (get-parts-with-type (:parts @world) :wagon))
+(set-thing! [:show-buttons] :never)
+(set-thing! [:use-weld-groups] false)
+;; (set-thing! [:mode] :debug)
+

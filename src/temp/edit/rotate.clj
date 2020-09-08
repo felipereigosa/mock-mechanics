@@ -3,8 +3,7 @@
 
 (defn rotate-mode-pressed [world event]
   (let [{:keys [x y]} event]
-    (if-let [{:keys [part-name point index]}
-             (get-part-collision world x y)]
+    (if-let [part-name (:part-name (get-part-collision world x y))]
       (let [part (get-in world [:parts part-name])]
         (-> world
             (assoc-in [:edited-part] part-name)
