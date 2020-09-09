@@ -35,12 +35,13 @@
 
 (defn create-world []
   (-> (create-base-world)
-      ;; (assoc-in [:small-gear] ;;###################################
-      ;;           (create-model-mesh "res/small-gear.obj"
-      ;;                              [0 1 0] [1 0 0 0] 0.25 :gray))
-      ;; (assoc-in [:large-gear] ;;###################################
-      ;;           (create-model-mesh "res/large-gear.obj"
-      ;;                         [0.75 1 0] [0 1 0 10] 0.25 :gray))
+      (assoc-in [:small-gear] ;;###################################
+                (create-model-mesh "res/small-gear.obj"
+                                   [0 1 0] [1 0 0 0] 0.25 :gray))
+      (assoc-in [:large-gear] ;;###################################
+                (create-model-mesh "res/large-gear.obj"
+                                   [0.75 1 0] [0 1 0 10] 0.25
+                                   (make-color 50 50 50)))
             
       (merge (read-string (str "{" (slurp "settings.clj") "}")))
       (assoc-in [:num-lines] 1)
@@ -125,11 +126,14 @@
         mesh (assoc-in mesh [:color] [0.6 0.6 0.6 1])]
     (draw-mesh! world mesh)))
 
+(set-thing! [:mode] :debug)
 (defn update-world [world elapsed]
   (cond
     (in? (:mode world) [:simulation :graph :motherboard])
     (let [elapsed 16 ;;######################
-          v  (get-in world [:parts :wagon9806 :value])
+          ;; v  (get-in world [:parts :wagon9806 :value])
+          v (+ 0.05 (* 2 (- 1 (get-in world [:parts :track9247-copy9249 :value]))))
+          
           world (-> world
                     (set-probe-values)
                     (save-values)
@@ -138,7 +142,7 @@
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
-                    (assoc-in [:parts :wagon9807 :value] v)
+                    (assoc-in [:parts :track9247 :value] v)
                     (reverse-collisions)
                     (update-motherboards))]
       (recompute-body-transforms! world)
@@ -168,17 +172,24 @@
   (doseq [mesh (vals (:background-meshes world))]
     (draw-mesh! world mesh))
 
-  (draw-cable! world :block9823 :sphere9816)
-  (draw-cable! world :sphere9816 :block9823-copy9824)
+  ;; (draw-cable! world :block9823 :sphere9816)
+  ;; (draw-cable! world :sphere9816 :block9823-copy9824)
+
+  (if-let [transform (get-in world [:weld-groups :track9247 :transform])]
+    (let [mesh (:small-gear world)
+          t (combine-transforms
+             transform
+             (make-transform [0 -0.8 0] [1 0 0 0]))
+          mesh (assoc-in mesh [:transform] t)]
+      (draw-mesh! world mesh)))
   
-  ;; (if-let [transform (get-in world [:parts :cylinder9250 :transform])]
-  ;;   (let [mesh (:small-gear world)
-  ;;         mesh (assoc-in mesh [:transform] transform)]
-  ;;     (draw-mesh! world mesh)))
-  ;; (if-let [transform (get-in world [:parts :cylinder9251 :transform])]
-  ;;   (let [mesh (:large-gear world)
-  ;;         mesh (assoc-in mesh [:transform] transform)]
-  ;;     (draw-mesh! world mesh)))
+  (if-let [transform (get-in world [:weld-groups :track9247-copy9249 :transform])]
+    (let [mesh (:large-gear world)
+          t (combine-transforms
+             transform
+             (make-transform [0 -0.5 0] [1 0 0 0]))
+          mesh (assoc-in mesh [:transform] t)]
+      (draw-mesh! world mesh)))
 
   ;; (draw-mesh! world (:small-gear world))
   ;; (draw-mesh! world (:large-gear world))
@@ -322,9 +333,3 @@
     (-> world
         (recompute-viewport width height)
         (place-elements))))
-
-;; (println! (get-parts-with-type (:parts @world) :wagon))
-(set-thing! [:show-buttons] :never)
-(set-thing! [:use-weld-groups] false)
-;; (set-thing! [:mode] :debug)
-
