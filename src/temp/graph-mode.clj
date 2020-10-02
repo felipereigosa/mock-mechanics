@@ -196,8 +196,12 @@
           (if (= (:type part) :wagon)
             (let [total-length (reduce + (:track-lengths part))]
               (assoc-in world [:parts part-name :value]
-                        (/ new-value total-length)))
-            (assoc-in world [:parts part-name :value] new-value))
+                        (within (/ new-value total-length) 0 1)))
+            (let [max-angle (get-in world [:parts part-name :max-angle])]
+              (assoc-in world [:parts part-name :value]
+                        (if (nil? max-angle)
+                          new-value
+                          (within new-value 0 max-angle)))))
           world))
       world)))
 
@@ -504,8 +508,7 @@
     (let [chip-name (:selected-chip world)
           chip (get-in world [:parts chip-name])
           part (get-in world [:parts part-name])
-          part-type (:type part)
-          part-direction (get-in world [:info part-type :direction])]
+          part-type (:type part)]
       (if (in? part-type [:wagon :track])
         (let [world (if (in? part-name (keys (:functions chip)))
                       (dissoc-in world [:parts chip-name :functions part-name])

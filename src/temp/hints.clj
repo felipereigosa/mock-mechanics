@@ -32,7 +32,7 @@
                        :cylinder "C,Cylinder"
                        :cone "V,Cone"
                        :lamp "L,Lamp"
-                       :speaker "Shift + L,Loudspeaker"
+                       :speaker "Shift + S,Speaker"
                        }
                  :edit {:move "M,Move"
                         :sink "H,Change Height"

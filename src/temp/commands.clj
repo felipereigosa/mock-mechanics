@@ -2,7 +2,9 @@
 (ns temp.core (:gen-class))
 
 (defn get-bindings []
-  {"A-a" #(change-mode % :add)
+  {"A-d" #(change-mode % :debug)
+   
+   "A-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)
    ":add c" #(assoc-in % [:add-type] :cylinder)
    ":add v" #(assoc-in % [:add-type] :cone)
@@ -14,7 +16,7 @@
    ":add p" #(assoc-in % [:add-type] :probe)
    ":add S-b" #(assoc-in % [:add-type] :button)
    ":add l" #(assoc-in % [:add-type] :lamp)
-   ":add S-l" #(assoc-in % [:add-type] :speaker)
+   ":add S-s" #(assoc-in % [:add-type] :speaker)
 
    "A-e" #(change-mode % :edit)
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)

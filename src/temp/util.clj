@@ -2,6 +2,7 @@
 (ns temp.core (:gen-class))
 
 (import java.awt.Color)
+(import java.io.File)
 
 (require '[clojure.set :refer [difference union map-invert]])
 (require '[clojure.string :refer [split join]])
@@ -194,7 +195,10 @@
   (.endsWith str end))
 
 (defn float= [a b]
-  (< (abs (- a b)) 0.0001))
+  (and
+   (number? a)
+   (number? b)
+   (< (abs (- a b)) 0.0001)))
 
 (def not-nil? (comp not nil?))
 
@@ -232,18 +236,25 @@
 (defn file-exists? [filename]
   (.exists (clojure.java.io/file filename)))
 
-(defn get-files-at [directory]
-  (let [files (file-seq (clojure.java.io/file directory))]
-    (rest (map (fn [file]
-                 (last (split (.toString file) #"/")))
-               files))))
+(defn get-files-at [filename]
+  (let [directory (clojure.java.io/file filename)]
+    (map #(.getName %)
+         (filter #(.isFile %) (file-seq directory)))))
 
 (defn join-keywords [& keywords]
   (keyword (apply str (interpose "-" (map (fn [k]
                                             (subs (str k) 1)) keywords)))))
 
 (defn snap-value [value step]
-  (* (round (/ value step)) step))
+  (if (number? step)
+    (* (round (/ value step)) step)
+    (first
+     (first
+      (sort-by second (map #(list % (abs (- % value))) step))))))
+
+(defn snap-point [[x y]]
+  [(snap-value x 10)
+   (snap-value y 10)])
 
 (defn keyword->str [k]
   (subs (str k) 1))

@@ -175,8 +175,10 @@
                     (try
                       (swap! world
                              (fn [w]
-                               (window-changed w {:width width
-                                                  :height height})))
+                               (if (empty? w)
+                                 w
+                                 (window-changed w {:width width
+                                                    :height height}))))
                       (reset! time-since-update 0)
                       (catch Exception e))))]
     (GLFW/glfwSetWindowSizeCallback window handler)
@@ -199,7 +201,9 @@
   (let [elapsed 16 ;;#########################################
         dt (float (/ elapsed 1000))
         chip (get-in world [:parts chip-name])]
-    (not (>= (:time chip) (+ (:final-time chip)) dt))))
+    (and
+     (not (empty? (:functions chip)))
+     (not (>= (:time chip) (+ (:final-time chip)) dt)))))
 
 (declare get-parts-with-type)
 
@@ -208,12 +212,12 @@
     (some #(chip-active? world %) chip-names)))
 
 (defn update-and-draw! [window]
-  (try ;;####################################################
+  (try
     (run-pending!)
     (catch Exception e))
   
   (if (or (< @time-since-update 200)
-          (not (empty? (:spheres @world)))
+          ;; (not (empty? (:spheres @world)))
           (not (nil? (:force @world))))
     (let [current-time (get-current-time)
           elapsed (within (- current-time @last-time) 0 40)]

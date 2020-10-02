@@ -35,21 +35,12 @@
 
 (defn create-world []
   (-> (create-base-world)
-      (assoc-in [:small-gear] ;;###################################
-                (create-model-mesh "res/small-gear.obj"
-                                   [0 1 0] [1 0 0 0] 0.25 :gray))
-      (assoc-in [:large-gear] ;;###################################
-                (create-model-mesh "res/large-gear.obj"
-                                   [0.75 1 0] [0 1 0 10] 0.25
-                                   (make-color 50 50 50)))
-            
       (merge (read-string (str "{" (slurp "settings.clj") "}")))
-      (assoc-in [:num-lines] 1)
+      (assoc-in [:num-lines] 6)
       (assoc-in [:background-meshes :grid] (create-grid-mesh 24 0.5))
       (assoc-in [:info] (create-info))
       (assoc-in [:parts] {})
       (assoc-in [:parts :ground-part] (create-ground-part))
-
       (assoc-in [:other-ground]
                 (create-cube-mesh [0 -0.1 0] [1 0 0 0] [12 0.2 12]
                                   (make-color 40 40 40)))
@@ -102,38 +93,18 @@
       (assoc-in [:track-head-model]
                 (create-cube-mesh [0 -10000 0] [1 0 0 0] 0.2 :white))
       (place-elements)
+      (create-weld-groups)
 
       ;; (assoc-in [:update-cube] ;;###################################
       ;;           (create-cube-mesh [0 0 0] [1 0 0 0] 0.1 :red))
-
-      (create-weld-groups)
       ))
 (reset-world!)
 )
 
-(defn draw-cable! [world part-a part-b]
-  (let [mesh (get-in world [:info :cylinder :model])
-        position-a (get-transform-position
-                    (get-in world [:parts part-a :transform]))
-        position-b (get-transform-position
-                    (get-in world [:parts part-b :transform]))
-        mid-point (vector-multiply (vector-add position-a position-b) 0.5)
-        v (vector-subtract position-b position-a)
-        mesh (set-mesh-position mesh mid-point)
-        mesh (point-mesh-towards mesh v)
-        l (vector-length v)
-        mesh (assoc-in mesh [:scale] [0.05 l 0.05])
-        mesh (assoc-in mesh [:color] [0.6 0.6 0.6 1])]
-    (draw-mesh! world mesh)))
-
-(set-thing! [:mode] :debug)
 (defn update-world [world elapsed]
   (cond
     (in? (:mode world) [:simulation :graph :motherboard])
     (let [elapsed 16 ;;######################
-          ;; v  (get-in world [:parts :wagon9806 :value])
-          v (+ 0.05 (* 2 (- 1 (get-in world [:parts :track9247-copy9249 :value]))))
-          
           world (-> world
                     (set-probe-values)
                     (save-values)
@@ -142,7 +113,6 @@
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
-                    (assoc-in [:parts :track9247 :value] v)
                     (reverse-collisions)
                     (update-motherboards))]
       (recompute-body-transforms! world)
@@ -158,44 +128,18 @@
     :else world)
   )
 
-(defn draw-update-cube! [world] ;;#########################
-  (if-let [mesh (:update-cube world)]
-    (let [green-value (if (float= (second (:color mesh)) 1.0)
-                        0.0
-                        1.0)]
-      (set-thing! [:update-cube :color 1] green-value)
-      (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
-      (draw-mesh! world mesh)))
-  )
+;; (defn draw-update-cube! [world] ;;#########################
+;;   (if-let [mesh (:update-cube world)]
+;;     (let [green-value (if (float= (second (:color mesh)) 1.0)
+;;                         0.0
+;;                         1.0)]
+;;       (set-thing! [:update-cube :color 1] green-value)
+;;       (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
+;;       (draw-mesh! world mesh))))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
     (draw-mesh! world mesh))
-
-  ;; (draw-cable! world :block9823 :sphere9816)
-  ;; (draw-cable! world :sphere9816 :block9823-copy9824)
-
-  (if-let [transform (get-in world [:weld-groups :track9247 :transform])]
-    (let [mesh (:small-gear world)
-          t (combine-transforms
-             transform
-             (make-transform [0 -0.8 0] [1 0 0 0]))
-          mesh (assoc-in mesh [:transform] t)]
-      (draw-mesh! world mesh)))
-  
-  (if-let [transform (get-in world [:weld-groups :track9247-copy9249 :transform])]
-    (let [mesh (:large-gear world)
-          t (combine-transforms
-             transform
-             (make-transform [0 -0.5 0] [1 0 0 0]))
-          mesh (assoc-in mesh [:transform] t)]
-      (draw-mesh! world mesh)))
-
-  ;; (draw-mesh! world (:small-gear world))
-  ;; (draw-mesh! world (:large-gear world))
-  
-  ;; (doseq [mesh (vals (:meshes world))] ;;##################
-  ;;   (draw-mesh! world mesh))
 
   (if (> (get-in world [:camera :x-angle]) 0)
     (draw-mesh! world (:other-ground world)))
@@ -212,12 +156,11 @@
         (draw-part! world part))))
 
   (draw-track-head! world)
-
   (draw-selection! world)
   (draw-buttons! world)
   (draw-lamps! world)
-  (draw-debug-meshes!) ;;##############################
-  ;; (draw-update-cube! world) ;;#########################
+
+  ;; (draw-update-cube! world)
   )
 
 (do
@@ -333,3 +276,20 @@
     (-> world
         (recompute-viewport width height)
         (place-elements))))
+
+;; (println! (get-thing! [:parts :wagon9490 :value]))
+;; (println! (get-thing! [:parts :wagon9490 :loop-fn]))
+
+;; (update-thing! [] #(compute-transforms % :weld-groups))
+;; (set-thing! [:parts :wagon9490 :value] 0.5)
+
+;; (update-thing! [] tree-changed)
+;; (redraw!)
+
+;; {:saved-value 0.37091869976863956, :transform, :color :yellow, :scale [0.15 0.15 0.15], :snap 0, :free true, :value 0.37091869976863956, :track-lengths (1.5), :type :wagon, :loop-fn ([0.0 [0.0 -1.5 0.0]] [1.0 [0.0 0.0 0.0]]), :layer 1}
+
+;; {:saved-value 0.37091869976863956, :transform, :color :yellow, :scale [0.15 0.15 0.15], :snap 0, :free true, :value 0.37091869976863956, :track-lengths (0.5), :type :wagon, :loop-fn ([0.0 [0.0 -0.5 0.0]] [1.0 [0.0 0.0 0.0]]), :layer 1}
+
+;; (set-thing! [:use-weld-groups] false)
+
+;; (any-chip-active? @world)

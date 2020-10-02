@@ -91,3 +91,35 @@
              {name (assoc-in value [:layer] 1)})
            parts))
 
+(defn get-num-vertices [world part-name]
+  (let [part (get-in world [:parts part-name])
+        part-type (:type part)
+        ]
+    (if (= (:layer part) 1)
+      (/ (count (get-in world [:info part-type :model :vertices])) 3)
+      0)))
+
+;; (do
+;; 1
+
+
+
+;; (clear-output!)
+;; (let [world @world
+;;       part-name :probe11450
+;;       part-name :track10278
+;;       part (get-in world [:parts part-name])
+;;       part-type (:type part)
+;;       ]
+
+;;   (reduce + (map #(get-num-vertices world %) (keys (:parts world))))
+;;   ))
+
+;; parts    6500
+;; spheres  5760
+;; cylinder 372
+
+;; total    12632
+
+
+

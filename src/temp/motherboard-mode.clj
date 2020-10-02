@@ -1,10 +1,6 @@
 
 (ns temp.core (:gen-class))
 
-(defn snap-point [[x y]]
-  [(snap-value x 10)
-   (snap-value y 10)])
-
 (defn motherboard-mode-entered [world]
   (assoc-in world [:motherboard-subcommand] :move))
 
@@ -17,6 +13,19 @@
                             (:connections motherboard))]
     (map (comp first :points second) connections)))
 
+(defn get-pin-direction [motherboard pin-name]
+  (if (in? pin-name (keys (:pins motherboard)))
+    (let [points (map :points (vals (:connections motherboard)))]
+      (cond
+        (in? pin-name (map first points)) :input
+        (in? pin-name (map last points)) :output
+        :else nil))
+    nil))
+
+(defn get-pins [motherboard type]
+  (filter #(= (get-pin-direction motherboard %) type)
+          (keys (:pins motherboard))))
+
 (defn get-input-pin-value [world motherboard pin-name]
   (get-in world [:parts pin-name :value]))
 
@@ -28,7 +37,7 @@
 
 (defn get-pin-value [world motherboard pin-name]
   (let [part (get-in world [:parts pin-name])
-        direction (get-in world [:info (:type part) :direction])]
+        direction (get-pin-direction motherboard pin-name)]
     (if (= direction :output)
       (get-output-pin-value world motherboard pin-name)
       (get-input-pin-value world motherboard pin-name))))
@@ -71,40 +80,34 @@
 
     :else 0))
 
-(defn get-motherboard-outputs [world motherboard]
-  (map (fn [pin-name]
-         (let [part (get-in world [:parts pin-name])
-               type (:type part)
-               direction (get-in world [:info type :direction])]
-           (if (= direction :output)
-             [pin-name type]
-             nil)))
-       (keys (:pins motherboard))))
-
 (defn run-graph [world motherboard-name]
   (let [motherboard (get-in world [:parts motherboard-name])
-        output-names (filter not-nil? (get-motherboard-outputs world motherboard))]
-    (reduce (fn [w [part-name type]]
-              (case type
-                :lamp
-                (assoc-in w [:parts part-name :value]
-                          (get-element-value world motherboard part-name))
+        output-names (get-pins motherboard :output)]
+    (reduce (fn [w part-name]
+              (let [type (get-in w [:parts part-name :type])]
+                (case type
+                  :lamp
+                  (assoc-in w [:parts part-name :value]
+                            (get-element-value w motherboard part-name))
 
-                :chip
-                (let [value (get-element-value world motherboard part-name)]
-                  (if (float= value 1.0)
-                    (activate-chip world part-name)
-                    w))
+                  :button
+                  (assoc-in w [:parts part-name :value]
+                            (get-element-value w motherboard part-name))
+                  
+                  :chip
+                  (let [value (get-element-value w motherboard part-name)]
+                    (if (float= value 1.0)
+                      (activate-chip w part-name)
+                      w))
 
-                :speaker
-                (let [value (get-element-value world motherboard part-name)
-                      part (get-in world [:parts part-name])
-                      note (get-note (:frequency part))]
-                  (if (float= value 1.0)
-                    (note-on note)
-                    (note-off note))
-                  w)
-                w))
+                  :speaker
+                  (let [value (get-element-value w motherboard part-name)
+                        part (get-in w [:parts part-name])
+                        note (get-note (:frequency part))]
+                    (if (float= value 1.0)
+                      (note-on note)
+                      (note-off note))
+                    w))))
             world
             output-names)))
 
@@ -115,44 +118,50 @@
                                       {a b}))
                                   names values)))))
 
-(defn process-code [code inputs outputs]
-  (let [input-names (nth code 1)
-        output-names (nth code 2)
-        other (nthrest code 3)
-        input-bindings (map-bindings input-names inputs)
-        output-bindings (map-bindings output-names outputs)
+(defn process-code [code pins]
+  (let [names (nth code 1)
+        body (nthrest code 2)
+        bindings (map-bindings names pins)
         helpers '[get-value (fn [name]
                               (get-in @world [:parts name :value]))
+                  set-value (fn [name value]
+                              (assoc-in @world [:parts name :value] value))
                   activate (fn [name]
                              (update-thing! [] #(activate-chip % name)))
+                  chip-active? #(chip-active? @world %)
                   println println!
                   wait (fn [pred]
-                         (while (pred) (sleep 50)))]]
+                         (while (pred) (sleep 50)))
+                  ;; get-part (fn [probe]
+                  ;;            (let [world @world
+                  ;;                  transform (use-root-relative-transform world probe)
+                  ;;                  point (get-transform-position transform)
+                  ;;                  direction (vector-normalize (apply-transform (get-rotation-component transform) [0 1 0]))
+                  ;;                  offset (vector-multiply direction 0.051)
+                  ;;                  line [(vector-add point offset) direction]
+                  ;;                  collision (get-part-collision world line)]
+                  ;;              (:part-name collision)))
+                  ]]
     `(do
        (require '[temp.core :refer :all])
-
-       (let [~@input-bindings
-             ~@output-bindings
+       (let [~@bindings
              ~@helpers]
-         ~@other))))
+         ~@body))))
 
-(defn get-sorted-pin-list [world motherboard-name which]
+(defn get-sorted-pin-list [world motherboard-name]
   (let [motherboard (get-in world [:parts motherboard-name])
         helper (fn [[name pin]]
-                 (let [type (get-in world [:parts name :type])
-                       direction (get-in world [:info type :direction])]
-                   [name direction (:x pin)]))
-        pins (sort-by last (map helper (:pins motherboard)))]
-    (map first (filter #(= (second %) which) pins))))
+                 (let [type (get-in world [:parts name :type])]
+                   [name (:x pin)]))]
+    (map first (sort-by last (map helper (:pins motherboard))))))
 
 (defn run-script [world motherboard-name pin-name]
   (let [motherboard (get-in world [:parts motherboard-name])
-        inputs (get-sorted-pin-list world motherboard-name :input)
-        outputs (get-sorted-pin-list world motherboard-name :output)
+        sorted-pins (get-sorted-pin-list world motherboard-name)
         filename (:script motherboard)]
     (try
-      (let [text (read-string (slurp filename))
-            code (process-code text inputs outputs)]
+      (let [text (read-string (str "(do" (slurp filename) ")"))
+            code (process-code text sorted-pins)]
         (.start
          (new Thread
               (proxy [Runnable] []
@@ -160,7 +169,8 @@
                   (try
                     ((eval code) pin-name)
                     (catch Exception e
-                      (user-message! "script failed"))))))))
+                      (user-message! e)
+                      (user-message! "script failed"))))))))  
       (catch Exception e
         (user-message! "script failed")))
     world))
@@ -297,9 +307,6 @@
         (fill-circle! :white x1 y1 3)
         (fill-circle! :white x2 y2 3)))))
 
-(do
-1
-
 (defn motherboard-mode-draw [world]
   (let [motherboard-box (:motherboard-box world)
         {:keys [x y w h]} motherboard-box
@@ -341,9 +348,6 @@
       (draw-rect! :gray x y 15 10)
       (draw-line! :gray (- x 4) y (+ x 3) y))
     ))
-
-(redraw!)
-)
 
 (defn prune-connections [motherboard]
   (let [elements (concat (vec (keys (:pins motherboard)))
@@ -426,22 +430,19 @@
           motherboard (get-in world [:parts motherboard-name])
           motherboard-box (:motherboard-box world)
           part (get-in world [:parts part-name])
-          part-type (:type part)
-          part-direction (get-in world [:info part-type :direction])]
-      (if (nil? part-direction)
-        world
-        (if (in? part-name (keys (:pins motherboard)))
-          (-> world
-              (dissoc-in [:parts motherboard-name :pins part-name])
-              (update-in [:parts motherboard-name] prune-connections))
+          part-type (:type part)]
+      (if (in? part-name (keys (:pins motherboard)))
+        (-> world
+            (dissoc-in [:parts motherboard-name :pins part-name])
+            (update-in [:parts motherboard-name] prune-connections))
 
-          (let [x (get-available-pin-spot motherboard motherboard-box)
-                part (get-in world [:parts part-name])
-                trigger (= (:type part) :button)]
-            (assoc-in world [:parts motherboard-name :pins part-name]
-                      {:x x
-                       :trigger trigger
-                       :value (:value part)})))))
+        (let [x (get-available-pin-spot motherboard motherboard-box)
+              part (get-in world [:parts part-name])
+              trigger (= (:type part) :button)]
+          (assoc-in world [:parts motherboard-name :pins part-name]
+                    {:x x
+                     :trigger trigger
+                     :value (:value part)}))))
     world))
 
 (defn motherboard-move-pressed [world {:keys [x y]}]

@@ -94,13 +94,14 @@
         v (vector-subtract p0 pl)
         n (vector-cross-product v1 v2)
         den (vector-dot-product vl n)]
-    (if (= den 0.0)
+    (if (float= den 0.0)
       nil
       (let [dist (/ (vector-dot-product v n) den)
             point (line-get-point [pl vl] dist)
             vp (vector-subtract point p0)
             [s t] (get-affine-coordinates v1 v2 vp)]
-        (if (and (>= s 0.0)
+        (if (and (>= dist 0)
+                 (>= s 0.0)
                  (<= s 1.0)
                  (>= t 0.0)
                  (<= t 1.0)

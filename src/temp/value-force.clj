@@ -90,9 +90,12 @@
           dampening-factor 0.7
           velocity (* (+ velocity dv) dampening-factor)
           dvalue (* velocity dt)
-          value (+ value dvalue)]      
+          value (+ value dvalue)
+          max-angle (get-in world [:parts part-name :max-angle])]
       (-> world
-          (assoc-in [:parts part-name :value] value)
+          (assoc-in [:parts part-name :value] (if (nil? max-angle)
+                                                value
+                                                (within value 0 max-angle)))
           (assoc-in [:force :velocity] velocity)))
     world))
 

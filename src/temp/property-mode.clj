@@ -12,16 +12,17 @@
                               (= property :value))
                            (* value (reduce + (:track-lengths part)))
                            value)
-                   value (->> value
-                              (float)
-                              (format "%.2f"))]
+                   value (cond
+                           (number? value) (format "%.2f" (float value))
+                           (nil? value) "nil"
+                           :else (str value))]
                [(name property) value]))
            (keys properties)))
     []))
 
 (defn property-mode-entered [world]
   (assoc-in world [:selected-part] nil))
-  
+
 (defn property-mode-draw [world]
   (let [box (:property-box world)
         {:keys [x y w h image regions]} box
@@ -53,7 +54,6 @@
                     (-> w
                         (assoc-in [:parts part-name key] value)
                         (tree-changed)))))))
-
 
 (defn set-property [world x y]
   (if-let [region (get-region-at (:property-box world) x y)]
@@ -139,7 +139,7 @@
                    (not (inside-box? box x y))
                    (< (- (get-current-time) (:press-time world)) 200))
                 (select-part world (:selected-part world))
-                (snap-part world (:selected-part world)))]
+                world)]
     (-> world
         (dissoc-in [:force])
         (dissoc-in [:track-force])

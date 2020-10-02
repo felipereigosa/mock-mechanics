@@ -64,13 +64,24 @@
   (or (get-in world [:info type :collision-model])
       (get-in world [:info :block :model])))
 
-(defn get-part-collision [world px py & rest]
-  (let [line (unproject-point world [px py])
-        excluded-parts (first rest)
+(defn get-collision-normal [world collision]
+  (let [{:keys [part-name point index]} collision
+        type (get-in world [:parts part-name :type])
+        mesh (get-collision-model world type)
+        triangles (partition 3 (partition 3 (:vertices mesh)))
+        [a b c] (nth triangles index)
+        v1 (vector-subtract b a)
+        v2 (vector-subtract c a)]
+    (vector-cross-product v1 v2)))
+
+;;------
+
+(defn get-part-collision [world line]
+  (let [line (or (:line spec)
+                 (unproject-point world [(:x spec) (:y spec)]))
         distances (map (fn [[part-name part]]
-                         (if (or
-                              (in? part-name excluded-parts)
-                              (not (in? (:layer part) (:visible-layers world))))
+                         (if (not (in? (:layer part)
+                                       (:visible-layers world)))
                            nil
                            (let [type (:type part)
                                  info (get-in world [:info type])
@@ -93,25 +104,16 @@
                           distances)]
     (first (sort-by :distance distances))))
 
-(defn get-part-at [world px py & rest]
-  (:part-name (get-part-collision world px py (first rest))))
+(defn get-part-at [world spec]
+  (:part-name (get-part-collision world spec)))
 
-(defn get-collision-normal [world collision]
-  (let [{:keys [part-name point index]} collision
-        type (get-in world [:parts part-name :type])
-        mesh (get-collision-model world type)
-        triangles (partition 3 (partition 3 (:vertices mesh)))
-        [a b c] (nth triangles index)
-        v1 (vector-subtract b a)
-        v2 (vector-subtract c a)]
-    (vector-cross-product v1 v2)))
-
-(defn get-track-head-collision [world x y]
+(defn get-track-head-collision [world spec]
   (if-let [track-head-name (:track-head world)]
     (let [transform (get-in world [:parts track-head-name :transform])
           mesh (:track-head-model world)
           scale (:scale mesh)
-          line (unproject-point world [x y])
+          line (or (:line spec)
+                   (unproject-point world [(:x spec) (:y spec)]))
           collision (get-mesh-collision mesh transform scale line)]
       {:part-name track-head-name
        :track-head true
@@ -119,16 +121,17 @@
        :distance (second collision)})
     nil))
 
-(defn get-ground-collision [world x y]
+(defn get-ground-collision [world spec]
   (let [plane [[0 0 0] [1 0 0] [0 0 1]]
-        line (unproject-point world [x y])]
+        line (or (:line spec)
+                 (unproject-point world [(:x spec) (:y spec)]))]
     {:part-name :ground-part
      :point (line-plane-intersection line plane)}))
 
-(defn get-collision [world x y]
-  (let [c-track-head (get-track-head-collision world x y)
-        c-part (get-part-collision world x y)
-        c-ground (get-ground-collision world x y)]
+(defn get-collision [world spec]
+  (let [c-track-head (get-track-head-collision world spec)
+        c-part (get-part-collision world spec)
+        c-ground (get-ground-collision world spec)]
     (cond
       (and (nil? c-track-head)
            (nil? c-part))
@@ -138,3 +141,4 @@
                            (:distance c-part)) c-track-head
       
       :else c-part)))
+

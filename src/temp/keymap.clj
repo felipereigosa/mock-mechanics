@@ -47,9 +47,9 @@
              GLFW/GLFW_KEY_X                       "x"
              GLFW/GLFW_KEY_Y                       "y"
              GLFW/GLFW_KEY_Z                       "z"
-             GLFW/GLFW_KEY_LEFT_BRACKET            nil
+             GLFW/GLFW_KEY_LEFT_BRACKET            "["
              GLFW/GLFW_KEY_BACKSLASH               nil
-             GLFW/GLFW_KEY_RIGHT_BRACKET           nil
+             GLFW/GLFW_KEY_RIGHT_BRACKET           "]"
              GLFW/GLFW_KEY_ESCAPE                  :esc
              GLFW/GLFW_KEY_GRAVE_ACCENT            :esc
              GLFW/GLFW_KEY_ENTER                   :enter
@@ -90,6 +90,6 @@
              GLFW/GLFW_KEY_RIGHT_CONTROL           :control
              GLFW/GLFW_KEY_LEFT_ALT                :alt
              GLFW/GLFW_KEY_RIGHT_ALT               :alt
-             GLFW/GLFW_KEY_LEFT_SUPER              :super
-             GLFW/GLFW_KEY_RIGHT_SUPER             :super
+             GLFW/GLFW_KEY_LEFT_SUPER              nil
+             GLFW/GLFW_KEY_RIGHT_SUPER             nil
              })

@@ -5,7 +5,6 @@
   {:ground
    {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
-    :direction nil
     }
 
    :block
@@ -14,7 +13,6 @@
              [0 0.5 0] [0 -0.5 0]
              [0 0 0.5] [0 0 -0.5]]
     :scale [0.5 0.5 0.5]
-    :direction :input
     :color :white
     :properties {:value 0}
     }
@@ -26,7 +24,6 @@
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
-    :direction :input
     :color :orange
     :properties {:value 0}
     }
@@ -39,7 +36,6 @@
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
-    :direction :input
     :color :blue
     :properties {:value 0}
     }
@@ -51,7 +47,6 @@
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.5 0.5 0.5]
-    :direction :input
     :color :green
     :properties {:value 0}
     }
@@ -63,17 +58,15 @@
              [0 0.5 0] [0 -0.5 0]
              [0 0 0.5] [0 0 -0.5]]
     :scale [0.15 0.15 0.15]
-    :direction :output
     :color :yellow
     :properties {:value 0
-                 :snap 0}
+                 :snap nil}
     }
 
    :probe
    {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.1 0.1 0.1]
-    :direction :input
     :color :purple
     :properties {:value 0}
     }
@@ -85,10 +78,10 @@
              [0 0.2 0]
              [0 0 0.2] [0 0 -0.2]]
     :scale [0.1 1 0.1]
-    :direction :output
     :color :red
     :properties {:value 0
-                 :snap 0}
+                 :snap nil
+                 :max-angle nil}
     }
 
    :chip
@@ -98,7 +91,6 @@
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
     :poinpts []
     :scale [0.3 0.07 0.3]
-    :direction :output
     :color :dark-gray
     }
    
@@ -111,7 +103,6 @@
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.4 0.1 0.4]
-    :direction :output
     :color :gray
     :properties {:value 0
                  :frequency 440}
@@ -125,7 +116,6 @@
     :points []
     :scale [0.3 0.07 0.3]
     
-    :direction nil
     :color :blue
     }
 
@@ -138,7 +128,6 @@
                             [0 0 0] [1 0 0 0] [0.4 0.2 0.4] :red)
     :points []
     :scale [0.5 0.2 0.5]
-    :direction :input
     :color :red
     :properties {:value 0}
     }
@@ -154,7 +143,6 @@
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.4 0.2 0.4]
-    :direction :output
     :color :red
     :properties {:value 0}
     }
@@ -383,7 +371,8 @@
 
 (defn snap-part [world part-name]
   (let [part (get-in world [:parts part-name])]
-    (if (float= (:snap part) 0.0)
+    (if (or (nil? (:snap part))
+            (float= (:snap part) 0.0))
       world
       (let [snap (if (= (:type part) :wagon)
                    (/ (:snap part) (reduce + (:track-lengths part)))
@@ -414,7 +403,8 @@
 
                 (set-thing! [:bodies] (:bodies fast-world))
                 
-                (set-thing! [:use-weld-groups] true))
+                (set-thing! [:use-weld-groups] true)
+                )
               (catch Exception e))))))
   w)
 

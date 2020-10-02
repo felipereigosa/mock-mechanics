@@ -354,4 +354,3 @@
                 :sphere (scale-sphere-released world event)
                 world)]
     (dissoc-in world [:scale-type])))
-
