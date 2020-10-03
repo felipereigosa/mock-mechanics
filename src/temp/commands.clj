@@ -80,6 +80,7 @@
 
    "C-s" #(save-machine-version %)
    "C-o" #(open-machine-version %)
+   "C-x o" #(import-machine-version %)
    
    "C-z" #(undo! %)
    "C-r" #(redo! %)

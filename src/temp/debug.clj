@@ -16,9 +16,9 @@
 
 (defn debug-mode-pressed [world event]
   (let [{:keys [x y]} event
-        ;; collision (get-part-collision world x y)
+        ;; collision (get-part-collision world event)
         ]        
-    (println! (get-part-at world x y) x y)
+    (println! (get-part-at world event) x y)
     world))
 
 (defn debug-mode-moved [world event]

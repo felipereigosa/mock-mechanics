@@ -17,8 +17,8 @@
       (dotimes [i 3]
         (draw-rect! :black x y (- w i) (- h i 1))))))
 
-(defn add-wagon [world color x y]
-  (let [part-name (get-part-at world x y)]
+(defn add-wagon [world color spec]
+  (let [part-name (get-part-at world spec)]
     (if (and (not-nil? part-name)
              (= (get-in world [:parts part-name :type]) :track))
       (let [layer (apply min (:visible-layers world))
@@ -136,12 +136,12 @@
             world (tree-will-change world)]
         (case (:add-type world)
           :wagon
-          (add-wagon world color x y)
+          (add-wagon world color event)
 
           (let [layer (apply min (:visible-layers world))
                 part (create-part type color layer (:info world))
                 part-name (gen-keyword type)
-                collision (get-collision world x y)
+                collision (get-collision world event)
                 parent (get-in world [:parts (:part-name collision)])
                 world (if (can-place-part-at? world collision)
                         (-> world
@@ -154,9 +154,9 @@
                   (move-part-pressed part-name nil)
                   (move-part-moved event :grain 0.25)))))))))
 
-(defn set-track-head [world x y]
+(defn set-track-head [world event]
   (if (= (:add-type world) :track)
-    (let [line (unproject-point world [x y])
+    (let [line (get-spec-line world event)
           track-names (get-parts-with-type (:parts world) :track)
           track-distances (remove-nil
                            (map (fn [track-name]
@@ -172,7 +172,7 @@
     (assoc-in world [:track-head] nil)))    
 
 (defn add-mode-moved [world event]
-  (let [world (set-track-head world (:x event) (:y event))
+  (let [world (set-track-head world event)
         grain-size (if (:shift-pressed world)
                      0.05
                      0.25)]

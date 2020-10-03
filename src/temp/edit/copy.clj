@@ -68,8 +68,10 @@
 
 (declare get-tree-with-root)
 
-(defn copy-mode-pressed [world {:keys [x y]}]
-  (if-let [collision (get-collision world x y)]
+(def copy-name (atom nil))
+
+(defn copy-mode-pressed [world event]
+  (if-let [collision (get-collision world event)]
     (if (:control-pressed world)
       (let [part-name (:part-name collision)]
         (-> world
@@ -83,6 +85,7 @@
                 parts (fix-references parts copied-parts suffix)
                 new-parent-name (:part-name collision)
                 new-parent (get-in world [:parts new-parent-name])]
+            (reset! copy-name copy-part-name)
             (-> world
                 (assoc-in [:parts] parts)
                 (place-part-at copy-part-name collision)

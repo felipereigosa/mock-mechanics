@@ -59,9 +59,9 @@
         (assoc-in [:original-plane] original-plane)
         (assoc-in [:offset] offset))))
 
-(defn move-part-moved [world {:keys [x y]} & {:keys [grain]}]
+(defn move-part-moved [world event & {:keys [grain]}]
   (if-let [part-name (:edited-part world)]
-    (let [line (unproject-point world [x y])
+    (let [line (get-spec-line world event)
           plane (:plane world)
           point (line-plane-intersection line plane)
           offset (:offset world)
@@ -79,7 +79,7 @@
           ox (vector-scalar-projection v v1)
           oy (vector-scalar-projection v v2)]
       (user-message! "x = " (format "%.2f" ox)
-                     ", y = " (format "%.2f" oy))      
+                     ", y = " (format "%.2f" oy))
       (update-in world [:parts part-name]
                  #(set-part-position % point)))
     world))
@@ -96,8 +96,8 @@
           (dissoc-in [:edited-part])))
     world))
 
-(defn move-mode-pressed [world {:keys [x y]}]
-  (if-let [{:keys [part-name point]} (get-part-collision world x y)]
+(defn move-mode-pressed [world event]
+  (if-let [{:keys [part-name point]} (get-part-collision world event)]
     (let [type (get-in world [:parts part-name :type])]
       (if (= type :wagon)
         (do

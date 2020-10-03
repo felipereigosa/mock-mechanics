@@ -74,11 +74,12 @@
         v2 (vector-subtract c a)]
     (vector-cross-product v1 v2)))
 
-;;------
+(defn get-spec-line [world spec]
+  (or (:line spec)
+      (unproject-point world [(:x spec) (:y spec)])))
 
-(defn get-part-collision [world line]
-  (let [line (or (:line spec)
-                 (unproject-point world [(:x spec) (:y spec)]))
+(defn get-part-collision [world spec]
+  (let [line (get-spec-line world spec)
         distances (map (fn [[part-name part]]
                          (if (not (in? (:layer part)
                                        (:visible-layers world)))
@@ -112,8 +113,7 @@
     (let [transform (get-in world [:parts track-head-name :transform])
           mesh (:track-head-model world)
           scale (:scale mesh)
-          line (or (:line spec)
-                   (unproject-point world [(:x spec) (:y spec)]))
+          line (get-spec-line world spec)
           collision (get-mesh-collision mesh transform scale line)]
       {:part-name track-head-name
        :track-head true
@@ -123,8 +123,7 @@
 
 (defn get-ground-collision [world spec]
   (let [plane [[0 0 0] [1 0 0] [0 0 1]]
-        line (or (:line spec)
-                 (unproject-point world [(:x spec) (:y spec)]))]
+        line (get-spec-line world spec)]
     {:part-name :ground-part
      :point (line-plane-intersection line plane)}))
 

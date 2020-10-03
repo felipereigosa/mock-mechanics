@@ -8,8 +8,8 @@
                          children)]
     (vec (apply concat [root-name] descendents))))
 
-(defn translate-mode-pressed [world {:keys [x y]}]
-  (if-let [collision (get-collision world x y)]
+(defn translate-mode-pressed [world event]
+  (if-let [collision (get-collision world event)]
     (if (:control-pressed world)
       (let [part-name (:part-name collision)]
         (-> world

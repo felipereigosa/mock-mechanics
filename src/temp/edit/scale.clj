@@ -42,28 +42,26 @@
               (select-keys children moving-children))))
 
 (defn scale-block-pressed [world event]
-  (let [x (:x event)
-        y (:y event)]
-    (if-let [{:keys [part-name point index]} (get-part-collision world x y)]
-      (let [part (get-in world [:parts part-name])
-            vertices (get-in world [:info :block :model :vertices])
-            triangles (partition 3 (partition 3 vertices))
-            [a b c] (nth triangles index)
-            v1 (vector-subtract b a)
-            v2 (vector-subtract c a)
-            normal (vector-cross-product v1 v2)
-            rotation-transform (get-rotation-component (:transform part))
-            v (apply-transform rotation-transform normal)
-            scale (:scale part)
-            center (get-transform-position (:transform part))]
-        (-> world
-            (assoc-in [:edited-part] part-name)
-            (assoc-in [:adjust-line] [point (vector-normalize v)])
-            (assoc-in [:original-scale] scale)
-            (assoc-in [:original-center] center)
-            (assoc-in [:normal] normal)
-            (save-moveable-children-transforms normal part-name)))
-        world)))
+  (if-let [{:keys [part-name point index]} (get-part-collision world event)]
+    (let [part (get-in world [:parts part-name])
+          vertices (get-in world [:info :block :model :vertices])
+          triangles (partition 3 (partition 3 vertices))
+          [a b c] (nth triangles index)
+          v1 (vector-subtract b a)
+          v2 (vector-subtract c a)
+          normal (vector-cross-product v1 v2)
+          rotation-transform (get-rotation-component (:transform part))
+          v (apply-transform rotation-transform normal)
+          scale (:scale part)
+          center (get-transform-position (:transform part))]
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (assoc-in [:adjust-line] [point (vector-normalize v)])
+          (assoc-in [:original-scale] scale)
+          (assoc-in [:original-center] center)
+          (assoc-in [:normal] normal)
+          (save-moveable-children-transforms normal part-name)))
+    world))
 
 (defn move-children [world part-name]
   (let [part (get-in world [:parts part-name])
@@ -85,7 +83,7 @@
 (defn scale-block-moved [world event]
   (if-let [block-name (:edited-part world)]
     (let [adjust-line (:adjust-line world)
-          mouse-line (unproject-point world [(:x event) (:y event)])
+          mouse-line (get-spec-line world event)
           d (line-line-closest-point adjust-line mouse-line)
           grain-size (if (:shift-pressed world) 0.5 0.1)
           d (snap-value d grain-size)
@@ -129,26 +127,24 @@
         (assoc-in [:parts track-name :transform] new-transform))))
 
 (defn scale-track-pressed [world event]
-  (let [x (:x event)
-        y (:y event)]
-    (if-let [{:keys [part-name point _]} (get-part-collision world x y)]
-      (let [part (get-in world [:parts part-name])
-            scale (:scale part)
-            transform (:transform part)
-            center (get-transform-position transform)
-            rotation-transform (get-rotation-component transform)
-            v (apply-transform rotation-transform [0 1 0])]
-        (-> world
-            (assoc-in [:edited-part] part-name)
-            (assoc-in [:adjust-line] [point (vector-normalize v)])
-            (assoc-in [:original-scale] scale)
-            (assoc-in [:original-center] center)))
-      world)))
+  (if-let [{:keys [part-name point _]} (get-part-collision world event)]
+    (let [part (get-in world [:parts part-name])
+          scale (:scale part)
+          transform (:transform part)
+          center (get-transform-position transform)
+          rotation-transform (get-rotation-component transform)
+          v (apply-transform rotation-transform [0 1 0])]
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (assoc-in [:adjust-line] [point (vector-normalize v)])
+          (assoc-in [:original-scale] scale)
+          (assoc-in [:original-center] center)))
+    world))
 
 (defn scale-track-moved [world event]
   (if-let [track-name (:edited-part world)]
     (let [adjust-line (:adjust-line world)
-          mouse-line (unproject-point world [(:x event) (:y event)])
+          mouse-line (get-spec-line world event)
           d (line-line-closest-point adjust-line mouse-line)
           grain-size (if (:shift-pressed world) 0.5 0.1)
           d (snap-value d grain-size)
@@ -178,36 +174,34 @@
     world))
 
 (defn scale-cylinder-pressed [world event]
-  (let [x (:x event)
-        y (:y event)]
-    (if-let [{:keys [part-name point index]}
-             (get-part-collision world x y)]
-      (let [part (get-in world [:parts part-name])
-            inverse-transform (get-inverse-transform (:transform part))
-            local-point (apply-transform inverse-transform point)
-            half-height (/ (second (:scale part)) 2)
-            [lx ly lz] local-point
-            local-normal (cond
-                           (float= ly half-height) [0 1 0]
-                           (float= ly (- half-height)) [0 -1 0]
-                           :else (vector-normalize [lx 0 lz]))
-            rotation-transform (get-rotation-component (:transform part))
-            v (apply-transform rotation-transform local-normal)
-            scale (:scale part)
-            center (get-transform-position (:transform part))]
-        (-> world
-            (assoc-in [:edited-part] part-name)
-            (assoc-in [:adjust-line] [point v])
-            (assoc-in [:original-scale] scale)
-            (assoc-in [:original-center] center)
-            (assoc-in [:normal] local-normal)
-            (save-moveable-children-transforms local-normal part-name)))
-        world)))
+  (if-let [{:keys [part-name point index]}
+           (get-part-collision world event)]
+    (let [part (get-in world [:parts part-name])
+          inverse-transform (get-inverse-transform (:transform part))
+          local-point (apply-transform inverse-transform point)
+          half-height (/ (second (:scale part)) 2)
+          [lx ly lz] local-point
+          local-normal (cond
+                         (float= ly half-height) [0 1 0]
+                         (float= ly (- half-height)) [0 -1 0]
+                         :else (vector-normalize [lx 0 lz]))
+          rotation-transform (get-rotation-component (:transform part))
+          v (apply-transform rotation-transform local-normal)
+          scale (:scale part)
+          center (get-transform-position (:transform part))]
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (assoc-in [:adjust-line] [point v])
+          (assoc-in [:original-scale] scale)
+          (assoc-in [:original-center] center)
+          (assoc-in [:normal] local-normal)
+          (save-moveable-children-transforms local-normal part-name)))
+    world))
 
 (defn scale-cylinder-moved [world event]
   (if-let [part-name (:edited-part world)]
     (let [adjust-line (:adjust-line world)
-          mouse-line (unproject-point world [(:x event) (:y event)])
+          mouse-line (get-spec-line world event)
           d (line-line-closest-point adjust-line mouse-line)
           scale (:original-scale world)
           center (:original-center world)
@@ -242,34 +236,32 @@
     world))
 
 (defn scale-cone-pressed [world event]
-  (let [x (:x event)
-        y (:y event)]
-    (if-let [{:keys [part-name point index]}
-             (get-part-collision world x y)]
-      (let [part (get-in world [:parts part-name])
-            inverse-transform (get-inverse-transform (:transform part))
-            local-point (apply-transform inverse-transform point)
-            half-height (/ (second (:scale part)) 2)
-            [lx ly lz] local-point
-            local-normal (if (pos? ly)
-                           [0 1 0]
-                           (vector-normalize [lx 0 lz]))
-            rotation-transform (get-rotation-component (:transform part))
-            v (apply-transform rotation-transform local-normal)
-            scale (:scale part)
-            center (get-transform-position (:transform part))]
-        (-> world
-            (assoc-in [:edited-part] part-name)
-            (assoc-in [:adjust-line] [point v])
-            (assoc-in [:original-scale] scale)
-            (assoc-in [:original-center] center)
-            (assoc-in [:normal] local-normal)))
-        world)))
+  (if-let [{:keys [part-name point index]}
+           (get-part-collision world event)]
+    (let [part (get-in world [:parts part-name])
+          inverse-transform (get-inverse-transform (:transform part))
+          local-point (apply-transform inverse-transform point)
+          half-height (/ (second (:scale part)) 2)
+          [lx ly lz] local-point
+          local-normal (if (pos? ly)
+                         [0 1 0]
+                         (vector-normalize [lx 0 lz]))
+          rotation-transform (get-rotation-component (:transform part))
+          v (apply-transform rotation-transform local-normal)
+          scale (:scale part)
+          center (get-transform-position (:transform part))]
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (assoc-in [:adjust-line] [point v])
+          (assoc-in [:original-scale] scale)
+          (assoc-in [:original-center] center)
+          (assoc-in [:normal] local-normal)))
+    world))
 
 (defn scale-cone-moved [world event]
   (if-let [part-name (:edited-part world)]
     (let [adjust-line (:adjust-line world)
-          mouse-line (unproject-point world [(:x event) (:y event)])
+          mouse-line (get-spec-line world event)
           d (line-line-closest-point adjust-line mouse-line)
           scale (:original-scale world)
           center (:original-center world)]
@@ -295,9 +287,9 @@
           (dissoc-in [:edited-part])))
     world))
 
-(defn scale-sphere-pressed [world {:keys [x y]}]
+(defn scale-sphere-pressed [world event]
   (if-let [{:keys [part-name point index]}
-           (get-part-collision world x y)]
+           (get-part-collision world event)]
     (let [center (get-part-position world part-name)
           v (vector-normalize (vector-subtract point center))]
       (-> world
@@ -305,10 +297,10 @@
           (assoc-in [:adjust-line] [center v])))
     world))
 
-(defn scale-sphere-moved [world {:keys [x y]}]
+(defn scale-sphere-moved [world event]
   (if-let [part-name (:edited-part world)]
     (let [adjust-line (:adjust-line world)
-          mouse-line (unproject-point world [x y])
+          mouse-line (get-spec-line world event)
           d (line-line-closest-point adjust-line mouse-line)
           grain-size (if (:shift-pressed world) 0.25 0.05)
           d (snap-value d grain-size)
@@ -322,7 +314,7 @@
   (dissoc-in world [:edited-part]))
 
 (defn scale-mode-pressed [world event]
-  (if-let [part-name (get-part-at world (:x event) (:y event))]
+  (if-let [part-name (get-part-at world event)]
     (let [type (get-in world [:parts part-name :type])
           world (assoc-in world [:scale-type] type)]
       (case type

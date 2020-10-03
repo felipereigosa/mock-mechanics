@@ -40,7 +40,7 @@
           world
           (keys (get-in world [:parts :ground-part :children]))))
 
-(defn delete-mode-released [world {:keys [x y]}]
-  (if-let [part-name (get-part-at world x y)]
+(defn delete-mode-released [world event]
+  (if-let [part-name (get-part-at world event)]
     (delete-part world part-name)
     world))

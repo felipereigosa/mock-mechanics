@@ -38,12 +38,12 @@
 (defn get-layer-index [box x]
   (inc (int (/ (- x (- (:x box) (/ (:w box) 2))) 60))))
 
-(defn layer-mode-pressed [world {:keys [x y]}]
+(defn layer-mode-pressed [world {:keys [x y] :as event}]
   (let [layer-box (:layer-box world)]
     (if (inside-box? layer-box x y)
       (set-layer world (get-layer-index layer-box x))
       (-> world
-          (assoc-in [:selected-part] (get-part-at world x y))
+          (assoc-in [:selected-part] (get-part-at world event))
           (assoc-in [:indicator] 1)))))
 
 (defn move-parts-to-layer [world root-name layer-index]

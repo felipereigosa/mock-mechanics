@@ -7,8 +7,8 @@
   (while (not (:use-weld-groups @world)))
   w)
 
-(defn simulation-mode-pressed [world {:keys [x y]}]
-  (if-let [{:keys [part-name point]} (get-part-collision world x y)]
+(defn simulation-mode-pressed [world event]
+  (if-let [{:keys [part-name point]} (get-part-collision world event)]
     (let [part (get-in world [:parts part-name])
           world (if (in? (:type part) [:button :block])
                   (-> world
@@ -20,7 +20,7 @@
               transform (:transform part)
               inverse-transform (get-inverse-transform transform)
               local-point (apply-transform inverse-transform point)
-              mouse-line (unproject-point world [x y])]
+              mouse-line (get-spec-line world event)]
           (assoc-in world [:force] {:part-name part-name
                                     :velocity 0
                                     :line mouse-line
@@ -31,10 +31,7 @@
 (defn simulation-mode-moved [world event]
   (if (nil? (:force world))
     world
-    (let [x (:x event)
-          y (:y event)
-          mouse-line (unproject-point world [x y])]
-      (assoc-in world [:force :line] mouse-line))))
+    (assoc-in world [:force :line] (get-spec-line world event))))
 
 (defn simulation-mode-released [world event]
   (let [world (if (nil? (:pressed-part world))

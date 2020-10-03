@@ -131,3 +131,30 @@
 
 (defn open-machine-version [world]
   (read-input world #(open-machine %1 %2)))
+
+(defn import-machine [world text]
+  (try
+    (let [filename (get-last-version-filename text)
+          parts (:parts (read-string (slurp filename)))
+          parts (map-map (fn [[name part]]
+                           {name (get-complex-part part (:info world))})
+                         parts)
+          ground-children (get-in parts [:ground-part :children])
+          parts (dissoc-in parts [:ground-part])
+          world (-> world
+                    (update-in [:parts] #(merge % parts))
+                    (update-in [:parts :ground-part :children]
+                               #(merge % ground-children))
+                    (create-weld-groups)
+                    (save-checkpoint!)
+                    (assoc-in [:use-weld-groups] true)
+                    )]
+      (user-message! "opened " filename)
+      world)
+    (catch Exception e
+      (user-message! "cannot open" text)
+      (println! e)
+      world)))
+
+(defn import-machine-version [world]
+  (read-input world #(import-machine %1 %2)))

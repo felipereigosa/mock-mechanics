@@ -122,25 +122,78 @@
   (let [names (nth code 1)
         body (nthrest code 2)
         bindings (map-bindings names pins)
-        helpers '[get-value (fn [name]
+        helpers '[println println!
+                  get-value (fn [name]
                               (get-in @world [:parts name :value]))
                   set-value (fn [name value]
-                              (assoc-in @world [:parts name :value] value))
+                              (set-thing! [:parts name :value] value))
                   activate (fn [name]
                              (update-thing! [] #(activate-chip % name)))
                   chip-active? #(chip-active? @world %)
                   println println!
                   wait (fn [pred]
                          (while (pred) (sleep 50)))
-                  ;; get-part (fn [probe]
-                  ;;            (let [world @world
-                  ;;                  transform (use-root-relative-transform world probe)
-                  ;;                  point (get-transform-position transform)
-                  ;;                  direction (vector-normalize (apply-transform (get-rotation-component transform) [0 1 0]))
-                  ;;                  offset (vector-multiply direction 0.051)
-                  ;;                  line [(vector-add point offset) direction]
-                  ;;                  collision (get-part-collision world line)]
-                  ;;              (:part-name collision)))
+
+                  = (fn [a b]
+                      (if (and (number? a)
+                               (number? b))
+                        (float= a b)
+                        (= a b)))
+
+                  probe->line (fn [probe-name]
+                                (let [world @world
+                                      transform (use-root-relative-transform world probe-name)
+                                      point (get-transform-position transform)
+                                      direction (vector-normalize (apply-transform (get-rotation-component transform) [0 1 0]))
+                                      offset (vector-multiply direction 0.051)]
+                                  [(vector-add point offset) direction]))
+
+                  make-spec (fn [probe-name]
+                              {:x 100000
+                               :y 100000
+                               :line (probe->line probe-name)})
+
+                  mode-click! (fn [mode pointer keys]
+                                (let [spec (make-spec pointer)
+                                      press-function (get-function mode :pressed)
+                                      move-function (get-function mode :moved)
+                                      release-function (get-function mode :released)
+                                      s (in? :shift keys)
+                                      c (in? :control keys)]
+                                  (swap! world #(-> %
+                                                    (assoc-in [:shift-pressed] s)
+                                                    (assoc-in [:control-pressed] c)
+                                                    (press-function spec)
+                                                    (release-function spec)
+                                                    (assoc-in [:shift-pressed] false)
+                                                    (assoc-in [:control-pressed] false)))))
+
+                  get-transform (fn [part-name]
+                                  (get-thing! [:parts part-name :transform]))
+
+                  set-transform (fn [part-name transform]
+                                  (let [parent-name (get-parent-part @world part-name)]
+                                    (swap! world
+                                           #(-> %
+                                                (assoc-in [:parts part-name :transform] transform)
+                                                (create-relative-transform part-name parent-name)
+                                                (tree-changed)))))
+
+                  get-part (fn [pointer]
+                             (let [spec (make-spec pointer)
+                                   world (compute-transforms @world :parts)
+                                   collision (get-part-collision world spec)]
+                               (:part-name collision)))
+                  on? (fn [part-name]
+                        (= (get-value part-name) 1))
+
+                  off? (fn [part-name]
+                         (= (get-value part-name) 0))
+
+                  press-button (fn [button]
+                                 (set-value button 1)
+                                 (sleep 100)
+                                 (set-value button 0))
                   ]]
     `(do
        (require '[temp.core :refer :all])
@@ -424,8 +477,8 @@
                    x)))]
     (helper 1)))
 
-(defn motherboard-change-part [world x y]
-  (if-let [part-name (get-part-at world x y)]
+(defn motherboard-change-part [world event]
+  (if-let [part-name (get-part-at world event)]
     (let [motherboard-name (:selected-motherboard world)
           motherboard (get-in world [:parts motherboard-name])
           motherboard-box (:motherboard-box world)
@@ -630,12 +683,12 @@
         world)
 
       :else
-      (if-let [part-name (get-part-at world x y)]
+      (if-let [part-name (get-part-at world event)]
         (let [part (get-in world [:parts part-name])]
           (if (= (:type part) :motherboard)
             (assoc-in world [:selected-motherboard] part-name)
             (if (:selected-motherboard world)
-              (motherboard-change-part world x y)
+              (motherboard-change-part world event)
               world)))
         world))))
 

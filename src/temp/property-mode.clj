@@ -64,10 +64,10 @@
         world))
     world))
 
-(defn property-mode-pressed [world {:keys [x y]}]
+(defn property-mode-pressed [world {:keys [x y] :as event}]
   (if (inside-box? (:property-box world) x y)
     (set-property world x y)
-    (let [{:keys [part-name point]} (get-part-collision world x y)
+    (let [{:keys [part-name point]} (get-part-collision world event)
           part (get-in world [:parts part-name])
           world (-> world
                     (assoc-in [:selected-part] part-name)
@@ -78,7 +78,7 @@
         (let [transform (:transform part)
               inverse-transform (get-inverse-transform transform)
               local-point (apply-transform inverse-transform point)
-              mouse-line (unproject-point world [x y])]
+              mouse-line (get-spec-line world event)]
           (assoc-in world [:force] {:part-name part-name
                                     :velocity 0
                                     :line mouse-line
@@ -89,7 +89,7 @@
                                         :start-value (:value part)})        
         world))))
 
-(defn special-track-moved [world x y]
+(defn special-track-moved [world spec]
   (let [{:keys [part-name point start-value]} (:track-force world)
         key (if (:use-weld-groups world)
               :weld-groups
@@ -103,7 +103,7 @@
         v1 (vector-subtract p1 p0)
         v2 (vector-subtract p2 p0)
         plane-normal (vector-normalize (vector-cross-product v1 v2))
-        line (unproject-point world [x y])
+        line (get-spec-line world spec)
         p2 (line-plane-intersection line plane)
         side-vector (vector-normalize
                      (vector-cross-product track-direction plane-normal))
@@ -114,10 +114,10 @@
         new-value (+ start-value s)]
     (assoc-in world [:parts part-name :value] new-value)))
 
-(defn property-mode-moved [world {:keys [x y]}]
+(defn property-mode-moved [world event]
   (cond
     (:force world)
-    (let [mouse-line (unproject-point world [x y])
+    (let [mouse-line (get-spec-line world event)
           part-name (get-in world [:force :part-name])
           wagon (get-in world [:parts part-name])
           new-value (:value wagon)
@@ -128,7 +128,7 @@
 
     (:track-force world)
     (-> world
-        (special-track-moved x y)
+        (special-track-moved event)
         (redraw))
 
     :else world))

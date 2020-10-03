@@ -503,8 +503,8 @@
                                               :zoom-y 0.5})
     world))
 
-(defn chip-change-part [world x y]
-  (if-let [part-name (get-part-at world x y)]
+(defn chip-change-part [world event]
+  (if-let [part-name (get-part-at world event)]
     (let [chip-name (:selected-chip world)
           chip (get-in world [:parts chip-name])
           part (get-in world [:parts part-name])
@@ -533,7 +533,7 @@
         world))
     world))
 
-(defn graph-mode-pressed [world {:keys [x y]}]
+(defn graph-mode-pressed [world {:keys [x y] :as event}]
   (let [graph-box (:graph-box world)
         menu (:graph-menu world)
         button {:x (+ (:x graph-box) (* (:w graph-box) 0.5) -20)
@@ -573,12 +573,12 @@
         world)
 
       :else
-      (if-let [part-name (get-part-at world x y)]
+      (if-let [part-name (get-part-at world event)]
         (let [part (get-in world [:parts part-name])]
           (if (= (:type part) :chip)
             (assoc-in world [:selected-chip] part-name)
             (if (:selected-chip world)
-              (chip-change-part world x y)
+              (chip-change-part world event)
               world)))
         world))
     ))
@@ -618,5 +618,3 @@
                    #(change-zoom % (:graph-box world)
                                  event (:shift-pressed world)))
         (redraw))))
-
-

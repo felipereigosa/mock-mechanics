@@ -7,7 +7,7 @@
 (defn toggle-mode-exited [world]
   (tree-changed world))
 
-(defn toggle-mode-pressed [world {:keys [x y]}]
+(defn toggle-mode-pressed [world {:keys [x y] :as event}]
   (let [box (:toggle-box world)]
     (if (inside-box? box x y)
       (let [start-x (- (:x box) (/ (:w box) 2))
@@ -16,7 +16,7 @@
         (-> world
             (assoc-in [:selected-property] index)
             (tree-changed)))
-      (if-let [part-name (get-part-at world x y)]
+      (if-let [part-name (get-part-at world event)]
         (let [property (nth (get-in world [:properties])
                             (:selected-property world))]
           (-> world

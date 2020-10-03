@@ -33,14 +33,16 @@
       (assoc-in [:input-callback] callback)
       (assoc-in [:text-input] true)))
 
+(declare get-spec-line)
+
 (defn set-pivot [world event]
   (let [x (:x event)
         y (:y event)
-        part-name (get-part-at world x y)
+        part-name (get-part-at world event)
         part (get-in world [:parts part-name])
         pos (cond
               (nil? part-name)
-              (let [line (unproject-point world [x y])
+              (let [line (get-spec-line world event)
                     ground-plane [[0 0 0] [1 0 0] [0 0 1]]]
                 (line-plane-intersection line ground-plane))
 

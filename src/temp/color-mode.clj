@@ -1,11 +1,11 @@
 
 (ns temp.core (:gen-class))
 
-(defn set-object-color [world x y]
+(defn set-object-color [world event]
   (let [[r g b] (get-in world [:color-palette :regions
                                (:current-color world) :color])
         color (new Color r g b)]
-    (if-let [part-name (get-part-at world x y)]
+    (if-let [part-name (get-part-at world event)]
       (let [part (get-in world [:parts part-name])
             part (assoc-in part [:color] color)
             part (if (= (:type part) :lamp)
@@ -35,4 +35,4 @@
         y (:y event)]
     (if-let [color-name (get-region-at (:color-palette world) x y)]
       (assoc-in world [:current-color] color-name)
-      (set-object-color world x y))))
+      (set-object-color world event))))

@@ -119,8 +119,8 @@
              (fn [spheres]
                (remove #(= % sphere) spheres))))
 
-(defn get-sphere-at [world x y]
-  (let [line (unproject-point world [x y])
+(defn get-sphere-at [world spec]
+  (let [line (get-spec-line world spec)
         radius (:sphere-radius world)
         spheres (filter (fn [sphere]
                           (let [transform (get-body-transform sphere)
@@ -188,8 +188,8 @@
       (.setLinearVelocity body (new Vector3f 0 0 0))))
   world)
 
-(defn add-sphere [world x y]
-  (if-let [collision (get-part-collision world x y)]
+(defn add-sphere [world event]
+  (if-let [collision (get-part-collision world event)]
     (let [local-normal (get-collision-normal world collision)
           part (get-in world [:parts (:part-name collision)])
           rotation (get-rotation-component (:transform part))
@@ -198,7 +198,7 @@
                                   (:sphere-radius world))
           position (vector-add (:point collision) offset)]
       (create-sphere world position))
-    (let [line (unproject-point world [x y])
+    (let [line (get-spec-line world event)
           ground-plane [[0 0 0] [1 0 0] [0 0 1]]
           offset [0 (:sphere-radius world) 0]
           point (line-plane-intersection line ground-plane)
@@ -216,7 +216,7 @@
     (remove-body (:planet world) sphere))
   (assoc-in world [:spheres] []))
 
-(defn physics-mode-pressed [world {:keys [x y]}]
-  (if-let [sphere (get-sphere-at world x y)]
+(defn physics-mode-pressed [world event]
+  (if-let [sphere (get-sphere-at world event)]
     (delete-sphere world sphere)
-    (add-sphere world x y)))
+    (add-sphere world event)))
