@@ -52,6 +52,7 @@
           dt (* elapsed 0.001)
           dv (* acceleration dt)
           dampening-factor 0.80
+          dampening-factor 1.0 ;;############################
           velocity (* (+ velocity dv) dampening-factor)
           dvalue (* velocity dt)
           value (+ value dvalue)]

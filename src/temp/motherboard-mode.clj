@@ -123,16 +123,21 @@
         body (nthrest code 2)
         bindings (map-bindings names pins)
         helpers '[println println!
+                  
                   get-value (fn [name]
                               (get-in @world [:parts name :value]))
+                  
                   set-value (fn [name value]
                               (set-thing! [:parts name :value] value))
-                  activate (fn [name]
-                             (update-thing! [] #(activate-chip % name)))
+                  
                   chip-active? #(chip-active? @world %)
-                  println println!
+
                   wait (fn [pred]
                          (while (pred) (sleep 50)))
+                  
+                  activate (fn [name]
+                             (update-thing! [] #(activate-chip % name))
+                             (wait #(chip-active? name))) 
 
                   = (fn [a b]
                       (if (and (number? a)

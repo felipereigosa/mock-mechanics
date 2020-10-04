@@ -294,3 +294,68 @@
 
 ;; (any-chip-active? @world)
 
+
+(do
+1
+
+;; (defn apply-force-to-wagon [world elapsed]
+;;   (if-let [{:keys [part-name velocity line point]} (:force world)]
+;;     (let [key (if (:use-weld-groups world)
+;;                 :weld-groups
+;;                 :parts)
+;;           wagon (get-in world [key part-name])
+;;           transform (:transform wagon)
+;;           p1 (apply-transform transform point)
+;;           p2 (point-line-projection p1 line)
+;;           force-vector (vector-subtract p2 p1)
+;;           track-direction (get-wagon-direction world part-name)
+;;           force-component (/ (vector-dot-product force-vector track-direction)
+;;                              (vector-length track-direction))
+;;           acceleration (* force-component 100)
+;;           value (get-in world [:parts part-name :value])
+;;           dt (* elapsed 0.001)
+;;           dv (* acceleration dt)
+;;           dampening-factor 0.80
+;;           dampening-factor 1.0 ;;############################
+;;           velocity (* (+ velocity dv) dampening-factor)
+;;           dvalue (* velocity dt)
+;;           value (+ value dvalue)]
+;;       (-> world
+;;           (assoc-in [:parts part-name :value] (within value 0 1))
+;;           (assoc-in [:force :velocity] velocity)))
+;;     world))
+
+(defn apply-force [world elapsed]
+  ;; (if-let [part-name (get-in world [:force :part-name])]
+  ;;   (let [part (get-in world [:parts part-name])]
+  ;;     (case (:type part)
+  ;;       :wagon (apply-force-to-wagon world elapsed)
+  ;;       :track (apply-force-to-track world elapsed)
+  ;;       world))
+  ;;   world)
+  ;; (println! (:force world))
+  world
+  )
+
+(clear-output!)
+(let [world @world
+      white :block12622
+      green :block12622-copy12627
+
+      ;; point (:point (get-part-collision world event)]
+      ;; part (get-in world [:parts part-name])
+      ;; transform (:transform part)
+      ;; inverse-transform (get-inverse-transform transform)
+      ;; local-point (apply-transform inverse-transform point)
+      ;; mouse-line (get-spec-line world event)
+
+      
+      ]
+    (set-thing! [:force] {:part-name (get-first-dof world white)
+                          :velocity 0.1
+                          :line [[0 0 0] [0 -1 0]]
+                          :point [0 0 0]})
+
+    (set-thing! [:force] nil)
+  ))
+
