@@ -211,6 +211,7 @@
   (let [chip-names (get-parts-with-type (:parts world) :chip)]
     (some #(chip-active? world %) chip-names)))
 
+
 (defn update-and-draw! [window]
   (try
     (run-pending!)
@@ -218,7 +219,9 @@
   
   (if (or (< @time-since-update 200)
           ;; (not (empty? (:spheres @world)))
-          (not (nil? (:force @world))))
+          ;; (:forces-active? @world)
+          (not (nil? (:mouse-force @world)))
+          )
     (let [current-time (get-current-time)
           elapsed (within (- current-time @last-time) 0 40)]
       ;; (println "update" (rand)) ;;#######################

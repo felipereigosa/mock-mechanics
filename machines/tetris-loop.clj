@@ -2,6 +2,12 @@
 [collision-probe button lamp down-chip
  up-chip new-part-chip copy-button]
 
+(defn collision? []
+  (let [blocks ...
+        points ...
+        collision-parts (map #(get-part [% [0 0 1]]) points)]
+    (any? #(not (in? % blocks)) collision-parts)))
+
 (fn [part-name]
   (set-value lamp (get-value button))
 
