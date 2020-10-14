@@ -408,6 +408,8 @@
               (catch Exception e))))))
   w)
 
+(declare reset-wagons)
+
 (defn tree-changed [world]
   (-> world
       (reset-wagons)

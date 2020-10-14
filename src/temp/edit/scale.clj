@@ -23,9 +23,6 @@
         (assoc-in [:parts block-name :scale] (map abs new-scale))
         (assoc-in [:parts block-name :transform] new-transform))))
 
-(do
-1
-
 (defn get-child-local-direction [world parent-name child-name]
   (let [parent (get-in world [:parts parent-name])
         relative-transform (get-in parent [:children child-name])
@@ -35,8 +32,7 @@
 (defn save-moveable-children-transforms [world normal part-name]
   (let [children (get-in world [:parts part-name :children])
         moving-children (filter (fn [child-name]
-                                  (let [direction (get-child-local-direction world part-name child-name)
-                                        child (get-in world [:parts child-name])]
+                                  (let [direction (get-child-local-direction world part-name child-name)]
                                     (vector= direction normal)))                                
                                 (keys children))]
     (assoc-in world [:saved-children-transforms]
@@ -112,7 +108,6 @@
           (create-relative-transform block-name parent-name)
           (dissoc-in [:edited-part])))
     world))
-)
 
 (defn set-track-size [world track-name original-scale original-center height]
   (let [track (get-in world [:parts track-name])

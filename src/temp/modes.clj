@@ -40,8 +40,6 @@
     (fun world event)
     world))
 
-(declare reset-wagons)
-
 (defn mode-mouse-released [world event]
   (let [fun (or (get-function (:mode world) :released)
                 (fn [w e] w))]
