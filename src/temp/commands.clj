@@ -3,7 +3,7 @@
 
 (defn get-bindings []
   {"A-d" #(change-mode % :debug)
-   
+
    "A-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)
    ":add c" #(assoc-in % [:add-type] :cylinder)
@@ -152,30 +152,34 @@
 (defn key-pressed [world event]
   (let [key-name (get-in keymap [(:code event)])]
     (cond
-        (= key-name :control) (assoc-in world [:control-pressed] true)
-        (= key-name :shift) (assoc-in world [:shift-pressed] true)
-        (= key-name :alt) (assoc-in world [:alt-pressed] true)
+      (= key-name :delete) (do ;;##############################
+                             (clear-output!)
+                             world)
+                             
+      (= key-name :control) (assoc-in world [:control-pressed] true)
+      (= key-name :shift) (assoc-in world [:shift-pressed] true)
+      (= key-name :alt) (assoc-in world [:alt-pressed] true)
 
-        (= key-name :esc)
-        (cancel-action world)
+      (= key-name :esc)
+      (cancel-action world)
 
-        :else
-        (if-let [key (get-key (:code event)
-                              (:control-pressed world)
-                              (:alt-pressed world)
-                              (:shift-pressed world))]
-          (cond
-            (:text-input world)
-            (text-input-key-pressed world event)
+      :else
+      (if-let [key (get-key (:code event)
+                            (:control-pressed world)
+                            (:alt-pressed world)
+                            (:shift-pressed world))]
+        (cond
+          (:text-input world)
+          (text-input-key-pressed world event)
 
-            (string? key)
-            (-> world
-                (update-in [:command] (fn [c]
-                                        (if (empty? c)
-                                          key
-                                          (str c " " key))))
-                (execute-command)))
-          world))))
+          (string? key)
+          (-> world
+              (update-in [:command] (fn [c]
+                                      (if (empty? c)
+                                        key
+                                        (str c " " key))))
+              (execute-command)))
+        world))))
 
 (defn key-released [world event]
   (let [key-name (get-in keymap [(:code event)])

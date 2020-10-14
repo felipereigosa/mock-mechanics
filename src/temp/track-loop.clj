@@ -102,9 +102,7 @@
 
 (defn reset-wagons [world]
   (let [wagon-names (get-parts-with-type (:parts world) :wagon)]
-    (compute-transforms 
-     (reduce (fn [w wagon-name]
-               (let [track-name (get-parent-part w wagon-name)]
-                 (set-wagon-loop w wagon-name track-name)))
-             world wagon-names)
-     :weld-groups)))
+    (reduce (fn [w wagon-name]
+              (let [track-name (get-parent-part w wagon-name)]
+                (set-wagon-loop w wagon-name track-name)))
+            world wagon-names)))

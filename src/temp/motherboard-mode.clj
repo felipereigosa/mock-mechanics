@@ -123,12 +123,20 @@
         body (nthrest code 2)
         bindings (map-bindings names pins)
         helpers '[println println!
-                  
+
                   get-value (fn [name]
-                              (get-in @world [:parts name :value]))
+                              (let [part (get-in @world [:parts name])
+                                    value (:value part)]
+                                (if (= (:type part) :wagon)
+                                  (* value (reduce + (:track-lengths part)))
+                                  value)))
                   
                   set-value (fn [name value]
-                              (set-thing! [:parts name :value] value))
+                              (let [part (get-in @world [:parts name])
+                                    value (if (= (:type part) :wagon)
+                                            (/ value (reduce + (:track-lengths part)))
+                                            value)]
+                                (set-thing! [:parts name :value] value)))
                   
                   chip-active? #(chip-active? @world %)
 
@@ -164,14 +172,16 @@
                                       move-function (get-function mode :moved)
                                       release-function (get-function mode :released)
                                       s (in? :shift keys)
-                                      c (in? :control keys)]
-                                  (swap! world #(-> %
-                                                    (assoc-in [:shift-pressed] s)
-                                                    (assoc-in [:control-pressed] c)
-                                                    (press-function spec)
-                                                    (release-function spec)
-                                                    (assoc-in [:shift-pressed] false)
-                                                    (assoc-in [:control-pressed] false)))))
+                                      c (in? :control keys)
+                                      w (-> (compute-transforms @world :parts)
+                                            (assoc-in [:shift-pressed] s)
+                                            (assoc-in [:control-pressed] c)
+                                            (press-function spec)
+                                            (release-function spec)
+                                            (assoc-in [:shift-pressed] false)
+                                            (assoc-in [:control-pressed] false))]
+                                  (reset! world w)
+                                  nil))
 
                   get-transform (fn [part-name]
                                   (get-thing! [:parts part-name :transform]))
@@ -185,10 +195,15 @@
                                                 (tree-changed)))))
 
                   get-part (fn [pointer]
-                             (let [spec (make-spec pointer)
+                             (let [spec (if (keyword? pointer)
+                                          (make-spec pointer)
+                                          {:x 100000
+                                           :y 100000
+                                           :line pointer})
                                    world (compute-transforms @world :parts)
                                    collision (get-part-collision world spec)]
                                (:part-name collision)))
+                  
                   on? (fn [part-name]
                         (= (get-value part-name) 1))
 
@@ -199,6 +214,12 @@
                                  (set-value button 1)
                                  (sleep 100)
                                  (set-value button 0))
+
+                  get-children #(keys (get-thing! [:parts % :children]))
+
+                  get-part-position #(get-part-position
+                                      (compute-transforms @world :parts) %)
+
                   ]]
     `(do
        (require '[temp.core :refer :all])
@@ -225,7 +246,11 @@
               (proxy [Runnable] []
                 (run []
                   (try
+                    (update-thing! [:parts motherboard-name :activation-count]
+                                   #(if (nil? %) 1 (inc %)))
                     ((eval code) pin-name)
+                    (update-thing! [:parts motherboard-name :activation-count]
+                                   dec)
                     (catch Exception e
                       (user-message! e)
                       (user-message! "script failed"))))))))  

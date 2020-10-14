@@ -211,6 +211,13 @@
   (let [chip-names (get-parts-with-type (:parts world) :chip)]
     (some #(chip-active? world %) chip-names)))
 
+(defn motherboard-active? [world motherboard-name]
+  (let [motherboard (get-in world [:parts motherboard-name])]
+    (not (in? (:activation-count motherboard) [0 nil]))))
+
+(defn any-motherboard-active? [world]
+  (let [motherboard-names (get-parts-with-type (:parts world) :motherboard)]
+    (some #(motherboard-active? world %) motherboard-names)))
 
 (defn update-and-draw! [window]
   (try
@@ -240,7 +247,9 @@
       (swap! time-since-update #(+ elapsed %))
 
       (if (and (in? (:mode @world) [:simulation :graph :motherboard])
-               (any-chip-active? @world))
+               (or
+                (any-chip-active? @world)
+                (any-motherboard-active? @world)))
         (reset! time-since-update 0))
       )
     (sleep 5))
@@ -1262,3 +1271,4 @@
                                       (nth corners index)) indices)))]
     (create-wireframe-mesh vertices position rotation
                            scale color-name)))
+

@@ -2,15 +2,17 @@
 [button source destination in-place]
 
 (fn [part-name]
-  (when (and (= part-name button)
-             (on? button))
-    (let [original (get-part source)]
-      ;; (set-thing! [:edit-subcommand] :copy)
-      ;; (mode-click! :edit source [:control])
-      ;; (mode-click! :edit destination [])
+  (when (on? button)
+    (let [original (get-part source)
+          ]
+      (set-thing! [:edit-subcommand] :copy)
+      (set-thing! [:selected-part] nil)
+      (mode-click! :edit source [:control])
+      (mode-click! :edit destination [])
 
-      ;; (when (= (get-value in-place) 1.0)
-      ;;   (set-transform @copy-name (get-transform original)))
-      
-      (println! "copy" original "to" (get-part destination) (rand))
+      (when (on? in-place)
+        (set-transform
+         @copy-name
+         (combine-transforms (get-transform original)
+                             (make-transform [-0.001 0 0] [1 0 0 0]))))
       )))

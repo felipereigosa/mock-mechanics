@@ -1,23 +1,18 @@
 
-[collision-probe button lamp down-chip
- up-chip new-part-chip copy-button]
+[lever down-chip new-part-chip copy-button pointer]
 
-(defn collision? []
-  (let [blocks ...
-        points ...
-        collision-parts (map #(get-part [% [0 0 1]]) points)]
-    (any? #(not (in? % blocks)) collision-parts)))
+(defn shape-collision? []
+  (let [blocks (get-children (get-part pointer))
+        points (map #(vector-add
+                      (get-part-position %)
+                      [-0.2 -0.5 0]) blocks)
+        collisions (remove-nil (map #(get-part [% [-1 0 0]]) points))]
+    (some #(not (in? % blocks)) collisions)))
 
 (fn [part-name]
-  (set-value lamp (get-value button))
-
-  (when (= part-name button)
-    (while (on? button)
-      (activate down-chip)
-
-      (when (on? collision-probe)
-        (press-button copy-button) (sleep 200) ;;##########################b
-        (activate up-chip)
-        (dotimes [i (rand-int 5)]
-          (activate new-part-chip))
-        ))))
+  (while (on? lever)
+    (activate down-chip)
+    (when (shape-collision?)
+      (press-button copy-button)
+      (dotimes [i (inc (rand-int 5))]
+        (activate new-part-chip)))))

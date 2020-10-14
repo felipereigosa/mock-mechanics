@@ -56,7 +56,7 @@
              GLFW/GLFW_KEY_TAB                     nil
              GLFW/GLFW_KEY_BACKSPACE               :backspace
              GLFW/GLFW_KEY_INSERT                  nil
-             GLFW/GLFW_KEY_DELETE                  nil
+             GLFW/GLFW_KEY_DELETE                  :delete
              GLFW/GLFW_KEY_RIGHT                   :right
              GLFW/GLFW_KEY_LEFT                    :left
              GLFW/GLFW_KEY_DOWN                    :down

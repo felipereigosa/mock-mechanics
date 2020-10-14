@@ -7,9 +7,6 @@
   (while (not (:use-weld-groups @world)))
   w)
 
-(do
-1
-
 (defn simulation-mode-pressed [world event]
   (if-let [{:keys [part-name point]} (get-part-collision world event)]
     (let [part (get-in world [:parts part-name])
@@ -39,12 +36,9 @@
   (let [world (if (nil? (:pressed-part world))
                 world
                 (assoc-in world [:parts (:pressed-part world) :value] 0))
-        ;; world (if (nil? (:mouse-force world))
-        ;;         world
-        ;;         (snap-part world (get-in world [:mouse-force :part-name])))
-        ]
+        world (if (nil? (:mouse-force world))
+                world
+                (snap-part world (get-in world [:mouse-force :part-name])))]
     (-> world
         (dissoc-in [:pressed-part])
         (dissoc-in [:mouse-force]))))
-
-)

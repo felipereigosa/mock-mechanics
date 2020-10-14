@@ -74,7 +74,4 @@
       (if (and (:control-pressed world)
                (in? (:edit-subcommand world) [:copy :translate]))
         (assoc-in world [:use-weld-groups] true)
-        (-> world
-            ;; (tree-changed)
-            ;; ((fn [w] (sleep 200) w)) ;;########################
-            (tree-changed))))))
+        (tree-changed world)))))

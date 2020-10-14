@@ -23,8 +23,7 @@
 (load "mechanical-tree")
 (load "undo")
 (load "persistence")
-(load "value-force")
-(load "value-collision")
+(load "forces")
 (load "modes")
 (load "commands")
 (load "track-loop")
@@ -101,35 +100,32 @@
 (reset-world!)
 )
 
-(declare apply-forces) ;;###################################
-
 (defn update-world [world elapsed]
+  ;; (print-transform (get-thing! [:parts :wagon9966 :transform]))
+  ;; (println! (rand))
   (cond
     (in? (:mode world) [:simulation :graph :motherboard])
     (let [elapsed 16 ;;######################
           world (-> world
                     (set-probe-values)
-                    ;; (save-values)
                     (apply-forces elapsed)
                     (run-chips elapsed)
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
-                    ;; (reverse-collisions)
-                    (update-motherboards))]
+                    (update-motherboards)
+                    )]
       (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)
       world)
 
     (= (:mode world) :property)
-    world
-    ;; (-> world
-    ;;     (apply-force elapsed)
-    ;;     (compute-transforms (if (:use-weld-groups world)
-    ;;                           :weld-groups
-    ;;                           :parts)))
-    :else world)
-  )
+    (-> world
+        (apply-forces elapsed)
+        (compute-transforms (if (:use-weld-groups world)
+                              :weld-groups
+                              :parts)))
+    :else world))
 
 ;; (defn draw-update-cube! [world] ;;#########################
 ;;   (if-let [mesh (:update-cube world)]
@@ -143,7 +139,7 @@
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
     (draw-mesh! world mesh))
-
+  
   (if (> (get-in world [:camera :x-angle]) 0)
     (draw-mesh! world (:other-ground world)))
 
@@ -280,236 +276,53 @@
         (recompute-viewport width height)
         (place-elements))))
 
-;; (println! (get-thing! [:parts :wagon9490 :value]))
-;; (println! (get-thing! [:parts :wagon9490 :loop-fn]))
-
-;; (update-thing! [] #(compute-transforms % :weld-groups))
-;; (set-thing! [:parts :wagon9490 :value] 0.5)
-
-;; (update-thing! [] tree-changed)
-;; (redraw!)
-
-;; {:saved-value 0.37091869976863956, :transform, :color :yellow, :scale [0.15 0.15 0.15], :snap 0, :free true, :value 0.37091869976863956, :track-lengths (1.5), :type :wagon, :loop-fn ([0.0 [0.0 -1.5 0.0]] [1.0 [0.0 0.0 0.0]]), :layer 1}
-
-;; {:saved-value 0.37091869976863956, :transform, :color :yellow, :scale [0.15 0.15 0.15], :snap 0, :free true, :value 0.37091869976863956, :track-lengths (0.5), :type :wagon, :loop-fn ([0.0 [0.0 -0.5 0.0]] [1.0 [0.0 0.0 0.0]]), :layer 1}
-
-;; (set-thing! [:use-weld-groups] false)
-
-;; (any-chip-active? @world)
-
+;; (set-thing! [:use-weld-groups] true)
+;; (update-thing! [] create-weld-groups)
+;; (get-thing! [:use-weld-groups])
+;; (println! (:selected-part @world))
+;; (set-thing! [:selected-part] :block13950-copy13961)
+;; (println! (get-parent-part @world :block10336-copy135749))
+;; (get-part-position @world :block13950-copy153348)
+;; (set-thing! [:parts :motherboard10102 :activation-count] 0)
+;; (set-thing! [:use-weld-groups] true)
 
 ;; (do
 ;; 1
 
-
-;; (defn get-scaled-transform [scale transform]
-;;   (let [[sx sy sz] scale
-;;         scale-matrix (get-scale-matrix sx sy sz)
-;;         other-matrix (get-transform-matrix transform)
-;;         final-matrix (multiply-matrices scale-matrix other-matrix)]
-;;     (matrix->transform final-matrix)))
-
-;; (defn create-all-pairs [elements]
-;;   (let [n (count elements)]
-;;     (vec (mapcat (fn [i]
-;;                    (map (fn [j]
-;;                           [(nth elements i) (nth elements j)])
-;;                         (range (inc i) n)))
-;;                  (range n)))))
-
-;; (defn blocks-collide? [world a-name b-name]
-;;   (if (= (get-first-dof world a-name)
-;;          (get-first-dof world b-name))
-;;     false
-;;     (let [a-block (get-in world [:parts a-name])
-;;           b-block (get-in world [:parts b-name])
-;;           model (get-in world [:info :block :model])
-;;           vertices [[-0.5 0.5 0.5] [0.5 0.5 0.5]
-;;                     [-0.5 -0.5 0.5] [0.5 -0.5 0.5]
-;;                     [-0.5 0.5 -0.5] [0.5 0.5 -0.5]
-;;                     [-0.5 -0.5 -0.5] [0.5 -0.5 -0.5]]
-
-;;           a-transform (get-scaled-transform
-;;                        (get-in world [:parts a-name :scale])
-;;                        (use-root-relative-transform world a-name))
-          
-;;           b-transform (get-scaled-transform
-;;                        (get-in world [:parts b-name :scale])
-;;                        (use-root-relative-transform world b-name))
-          
-;;           ia-transform (get-inverse-transform a-transform)
-;;           ib-transform (get-inverse-transform b-transform)
-;;           a->b-transform (combine-transforms a-transform ib-transform)
-;;           b->a-transform (combine-transforms b-transform ia-transform)
-;;           a-vertices (map #(apply-transform b->a-transform %) vertices)
-;;           b-vertices (map #(apply-transform a->b-transform %) vertices)
-;;           all-vertices (concat a-vertices b-vertices)]
-;;       (some (fn [[x y z]]
-;;               (and
-;;                (<= -0.5 x 0.5)
-;;                (<= -0.5 y 0.5)
-;;                (<= -0.5 z 0.5)))
-;;             all-vertices))))
-
-;; (defn get-colliding-pairs [world]
-;;   (let [block-relative-transforms
-;;         (filter (fn [[name value]]
-;;                   (= (:type value) :block))
-;;                 (:root-relative-transforms world))
-;;         block-names (keys block-relative-transforms)]
-;;     (filter (fn [[a b]]
-;;               (blocks-collide? world a b))
-;;             (create-all-pairs block-names))))
-
-;; (defn get-force-pair [world a-name b-name]
-;;   (let [a-transform (get-scaled-transform
-;;                      (get-in world [:parts a-name :scale])
-;;                      (use-root-relative-transform world a-name))
-;;         b-transform (get-scaled-transform
-;;                      (get-in world [:parts b-name :scale])
-;;                      (use-root-relative-transform world b-name))
-;;         a-position (get-transform-position a-transform)
-;;         b-position (get-transform-position b-transform)
-;;         v (vector-subtract a-position b-position)
-;;         force-function (fn [d]
-;;                          ;; (if (> d 0.55)
-;;                          ;;   0
-;;                            (* 2 (pow Math/E (* 3 (- d)))))
-;;         v (vector-multiply (vector-normalize v)
-;;                            (force-function (vector-length v)))
-;;         midpoint (vector-multiply (vector-add a-position b-position) 0.5)
-
-;;         a-dof (or (get-first-dof world a-name) :ground-part)
-;;         a-dof-transform (get-in world [:weld-groups a-dof :transform])
-;;         a-dof-inverse-transform (get-inverse-transform a-dof-transform)
-;;         a-dof-local-point (apply-transform a-dof-inverse-transform midpoint)
-
-;;         b-dof (or (get-first-dof world b-name) :ground-part)
-;;         b-dof-transform (get-in world [:weld-groups b-dof :transform])
-;;         b-dof-inverse-transform (get-inverse-transform b-dof-transform)
-;;         b-dof-local-point (apply-transform b-dof-inverse-transform midpoint)
-;;         ]
-;;     [{:part-name a-dof
-;;       :local-point a-dof-local-point
-;;       :vector v}
-;;      {:part-name b-dof
-;;       :local-point b-dof-local-point
-;;       :vector (vector-multiply v -1)}
-;;      ]))
-  
-;; (defn get-collision-forces [world]
-;;   (let [pairs (get-colliding-pairs world)]
-;;     (flatten (map (fn [[a b]]
-;;                     (get-force-pair world a b))
-;;                   pairs))))
-
-;; (defn apply-force-to-wagon [world force elapsed]
-;;   (let [{:keys [part-name vector]} force
-;;         key (if (:use-weld-groups world)
-;;               :weld-groups
-;;               :parts)
-;;         track-direction (get-wagon-direction world part-name)
-;;         force-component (/ (vector-dot-product vector track-direction)
-;;                            (vector-length track-direction))
-;;         acceleration (* force-component 100)
-;;         value (get-in world [:parts part-name :value])
-;;         dt (* elapsed 0.001)
-;;         dv (* acceleration dt)
-;;         dvalue (* dv dt)
-;;         value (+ value dvalue)]
-;;     (assoc-in world [:parts part-name :value] (within value 0 1))))
-
-;; (defn apply-force-to-track [world force elapsed]
-;;   (if-let [{:keys [part-name vector local-point]} force]
-;;     (let [track (get-in world [:weld-groups part-name])
-;;           transform (:transform track)
-;;           p1 (apply-transform transform local-point)
-;;           rotation (get-rotation-component transform)
-;;           track-direction (apply-transform rotation [0 1 0])
-;;           track-position (get-transform-position transform)
-;;           track-line [track-position track-direction]
-;;           p3 (point-line-projection p1 track-line)
-;;           arm-vector (vector-subtract p1 p3)
-;;           sign (if (pos? (vector-dot-product
-;;                           (vector-cross-product arm-vector vector)
-;;                           track-direction)) 1 -1)
-;;           acceleration (* sign 20 (vector-length vector))
-;;           value (get-in world [:parts part-name :value])
-;;           dt (* elapsed 0.001)
-;;           dv (* acceleration dt)
-;;           dvalue (* dv dt)
-;;           value (+ value dvalue)
-;;           max-angle (get-in world [:parts part-name :max-angle])]
-;;       (assoc-in world [:parts part-name :value]
-;;                 (if (nil? max-angle)
-;;                   value
-;;                   (within value 0 max-angle))))
-;;     world))
-
-;; (defn apply-force [world force elapsed]
-;;   (if-let [part-name (:part-name force)]
-;;     (let [part (get-in world [:parts part-name])]
-;;       (case (:type part)
-;;         :wagon (apply-force-to-wagon world force elapsed)
-;;         :track (apply-force-to-track world force elapsed)
-;;         world))
-;;     world))
-
-;; (defn update-mouse-force [world]
-;;   (if-let [mouse-force (:mouse-force world)]
-;;     (let [{:keys [part-name local-point line]} mouse-force
-;;           part (get-in world [:weld-groups part-name])
-;;           transform (:transform part)
-;;           p1 (apply-transform transform local-point)
-;;           p2 (point-line-projection p1 line)
-;;           force-vector (vector-subtract p2 p1)]
-;;       (assoc-in mouse-force [:vector] force-vector))
-;;     nil))
-
-;; (defn apply-forces [world elapsed]
-;;   (let [mouse-force (update-mouse-force world)
-;;         forces (remove-nil (cons mouse-force
-;;                                  (get-collision-forces world)))
-;;         world (assoc-in world [:forces-active?] (not (empty? forces)))
-;;         ]
-;;     (reduce (fn [w force]
-;;               (apply-force w force elapsed))
-;;             world
-;;             forces)))
-
 ;; (clear-output!)
 ;; (let [world @world
-;;       white :block12622
-;;       green :block12623
-;;       red :block11312
-;;       orange :block11060
+;;       wagon-name :wagon9255
 ;;       ]
-;;   ;; (set-thing! [:parts :wagon12621 :value] 0.75)
-;;   ;; (set-thing! [:parts :wagon14677 :value] 0.3)
 
-;;   (set-thing! [:mouse-force] {:part-name (get-first-dof world red)
-;;                               :local-point [1 0 1]
-;;                               :vector [0 1 0]})
+;;   ;; (set-thing! [:parts wagon-name :loop-fn]
+;;   ;;             [[0.0 [0.0 -2.0 0.0]]
+;;   ;;              [0.5 [0.0 0.0 0.0]]
+;;   ;;              [1.0 [0.0 0.0 1.0]]])
 
-;;   (set-thing! [:mouse-force] nil)
+;;   ;; (set-thing! [:parts wagon-name :loop-fn]
+;;   ;;             [[0.0 [0.0 -1.0 0.0]]
+;;   ;;              [1.0 [0.0 0.0 0.0]]])
 
-;;   (set-thing! [:parts (get-first-dof world white) :velocity] 0.0)
-;;   (set-thing! [:parts (get-first-dof world green) :velocity] 0.0)
-;;   (set-thing! [:parts (get-first-dof world red) :velocity] 0.0)
+;;   ;; (set-thing! [:parts wagon-name :value] 0.5)
 
-;;   ;; (println! (get-force-pair world white orange))
-
-;;   ;; (println! (:vector (first (get-collision-forces world))))
+;;   (print-transform (get-thing! [:parts wagon-name :transform]))
+  
 ;;   ))
 
-;; (println! (get-first-dof @world :block11312))
+;; (do
+;; 1
+;; ;; (set-thing! [:weld-groups :ground-part :children :wagon9966]
+;; ;;             (make-transform [-0.5 0.35 0.25] [0.0 0.0 -1.0 90.00000250447816]))
 
-;; (let [body (:body (first (get-thing! [:bodies])))
-;;       v (new Vector3f)
-;;       point (new Vector3f 0 0 0)
-;;       mass 100
-;;       ]
-;;   (.getVelocityInLocalPoint body point v)
-;;   (println! v))
+;; ;; (set-thing! [:use-weld-groups] true)
+;; ;; (set-thing! [:parts :wagon9966 :value] 1.0)
+;; ;; (update-thing! [] #(compute-transforms % :weld-groups))
+;; ;; (redraw!)
+;; )
 
-;; (.setGravity (get-thing! [:planet]) (new Vector3f 0 0 0))
+;; ;; (print-transform (get-thing! [:weld-groups :ground-part :children :wagon9966]))
+
+;; (do
+;; 1  
+;; (update-thing! [] tree-changed)
+;; (redraw!))

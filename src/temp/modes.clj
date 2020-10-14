@@ -46,6 +46,7 @@
   (let [fun (or (get-function (:mode world) :released)
                 (fn [w e] w))]
     (-> world
+        (reset-wagons)
         (fun event)
         (reset-wagons)
         (compute-transforms :parts)

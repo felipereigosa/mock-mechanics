@@ -1,5 +1,7 @@
 
-[track]
+[button track]
 
 (fn [part-name]
-  (println! "here"))
+  ;; (while (on? button)
+  ;;   (set-value track (within (get-value track) 0 -0.01)))
+  )

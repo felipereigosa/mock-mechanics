@@ -394,7 +394,8 @@
         (proxy [Runnable] []
           (run []
             (try
-              (let [fast-world (create-weld-groups w)]
+              (let [fast-world (create-weld-groups w)
+                    ]
                 (set-thing! [:weld-groups]
                             (:weld-groups fast-world))
 
@@ -403,8 +404,7 @@
 
                 (set-thing! [:bodies] (:bodies fast-world))
                 
-                (set-thing! [:use-weld-groups] true)
-                )
+                (set-thing! [:use-weld-groups] true))
               (catch Exception e))))))
   w)
 

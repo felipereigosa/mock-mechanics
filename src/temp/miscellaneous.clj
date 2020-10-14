@@ -9,7 +9,6 @@
 (declare redo!)
 (declare show-hint)
 (declare change-mode)
-(declare tree-changed)
 
 (defn get-function-value [function t interpolator]
   (let [final-time (first (last function))]
