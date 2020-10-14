@@ -35,7 +35,8 @@
 (defn save-moveable-children-transforms [world normal part-name]
   (let [children (get-in world [:parts part-name :children])
         moving-children (filter (fn [child-name]
-                                  (let [direction (get-child-local-direction world part-name child-name)]
+                                  (let [direction (get-child-local-direction world part-name child-name)
+                                        child (get-in world [:parts child-name])]
                                     (vector= direction normal)))                                
                                 (keys children))]
     (assoc-in world [:saved-children-transforms]
@@ -100,7 +101,8 @@
           (assoc-in [:scale-offset] scale-offset)
           (#(if (float= l1 l2)
              (move-children % block-name)
-             %))))
+             %))
+          ))
     world))
 
 (defn scale-block-released [world event]

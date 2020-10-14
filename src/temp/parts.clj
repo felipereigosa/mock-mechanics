@@ -410,5 +410,6 @@
 
 (defn tree-changed [world]
   (-> world
+      (reset-wagons)
       (assoc-in [:use-weld-groups] false)
       (async-create-weld-groups)))

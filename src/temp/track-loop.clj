@@ -93,10 +93,15 @@
                      loop (rest loop))
         total-length (reduce + lengths)
         times (map #(/ % total-length) (accumulate lengths))
-        loop-fn (map vector times loop)]
+        loop-fn (map vector times loop)
+        wagon (get-in world [:parts wagon-name])
+        old-length (reduce + (:track-lengths wagon))
+        new-length (reduce + lengths)
+        new-value (within (* (:value wagon) (/ old-length new-length)) 0 1)]
     (update-in world [:parts wagon-name]
                (fn [wagon]
                  (-> wagon
+                     (assoc-in [:value] new-value)
                      (assoc-in [:loop-fn] loop-fn)
                      (assoc-in [:track-lengths] lengths))))))
 
