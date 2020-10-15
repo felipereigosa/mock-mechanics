@@ -6,9 +6,12 @@
         rotation-transform (get-rotation-component transform)
         inverse-rotation (get-inverse-transform rotation-transform)
         local-normal (vector-normalize (apply-transform inverse-rotation normal))
-        [a1 a2] (map #(apply-transform rotation-transform %)
-                     (filter #(float= 0.0 (vector-dot-product % local-normal))
-                             [[1 0 0] [0 1 0] [0 0 1]]))
+        [a1 a2] (->> [[1 0 0] [0 1 0] [0 0 1]]
+                     (map (fn [v]
+                            [(abs (vector-dot-product v local-normal)) v]))
+                     (sort-by first)
+                     (take 2)
+                     (map second))
         n2 (vector-cross-product a2 a1)
         [a1 a2] (if (neg? (vector-dot-product normal n2))
                   [a2 a1]
@@ -35,20 +38,21 @@
 (defn move-part-pressed [world part-name point]
   (let [part-position (get-part-position world part-name)
         part (get-in world [:parts part-name])
-        vx (apply-rotation (:transform part) [1 0 0])
-        vy (apply-rotation (:transform part) [0 1 0])
-        vz (apply-rotation (:transform part) [0 0 1])
+        transform (:transform part)
+        vx (apply-rotation transform [1 0 0])
+        vy (apply-rotation transform [0 1 0])
+        vz (apply-rotation transform [0 0 1])
         point (or point
                   (vector-subtract
                    part-position
                    (vector-multiply vy (get-part-offset part))))
         parent-name (get-parent-part world part-name)
         parent (get-in world [:parts parent-name])
-                offset (vector-subtract part-position point)
+        offset (vector-subtract part-position point)
         original-plane (case (:type parent)
-                :ground [[0.25 0 0.25] [1.25 0 0.25] [0.25 0 1.25]]
-                :track (get-track-plane parent)
-                (get-block-plane parent vy))
+                         :ground [[0.25 0 0.25] [1.25 0 0.25] [0.25 0 1.25]]
+                         :track (get-track-plane parent)
+                         (get-block-plane parent vy))
         y-offset (vector-multiply vy (point-plane-distance point original-plane))
         plane (map #(vector-add % y-offset) original-plane)
         xz-offset (vector-subtract offset (vector-project offset vy))

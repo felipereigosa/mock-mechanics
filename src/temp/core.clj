@@ -276,53 +276,46 @@
         (recompute-viewport width height)
         (place-elements))))
 
-;; (set-thing! [:use-weld-groups] true)
-;; (update-thing! [] create-weld-groups)
-;; (get-thing! [:use-weld-groups])
-;; (println! (:selected-part @world))
-;; (set-thing! [:selected-part] :block13950-copy13961)
-;; (println! (get-parent-part @world :block10336-copy135749))
-;; (get-part-position @world :block13950-copy153348)
-;; (set-thing! [:parts :motherboard10102 :activation-count] 0)
-;; (set-thing! [:use-weld-groups] true)
+;;----------------------------------------------------------------------;;
 
-;; (do
-;; 1
+(doseq [m (get-parts-with-type (:parts @world) :motherboard)]
+  (println! m (motherboard-active? @world m))
+  )
 
-;; (clear-output!)
-;; (let [world @world
-;;       wagon-name :wagon9255
-;;       ]
+(doseq [m (get-parts-with-type (:parts @world) :motherboard)]
+  (set-thing! [:parts m :activation-count] 0)
+  )
 
-;;   ;; (set-thing! [:parts wagon-name :loop-fn]
-;;   ;;             [[0.0 [0.0 -2.0 0.0]]
-;;   ;;              [0.5 [0.0 0.0 0.0]]
-;;   ;;              [1.0 [0.0 0.0 1.0]]])
+(do
+1
 
-;;   ;; (set-thing! [:parts wagon-name :loop-fn]
-;;   ;;             [[0.0 [0.0 -1.0 0.0]]
-;;   ;;              [1.0 [0.0 0.0 0.0]]])
+(clear-output!)
+(let [world @world
+      ]
+  ;; (println! (count (filter (fn [[name part]]
+  ;;                 (= (:color part) :white))
+  ;;               (:parts world))))
 
-;;   ;; (set-thing! [:parts wagon-name :value] 0.5)
+  ()
+  ))
 
-;;   (print-transform (get-thing! [:parts wagon-name :transform]))
-  
-;;   ))
+;; old white parts (:block13950-copy13961 :block9255 :block50696 :block13947 :block10232 :block13667 :block13950 :block13950-copy13962 :block10229 :block13950-copy13955 :block9260 :block13911 :block13950-copy13963)
 
-;; (do
-;; 1
-;; ;; (set-thing! [:weld-groups :ground-part :children :wagon9966]
-;; ;;             (make-transform [-0.5 0.35 0.25] [0.0 0.0 -1.0 90.00000250447816]))
+(set-thing! [:parts :button10101 :value] 0)
 
-;; ;; (set-thing! [:use-weld-groups] true)
-;; ;; (set-thing! [:parts :wagon9966 :value] 1.0)
-;; ;; (update-thing! [] #(compute-transforms % :weld-groups))
-;; ;; (redraw!)
-;; )
+(set-thing! [:parts :track13949 :value] 0.25)
+(println! (get-thing! [:parts :track13949 :value]))
 
-;; ;; (print-transform (get-thing! [:weld-groups :ground-part :children :wagon9966]))
+(print-transform (get-thing! [:parts :track13949 :transform]))
 
-;; (do
-;; 1  
-;; (update-thing! [] tree-changed)
-;; (redraw!))
+(doseq [track [:track40001-copy40920
+               :track40001
+               :track40001-copy40919
+               :track40001-copy40917
+               :track40001-copy40918
+               ]
+        ]
+  (print-transform (get-thing! [:parts track :transform])))t
+
+(print-transform (get-thing! [:parts :block13950-copy13963-copy41355 :transform]))
+

@@ -15,4 +15,5 @@
     (when (shape-collision?)
       (press-button copy-button)
       (dotimes [i (inc (rand-int 5))]
-        (activate new-part-chip)))))
+        (activate new-part-chip)))
+    ))

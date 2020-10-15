@@ -212,8 +212,9 @@
 
                   press-button (fn [button]
                                  (set-value button 1)
-                                 (sleep 100)
-                                 (set-value button 0))
+                                 (sleep 1000)
+                                 (set-value button 0)
+                                 (sleep 1000))
 
                   get-children #(keys (get-thing! [:parts % :children]))
 
