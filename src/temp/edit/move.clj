@@ -11,7 +11,8 @@
                             [(abs (vector-dot-product v local-normal)) v]))
                      (sort-by first)
                      (take 2)
-                     (map second))
+                     (map second)
+                     (map #(apply-transform rotation-transform %)))
         n2 (vector-cross-product a2 a1)
         [a1 a2] (if (neg? (vector-dot-product normal n2))
                   [a2 a1]

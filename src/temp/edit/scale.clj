@@ -29,53 +29,58 @@
         rotation (get-rotation-component relative-transform)]
     (apply-transform rotation [0 1 0])))
 
-(defn save-moveable-children-transforms [world normal part-name]
-  (let [children (get-in world [:parts part-name :children])
+(defn save-children-transforms [world normal part-name]
+  (let [part (get-in world [:parts part-name])
+        children (:children part)
         moving-children (filter (fn [child-name]
                                   (let [direction (get-child-local-direction world part-name child-name)]
                                     (vector= direction normal)))                                
                                 (keys children))]
-    (assoc-in world [:saved-children-transforms]
-              (select-keys children moving-children))))
+    (-> world
+        (assoc-in [:saved-transform] (:transform part))
+        (assoc-in [:saved-children-transforms] children)
+        (assoc-in [:moving-children] moving-children))))
 
-(defn scale-block-pressed [world event]
-  (if-let [{:keys [part-name point index]} (get-part-collision world event)]
-    (let [part (get-in world [:parts part-name])
-          vertices (get-in world [:info :block :model :vertices])
-          triangles (partition 3 (partition 3 vertices))
-          [a b c] (nth triangles index)
-          v1 (vector-subtract b a)
-          v2 (vector-subtract c a)
-          normal (vector-cross-product v1 v2)
-          rotation-transform (get-rotation-component (:transform part))
-          v (apply-transform rotation-transform normal)
-          scale (:scale part)
-          center (get-transform-position (:transform part))]
-      (-> world
-          (assoc-in [:edited-part] part-name)
-          (assoc-in [:adjust-line] [point (vector-normalize v)])
-          (assoc-in [:original-scale] scale)
-          (assoc-in [:original-center] center)
-          (assoc-in [:normal] normal)
-          (save-moveable-children-transforms normal part-name)))
-    world))
-
-(defn move-children [world part-name]
+(defn move-children [world part-name scale-offset]
   (let [part (get-in world [:parts part-name])
-        v (vector-multiply (:scale-offset world) 0.5)
+        v (vector-multiply scale-offset 0.5)
         rotation (get-rotation-component (:transform part))
         v (apply-transform (get-inverse-transform rotation) v)
         offset-transform (make-transform v [1 0 0 0])]
     (reduce (fn [w child-name]
-              (if-let [old-transform (get (:saved-children-transforms world)
-                                          child-name)]
-                (let [new-transform (combine-transforms old-transform
-                                                        offset-transform)]
-                  (assoc-in w [:parts part-name :children child-name]
-                                new-transform))
-                (create-relative-transform w child-name part-name)))
+              (let [old-transform (get (:saved-children-transforms world) child-name)]
+                (if (in? child-name (:moving-children world))
+                  (let [new-transform (combine-transforms old-transform
+                                                          offset-transform)]
+                    (assoc-in w [:parts part-name :children child-name]
+                              new-transform))
+                  (let [part-transform (:transform part)
+                        child-transform (combine-transforms old-transform
+                                                            (:saved-transform world))
+                        new-transform (remove-transform child-transform part-transform)]
+                    (assoc-in w [:parts part-name :children child-name]
+                              new-transform)))))
             world
             (keys (:children part)))))
+
+(defn scale-block-pressed [world event]
+  (if-let [collision (get-part-collision world event)]
+    (let [normal (get-collision-normal world collision)
+          part-name (:part-name collision)
+          part (get-in world [:parts part-name])
+          rotation-transform (get-rotation-component (:transform part))
+          v (apply-transform rotation-transform normal)
+          scale (:scale part)
+          center (get-transform-position (:transform part))
+          adjust-line [(:point collision) (vector-normalize v)]]
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (assoc-in [:adjust-line] adjust-line)
+          (assoc-in [:original-scale] scale)
+          (assoc-in [:original-center] center)
+          (assoc-in [:normal] normal)
+          (save-children-transforms normal part-name)))
+    world))
 
 (defn scale-block-moved [world event]
   (if-let [block-name (:edited-part world)]
@@ -94,11 +99,9 @@
       (user-message! (format "side: %.2f" l2))
       (-> world
           (set-block-size block-name scale center increase-vector)
-          (assoc-in [:scale-offset] scale-offset)
           (#(if (float= l1 l2)
-             (move-children % block-name)
-             %))
-          ))
+             (move-children % block-name scale-offset)
+             %))))
     world))
 
 (defn scale-block-released [world event]
@@ -192,7 +195,8 @@
           (assoc-in [:original-scale] scale)
           (assoc-in [:original-center] center)
           (assoc-in [:normal] local-normal)
-          (save-moveable-children-transforms local-normal part-name)))
+          (save-children-transforms local-normal part-name)
+          ))
     world))
 
 (defn scale-cylinder-moved [world event]
@@ -214,7 +218,7 @@
               (set-block-size part-name scale center [0 (* l2 (second normal)) 0])
               (assoc-in [:scale-offset] scale-offset)
               (#(if (float= l1 l2)
-                  (move-children % part-name)
+                  (move-children % part-name scale-offset)
                   %))))
         (let [grain-size (if (:shift-pressed world) 0.25 0.05)
               d (snap-value d grain-size)
