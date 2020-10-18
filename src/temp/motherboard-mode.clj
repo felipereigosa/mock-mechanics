@@ -194,16 +194,24 @@
                                                 (create-relative-transform part-name parent-name)
                                                 (tree-changed)))))
 
-                  get-part (fn [pointer]
-                             (let [spec (if (keyword? pointer)
-                                          (make-spec pointer)
-                                          {:x 100000
-                                           :y 100000
-                                           :line pointer})
-                                   world (compute-transforms @world :parts)
-                                   collision (get-part-collision world spec)]
-                               (:part-name collision)))
+                  get-part-helper (fn [pointer max-distance] ;;###############
+                                    (let [spec (if (keyword? pointer)
+                                                 (make-spec pointer)
+                                                 {:x 100000
+                                                  :y 100000
+                                                  :line pointer})
+                                          world (compute-transforms @world :parts)
+                                          collision (get-part-collision world spec)]
+                                      (if (< (:distance collision) max-distance)
+                                        (:part-name collision)
+                                        nil)))
                   
+                  get-part (fn
+                             ([pointer max-distance]
+                              (get-part-helper pointer max-distance))
+                             ([pointer]
+                              (get-part-helper pointer 10000)))
+
                   on? (fn [part-name]
                         (= (get-value part-name) 1))
 
@@ -214,7 +222,7 @@
                                  (set-value button 1)
                                  (sleep 1000)
                                  (set-value button 0)
-                                 (sleep 1000))
+                                 )
 
                   get-children #(keys (get-thing! [:parts % :children]))
 
@@ -235,28 +243,25 @@
                    [name (:x pin)]))]
     (map first (sort-by last (map helper (:pins motherboard))))))
 
+(def motherboard-activation-count (atom 0))
+
 (defn run-script [world motherboard-name pin-name]
   (let [motherboard (get-in world [:parts motherboard-name])
         sorted-pins (get-sorted-pin-list world motherboard-name)
         filename (:script motherboard)]
-    (try
-      (let [text (read-string (str "(do" (slurp filename) ")"))
-            code (process-code text sorted-pins)]
-        (.start
-         (new Thread
-              (proxy [Runnable] []
-                (run []
-                  (try
-                    (update-thing! [:parts motherboard-name :activation-count]
-                                   #(if (nil? %) 1 (inc %)))
-                    ((eval code) pin-name)
-                    (update-thing! [:parts motherboard-name :activation-count]
-                                   dec)
-                    (catch Exception e
-                      (user-message! e)
-                      (user-message! "script failed"))))))))  
-      (catch Exception e
-        (user-message! "script failed")))
+    (.start
+     (new Thread
+          (proxy [Runnable] []
+            (run []
+              (swap! motherboard-activation-count inc)
+              (try
+                (let [text (read-string (str "(do" (slurp filename) ")"))
+                      code (process-code text sorted-pins)]
+                  ((eval code) pin-name))
+                (catch Exception e
+                  (user-message! e)
+                  (user-message! "script failed")))
+              (swap! motherboard-activation-count dec)))))
     world))
 
 (defn pin-value-changed [world motherboard-name pin-name]

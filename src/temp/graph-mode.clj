@@ -193,15 +193,20 @@
             new-value (float (get-function-value
                               final-points time linear-interpolator))]
         (if (= chip-name (:controlling-chip part))
-          (if (= (:type part) :wagon)
+          (cond
+            (= (:type part) :wagon)
             (let [total-length (reduce + (:track-lengths part))]
               (assoc-in world [:parts part-name :value]
                         (within (/ new-value total-length) 0 1)))
+
+            (= (:type part) :track)
             (let [max-angle (get-in world [:parts part-name :max-angle])]
               (assoc-in world [:parts part-name :value]
                         (if (nil? max-angle)
                           new-value
-                          (within new-value 0 max-angle)))))
+                          (within new-value 0 max-angle))))
+            (= (:type part) :button)
+            (assoc-in world [:parts part-name :value] (round new-value)))
           world))
       world)))
 
@@ -509,7 +514,7 @@
           chip (get-in world [:parts chip-name])
           part (get-in world [:parts part-name])
           part-type (:type part)]
-      (if (in? part-type [:wagon :track])
+      (if (in? part-type [:wagon :track :button])
         (let [world (if (in? part-name (keys (:functions chip)))
                       (dissoc-in world [:parts chip-name :functions part-name])
                       (assoc-in world [:parts chip-name :functions part-name]

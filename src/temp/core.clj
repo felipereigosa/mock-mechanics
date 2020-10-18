@@ -101,8 +101,6 @@
 )
 
 (defn update-world [world elapsed]
-  ;; (print-transform (get-thing! [:parts :wagon9966 :transform]))
-  ;; (println! (rand))
   (cond
     (in? (:mode world) [:simulation :graph :motherboard])
     (let [elapsed 16 ;;######################

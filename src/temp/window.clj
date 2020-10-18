@@ -211,13 +211,7 @@
   (let [chip-names (get-parts-with-type (:parts world) :chip)]
     (some #(chip-active? world %) chip-names)))
 
-(defn motherboard-active? [world motherboard-name]
-  (let [motherboard (get-in world [:parts motherboard-name])]
-    (not (in? (:activation-count motherboard) [0 nil]))))
-
-(defn any-motherboard-active? [world]
-  (let [motherboard-names (get-parts-with-type (:parts world) :motherboard)]
-    (some #(motherboard-active? world %) motherboard-names)))
+(declare motherboard-activation-count)
 
 (defn update-and-draw! [window]
   (try
@@ -249,7 +243,7 @@
       (if (and (in? (:mode @world) [:simulation :graph :motherboard])
                (or
                 (any-chip-active? @world)
-                (any-motherboard-active? @world)))
+                (> @motherboard-activation-count 0)))
         (reset! time-since-update 0))
       )
     (sleep 5))

@@ -58,6 +58,7 @@
 
 (defn new-file [world]
   (set-title! "-")
+  (reset! motherboard-activation-count 0)
   (-> world
       (dissoc-in [:last-saved-machine])
       (delete-all-parts)
