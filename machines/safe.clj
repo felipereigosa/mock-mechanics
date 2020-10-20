@@ -1,7 +1,7 @@
 
-[button track]
+[probe track]
 
 (fn [part-name]
-  ;; (while (on? button)
-  ;;   (set-value track (within (get-value track) 0 -0.01)))
-  )
+  (if (on? probe)
+    (set-thing! [:parts track :max-angle] 0.003)
+    (set-thing! [:parts track :max-angle] nil)))

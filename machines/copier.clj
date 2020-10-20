@@ -3,8 +3,7 @@
 
 (fn [part-name]
   (when (on? button)
-    (let [original (get-part source)
-          ]
+    (let [original (get-part source)]
       (set-thing! [:edit-subcommand] :copy)
       (set-thing! [:selected-part] nil)
       (mode-click! :edit source [:control])
@@ -14,5 +13,4 @@
         (set-transform
          @copy-name
          (combine-transforms (get-transform original)
-                             (make-transform [-0.001 0 0] [1 0 0 0]))))
-      )))
+                             (make-transform [-0.001 0 0] [1 0 0 0])))))))

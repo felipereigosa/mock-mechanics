@@ -140,12 +140,43 @@
                   
                   chip-active? #(chip-active? @world %)
 
+                  on? (fn [part-name]
+                        (= (get-value part-name) 1))
+
+                  off? (fn [part-name]
+                         (= (get-value part-name) 0))
+
+                  get-children #(keys (get-thing! [:parts % :children]))
+
+                  get-part-position #(get-part-position
+                                      (compute-transforms @world :parts) %)
+
+
                   wait (fn [pred]
-                         (while (pred) (sleep 50)))
+                         (while (pred) (sleep 50))
+                         (sleep 100))
+
+                  activate-chip (fn [chip-name]
+                                  (update-thing! [] #(activate-chip % chip-name))
+                                  (wait #(chip-active? chip-name)))
+
+                  activate-button (fn [button-name]
+                                    (set-value button-name 1)
+                                    (sleep 1000)
+                                    (set-value button-name 0))
+
+                  activate-wagon (fn [wagon-name probe-name]
+                                   (set-value wagon-name 1)
+                                   (wait #(off? probe-name))
+                                   (set-value wagon-name 0.5))
                   
-                  activate (fn [name]
-                             (update-thing! [] #(activate-chip % name))
-                             (wait #(chip-active? name))) 
+                  activate (fn [part-name & extra]
+                             (let [world @world
+                                   part (get-in world [:parts part-name])]
+                               (case (:type part)
+                                 :wagon (activate-wagon part-name (first extra))
+                                 :button (activate-button part-name)
+                                 :chip (activate-chip part-name))))
 
                   = (fn [a b]
                       (if (and (number? a)
@@ -169,11 +200,11 @@
                   mode-click! (fn [mode pointer keys]
                                 (let [spec (make-spec pointer)
                                       press-function (get-function mode :pressed)
-                                      move-function (get-function mode :moved)
                                       release-function (get-function mode :released)
                                       s (in? :shift keys)
                                       c (in? :control keys)
-                                      w (-> (compute-transforms @world :parts)
+                                      w (-> @world
+                                            (compute-transforms :parts)
                                             (assoc-in [:shift-pressed] s)
                                             (assoc-in [:control-pressed] c)
                                             (press-function spec)
@@ -202,7 +233,8 @@
                                                   :line pointer})
                                           world (compute-transforms @world :parts)
                                           collision (get-part-collision world spec)]
-                                      (if (< (:distance collision) max-distance)
+                                      (if (and (not (nil? collision))
+                                               (< (:distance collision) max-distance))
                                         (:part-name collision)
                                         nil)))
                   
@@ -211,23 +243,6 @@
                               (get-part-helper pointer max-distance))
                              ([pointer]
                               (get-part-helper pointer 10000)))
-
-                  on? (fn [part-name]
-                        (= (get-value part-name) 1))
-
-                  off? (fn [part-name]
-                         (= (get-value part-name) 0))
-
-                  press-button (fn [button]
-                                 (set-value button 1)
-                                 (sleep 1000)
-                                 (set-value button 0)
-                                 )
-
-                  get-children #(keys (get-thing! [:parts % :children]))
-
-                  get-part-position #(get-part-position
-                                      (compute-transforms @world :parts) %)
 
                   ]]
     `(do

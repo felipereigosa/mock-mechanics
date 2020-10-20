@@ -1,5 +1,6 @@
 
-[lever down-chip reset-chip copy-button pointer row-starter]
+[lever down-chip reset-chip copy-button
+ pointer row-starter row-end]
 
 (defn shape-collision? []
   (let [blocks (get-children (get-part pointer))
@@ -10,13 +11,10 @@
     (some #(not (in? % blocks)) collisions)))
 
 (fn [part-name]
-  ;; (while (on? lever)
-    ;; (activate down-chip)
-    ;; (when (shape-collision?)
-    ;;   (press-button copy-button)
-    ;;   (dotimes [i (inc (rand-int 5))]
-    ;;     (activate reset-chip)))
-
-  (if (on? lever)
-    (set-value row-starter 1)
-    ))
+  (while (on? lever)
+    (activate down-chip)
+    (when (shape-collision?)
+      (activate copy-button)
+      (activate row-starter row-end)
+      (dotimes [i (inc (rand-int 5))]
+        (activate reset-chip)))))
