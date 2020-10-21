@@ -40,7 +40,7 @@
                         :delete "D,Delete"
                         :scale "S,Scale"
                         :copy "C,Copy/Paste"
-                        :translate "T,Translate"
+                        :translate "T,Transfer"
                         }
                  :graph {:move "M,Move"
                          :set-x "X,Set x"

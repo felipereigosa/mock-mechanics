@@ -13,4 +13,8 @@
         (set-transform
          @copy-name
          (combine-transforms (get-transform original)
-                             (make-transform [-0.001 0 0] [1 0 0 0])))))))
+                             (make-transform [-0.001 0 0] [1 0 0 0]))))
+
+      (while (not (:use-weld-groups @world)))
+      (set-value button 0)
+      )))

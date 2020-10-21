@@ -141,10 +141,10 @@
                   chip-active? #(chip-active? @world %)
 
                   on? (fn [part-name]
-                        (= (get-value part-name) 1))
+                        (float= (get-value part-name) 1.0))
 
                   off? (fn [part-name]
-                         (= (get-value part-name) 0))
+                         (float= (get-value part-name) 0.0))
 
                   get-children #(keys (get-thing! [:parts % :children]))
 
@@ -162,19 +162,18 @@
 
                   activate-button (fn [button-name]
                                     (set-value button-name 1)
-                                    (sleep 1000)
-                                    (set-value button-name 0))
+                                    (wait #(on? button-name)))
 
-                  activate-wagon (fn [wagon-name probe-name]
+                  activate-wagon (fn [wagon-name]
                                    (set-value wagon-name 1)
-                                   (wait #(off? probe-name))
+                                   (wait #(not (off? wagon-name)))
                                    (set-value wagon-name 0.5))
                   
-                  activate (fn [part-name & extra]
+                  activate (fn [part-name]
                              (let [world @world
                                    part (get-in world [:parts part-name])]
                                (case (:type part)
-                                 :wagon (activate-wagon part-name (first extra))
+                                 :wagon (activate-wagon part-name)
                                  :button (activate-button part-name)
                                  :chip (activate-chip part-name))))
 
@@ -260,11 +259,191 @@
 
 (def motherboard-activation-count (atom 0))
 
+;; (do
+;; 1
+
+;; (declare get-function)
+
+;; (let [println println!
+
+;;       get-value (fn [name]
+;;                   (let [part (get-in @world [:parts name])
+;;                         value (:value part)]
+;;                     (if (= (:type part) :wagon)
+;;                       (* value (reduce + (:track-lengths part)))
+;;                       value)))
+      
+;;       set-value (fn [name value]
+;;                   (let [part (get-in @world [:parts name])
+;;                         value (if (= (:type part) :wagon)
+;;                                 (/ value (reduce + (:track-lengths part)))
+;;                                 value)]
+;;                     (set-thing! [:parts name :value] value)))
+      
+;;       chip-active? #(chip-active? @world %)
+
+;;       on? (fn [part-name]
+;;             (float= (get-value part-name) 1.0))
+
+;;       off? (fn [part-name]
+;;              (float= (get-value part-name) 0.0))
+
+;;       get-children #(keys (get-thing! [:parts % :children]))
+
+;;       get-part-position #(get-part-position
+;;                           (compute-transforms @world :parts) %)
+
+
+;;       wait (fn [pred]
+;;              (while (pred) (sleep 50))
+;;              (sleep 100))
+
+;;       activate-chip (fn [chip-name]
+;;                       (update-thing! [] #(activate-chip % chip-name))
+;;                       (wait #(chip-active? chip-name)))
+
+;;       activate-button (fn [button-name]
+;;                         (set-value button-name 1)
+;;                         (wait #(on? button-name)))
+
+;;       activate-wagon (fn [wagon-name]
+;;                        (set-value wagon-name 1)
+;;                        (wait #(not (off? wagon-name)))
+;;                        (set-value wagon-name 0.5))
+      
+;;       activate (fn [part-name]
+;;                  (let [world @world
+;;                        part (get-in world [:parts part-name])]
+;;                    (case (:type part)
+;;                      :wagon (activate-wagon part-name)
+;;                      :button (activate-button part-name)
+;;                      :chip (activate-chip part-name))))
+
+;;       = (fn [a b]
+;;           (if (and (number? a)
+;;                    (number? b))
+;;             (float= a b)
+;;             (= a b)))
+
+;;       probe->line (fn [probe-name]
+;;                     (let [world @world
+;;                           transform (use-root-relative-transform world probe-name)
+;;                           point (get-transform-position transform)
+;;                           direction (vector-normalize (apply-transform (get-rotation-component transform) [0 1 0]))
+;;                           offset (vector-multiply direction 0.051)]
+;;                       [(vector-add point offset) direction]))
+
+;;       make-spec (fn [probe-name]
+;;                   {:x 100000
+;;                    :y 100000
+;;                    :line (probe->line probe-name)})
+
+;;       mode-click! (fn [mode pointer keys]
+;;                     (let [spec (make-spec pointer)
+;;                           press-function (get-function mode :pressed)
+;;                           release-function (get-function mode :released)
+;;                           s (in? :shift keys)
+;;                           c (in? :control keys)
+;;                           w (-> @world
+;;                                 (compute-transforms :parts)
+;;                                 (assoc-in [:shift-pressed] s)
+;;                                 (assoc-in [:control-pressed] c)
+;;                                 (press-function spec)
+;;                                 (release-function spec)
+;;                                 (assoc-in [:shift-pressed] false)
+;;                                 (assoc-in [:control-pressed] false))]
+;;                       (reset! world w)
+;;                       nil))
+
+;;       get-transform (fn [part-name]
+;;                       (get-thing! [:parts part-name :transform]))
+
+;;       set-transform (fn [part-name transform]
+;;                       (let [parent-name (get-parent-part @world part-name)]
+;;                         (swap! world
+;;                                #(-> %
+;;                                     (assoc-in [:parts part-name :transform] transform)
+;;                                     (create-relative-transform part-name parent-name)
+;;                                     (tree-changed)))))
+
+;;       get-part-helper (fn [pointer max-distance] ;;###############
+;;                         (let [spec (if (keyword? pointer)
+;;                                      (make-spec pointer)
+;;                                      {:x 100000
+;;                                       :y 100000
+;;                                       :line pointer})
+;;                               world (compute-transforms @world :parts)
+;;                               collision (get-part-collision world spec)]
+;;                           (if (and (not (nil? collision))
+;;                                    (< (:distance collision) max-distance))
+;;                             (:part-name collision)
+;;                             nil)))
+      
+;;       get-part (fn
+;;                  ([pointer max-distance]
+;;                   (get-part-helper pointer max-distance))
+;;                  ([pointer]
+;;                   (get-part-helper pointer 10000)))
+
+;;       shape-collision? (fn [pointer]
+;;                          (let [blocks (get-children (get-part pointer))
+;;                                points (map #(vector-add
+;;                                              (get-part-position %)
+;;                                              [-0.2 -0.5 0]) blocks)
+;;                                collisions (remove-nil (map #(get-part [% [-1 0 0]]) points))]
+;;                            (some #(not (in? % blocks)) collisions)))
+;;       ]
+  
+;;   (defn fake-copier [part-name pins]
+;;     (let [button :button10101
+;;           source :probe10096
+;;           destination :probe10100
+;;           in-place :probe11712]
+;;       (let [original (get-part source)]
+;;         (set-thing! [:edit-subcommand] :copy)
+;;         (set-thing! [:selected-part] nil)
+;;         (mode-click! :edit source [:control])
+;;         (mode-click! :edit destination [])
+
+;;         (when (on? in-place)
+;;           (set-transform
+;;            @copy-name
+;;            (combine-transforms (get-transform original)
+;;                                (make-transform [-0.001 0 0] [1 0 0 0]))))
+
+;;         (while (not (:use-weld-groups @world)))
+;;         (set-value button 0)
+;;         )))
+
+;;   (defn fake-direction-probe [part-name pins]
+;;     (let [button :button30985
+;;           probe :probe30984
+;;           lamp :lamp30986]
+;;       (when (on? button)
+;;         (set-value lamp (if (nil? (get-part probe 0.25)) 0 1)))))
+
+
+;;   (defn fake-tetris-loop [part-name pins]
+;;     (let [lever :probe10016
+;;           down-chip :chip9249
+;;           reset-chip :chip12165
+;;           copy-button :button10101
+;;           pointer :probe10096
+;;           row-tester :wagon30955]
+;;       (while (on? lever)
+;;         (activate down-chip)
+;;         (when (shape-collision? pointer)
+;;           (activate copy-button)
+;;           (activate row-tester)
+;;           (dotimes [i (inc (rand-int 5))]
+;;             (activate reset-chip))))))
+;; )
+
 (defn run-script [world motherboard-name pin-name]
   (let [motherboard (get-in world [:parts motherboard-name])
         sorted-pins (get-sorted-pin-list world motherboard-name)
         filename (:script motherboard)]
-    (.start
+     (.start
      (new Thread
           (proxy [Runnable] []
             (run []
@@ -273,6 +452,13 @@
                 (let [text (read-string (str "(do" (slurp filename) ")"))
                       code (process-code text sorted-pins)]
                   ((eval code) pin-name))
+
+                ;; (case motherboard-name
+                ;;   :motherboard11771 (fake-tetris-loop pin-name sorted-pins)
+                ;;   :motherboard10102 (fake-copier pin-name sorted-pins)
+                ;;   :motherboard30987 (fake-direction-probe pin-name sorted-pins)
+                ;;   )
+                
                 (catch Exception e
                   (user-message! e)
                   (user-message! "script failed")))
