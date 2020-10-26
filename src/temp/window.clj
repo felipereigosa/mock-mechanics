@@ -212,6 +212,7 @@
     (some #(chip-active? world %) chip-names)))
 
 (declare motherboard-activation-count)
+(declare spheres-moving?)
 
 (defn update-and-draw! [window]
   (try
@@ -221,6 +222,7 @@
   (if (or (< @time-since-update 200)
           ;; (not (empty? (:spheres @world)))
           ;; (:forces-active? @world)
+          (spheres-moving? @world)
           (not (nil? (:mouse-force @world)))
           )
     (let [current-time (get-current-time)
@@ -1265,4 +1267,3 @@
                                       (nth corners index)) indices)))]
     (create-wireframe-mesh vertices position rotation
                            scale color-name)))
-

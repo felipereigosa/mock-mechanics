@@ -292,3 +292,9 @@
     (dissoc map (nth keys 0))
     (update-in map (butlast keys) dissoc (last keys))))
 
+(defn make-coordinates [i j]
+  (mapcat (fn [x]
+            (map (fn [y]
+                   [x y])
+                 (range i)))
+          (range j)))

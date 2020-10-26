@@ -141,10 +141,10 @@
             mesh (assoc-in mesh [:transform] transform)]
         (draw-mesh! world mesh)))))
 
-(defn is-physical-part? [[name part]]
+(defn is-solid-part? [[name part]]
   (and
    (in? (:type part) [:block :wagon])
-   (:physics part)))
+   (:solid part)))
 
 (defn remove-all-bodies [world]
   (doseq [{:keys [body]} (:bodies world)]
@@ -168,9 +168,9 @@
 
 (defn create-part-bodies [world parts groups]
   (let [world (remove-all-bodies world)
-        physical-part-names (map first (filter is-physical-part? parts))
+        solid-part-names (map first (filter is-solid-part? parts))
         bodies (map #(create-part-body % parts groups)
-                    physical-part-names)]
+                    solid-part-names)]
     (doseq [{:keys [body]} bodies]
       (add-body-to-planet (:planet world) body))
     (assoc-in world [:bodies] bodies)))
@@ -220,3 +220,13 @@
   (if-let [sphere (get-sphere-at world event)]
     (delete-sphere world sphere)
     (add-sphere world event)))
+
+(def v-in (atom (new Vector3f 0 0 0)))
+(def v-out (atom (new Vector3f)))
+
+(defn spheres-moving? [world]
+  (let [velocities (map (fn [sphere]
+                          (.getVelocityInLocalPoint sphere @v-in @v-out)
+                          (.length @v-out))
+                        (:spheres world))]
+    (some #(> % 0.1) velocities)))

@@ -16,5 +16,4 @@
                              (make-transform [-0.001 0 0] [1 0 0 0]))))
 
       (while (not (:use-weld-groups @world)))
-      (set-value button 0)
-      )))
+      (set-value button 0))))

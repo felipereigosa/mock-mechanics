@@ -83,7 +83,7 @@
       (assoc-in [:motherboard-menu]
                 (create-picture "motherboard-menu" 210 575 -1 30))
       (assoc-in [:selected-property] 0)
-      (assoc-in [:properties] [:free :physics :collision :.])
+      (assoc-in [:properties] [:free :solid :.])
 
       (create-physics-world)
       (reset-undo! [:parts])

@@ -79,6 +79,9 @@
    "C-c" #(view-all-parts %)
 
    "C-s" #(save-machine-version %)
+   "C-x s" #(-> %
+                (dissoc-in [:last-saved-machine])
+                (save-machine-version))
    "C-o" #(open-machine-version %)
    "C-x o" #(import-machine-version %)
    
