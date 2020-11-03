@@ -28,6 +28,17 @@
     :properties {:value 0}
     }
 
+   :gear
+   {:model (create-model-mesh "res/cylinder.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :collision-model (create-model-mesh "res/cylinder-collision.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :points [[0 0.5 0] [0 -0.5 0]]
+    :scale [0.5 0.5 0.5]
+    :color :orange
+    :properties {:value 0}
+    }
+
    :sphere
    {:model (create-model-mesh "res/sphere.obj"
                               [0 0 0] [1 0 0 0]
@@ -167,6 +178,10 @@
                (assoc-in part [:dark-color] (get-dark-color color))
                part)
 
+        part (if (= type :wagon)
+               (assoc-in part [:free] true)
+               part)
+
         part (if (= type :motherboard)
                (assoc-in part [:tab] 0)
                part)
@@ -208,6 +223,16 @@
         rotation (get-transform-rotation transform)]
     (assoc-in part [:transform]
               (make-transform position rotation))))
+
+(defn move-part [world part-name offset]
+  (let [part (get-in world [:parts part-name])
+        transform (:transform part)
+        position (get-transform-position transform)
+        parent-name (get-parent-part world part-name)]
+    (-> world
+        (update-in [:parts part-name]
+                      #(set-part-position % (vector-add position offset)))
+        (create-relative-transform part-name parent-name))))
 
 (defn get-parent-part [world child-name]
   (find-if (fn [name]

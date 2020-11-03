@@ -196,7 +196,11 @@
                                :line (probe->line probe-name)})
 
                   mode-click! (fn [mode pointer keys]
-                                (let [spec (make-spec pointer)
+                                (let [spec (if (keyword? pointer)
+                                             (make-spec pointer)
+                                             {:x 100000
+                                              :y 100000
+                                              :line pointer})
                                       press-function (get-function mode :pressed)
                                       release-function (get-function mode :released)
                                       s (in? :shift keys)

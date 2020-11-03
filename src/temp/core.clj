@@ -100,6 +100,18 @@
 (reset-world!)
 )
 
+(defn enforce-gears [world]
+  (reduce (fn [w {:keys [part-1-name part-2-name ratio]}]
+            (let [swap (= part-1-name (get-in world [:mouse-force :part-name]))
+                  [part-1-name part-2-name ratio] (if swap
+                                          [part-2-name part-1-name (/ 1.0 ratio)]
+                                          [part-1-name part-2-name ratio])
+                  part-2 (get-in world [:parts part-2-name])]
+              (assoc-in w [:parts part-1-name :value]
+                        (* -1 ratio (:value part-2)))))
+          world
+          (vals (:gears world))))
+
 (defn update-world [world elapsed]
   (cond
     (in? (:mode world) [:simulation :graph :motherboard])
@@ -112,6 +124,7 @@
                                           :weld-groups
                                           :parts))
                     (update-motherboards)
+                    (enforce-gears)
                     )]
       (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)

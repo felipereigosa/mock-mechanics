@@ -123,6 +123,57 @@
       :else
       (user-message! "can't place part on" (kw->str (:type target))))))
 
+(defn add-gears-with-ratio [world parent-1-name parent-2-name ratio]
+  (let [parent-1 (get-in world [:parts parent-1-name])
+        parent-2 (get-in world [:parts parent-2-name])
+        layer (apply min (:visible-layers world))
+
+        gear-1 (create-part :gear :orange layer (:info world))
+        gear-1-name (gen-keyword :gear)
+        offset (+ 0.1 (* -1 (second (:scale parent-1))))
+        gear-1-transform (combine-transforms (:transform parent-1)
+                                             (make-transform [0 offset 0] [1 0 0 0]))
+
+        gear-2 (create-part :gear :blue layer (:info world))
+        gear-2-name (gen-keyword :gear)
+        parent-2-plane (map #(apply-transform (:transform parent-2) %)
+                            [[0 0 0] [1 0 0] [0 0 1]])
+        gear-1-point (get-transform-position gear-1-transform)
+        offset (point-plane-distance gear-1-point parent-2-plane)
+        gear-2-transform (combine-transforms (:transform parent-2)
+                                             (make-transform [0 offset 0] [1 0 0 0]))
+
+        gear-2-point (get-transform-position gear-2-transform)
+        ratio (/ 1.0 ratio)
+        d (* 2 (distance gear-1-point gear-2-point))
+        r2 (* (/ ratio (+ ratio 1)) d)
+        r1 (* (/ 1 (+ ratio 1)) d)]
+    (-> world
+        (assoc-in [:parts gear-1-name] gear-1)
+        (assoc-in [:parts gear-1-name :scale] [r1 0.2 r1])
+        (assoc-in [:parts gear-1-name :transform] gear-1-transform)
+        (create-relative-transform gear-1-name parent-1-name)
+        (assoc-in [:parts gear-2-name] gear-2)
+        (assoc-in [:parts gear-2-name :scale] [r2 0.2 r2])
+        (assoc-in [:parts gear-2-name :transform] gear-2-transform)
+        (create-relative-transform gear-2-name parent-2-name)
+        (assoc-in [:gears [gear-1-name gear-2-name]]
+                  {:part-1-name parent-1-name
+                   :part-2-name parent-2-name
+                   :ratio ratio}))))
+
+(defn add-gear [world spec]
+  (if (nil? (:first-gear-part world))
+    (do
+      (user-message! "Now click on another track or wagon")
+      (assoc-in world [:first-gear-part] (get-part-at world spec)))
+    (read-input world
+                (fn [w text]
+                  (-> w
+                      (add-gears-with-ratio (:first-gear-part w) (get-part-at w spec) (parse-int text))
+                      (dissoc-in [:first-gear-part])
+                      (tree-changed))))))
+
 (defn add-mode-pressed [world event]
   (let [{:keys [x y]} event]
     (if (inside-box? (:add-menu world) x y)
@@ -135,8 +186,8 @@
             color (get-in world [:info type :color])
             world (tree-will-change world)]
         (case (:add-type world)
-          :wagon
-          (add-wagon world color event)
+          :wagon (add-wagon world color event)
+          :gear (add-gear world event)
 
           (let [layer (apply min (:visible-layers world))
                 part (create-part type color layer (:info world))
@@ -184,7 +235,9 @@
       (tree-changed)))
 
 (defn add-mode-exited [world]
-  (assoc-in world [:track-head] nil))
+  (-> world
+      (assoc-in [:track-head] nil)
+      (assoc-in [:first-gear-part] nil)))
 
 (defn draw-track-head! [world]
   (if (and (= (:mode world) :add)

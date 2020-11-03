@@ -22,17 +22,22 @@
     :else world))
 
 (defn delete-part [world part-name]
-  (let [part (get-in world [:parts part-name])
-        world (reduce (fn [w child-name]
-                        (delete-part w child-name))
-                      world
-                      (keys (:children part)))
-        world (reduce #(forget-part %1 %2 part-name)
-                      world
-                      (keys (:parts world)))]
+  (if-let [[a b] (find-if #(in? part-name %) (keys (:gears world)))]
     (-> world
-        (unselect-part part-name)
-        (dissoc-in [:parts part-name]))))
+        (dissoc-in [:gears [a b]])
+        (delete-part a)
+        (delete-part b))
+    (let [part (get-in world [:parts part-name])
+          world (reduce (fn [w child-name]
+                          (delete-part w child-name))
+                        world
+                        (keys (:children part)))
+          world (reduce #(forget-part %1 %2 part-name)
+                        world
+                        (keys (:parts world)))]
+      (-> world
+          (unselect-part part-name)
+          (dissoc-in [:parts part-name])))))
 
 (defn delete-all-parts [world]
   (reduce (fn [w part-name]

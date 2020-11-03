@@ -14,6 +14,7 @@
               rotation-transform (get-rotation-component (:transform part))
               y-axis (apply-transform rotation-transform [0 1 0])]
           (-> world
+              (assoc-in [:start-position] part-position)
               (assoc-in [:edited-part] part-name)
               (assoc-in [:sink-line] [point y-axis])
               (assoc-in [:offset] offset)))))
@@ -43,6 +44,16 @@
           (assoc-in [:snapped-position] snapped-position)))
     world))
 
+(defn move-other-gear [world part-name]
+  (if (= (get-in world [:parts part-name :type]) :gear)
+    (let [[a b] (find-if #(in? part-name %) (keys (:gears world)))
+          other-gear-name (if (= part-name a) b a)
+          gear (get-in world [:parts part-name])
+          position (get-transform-position (:transform gear))
+          offset (vector-subtract position (:start-position world))]
+      (move-part world other-gear-name offset))
+    world))
+
 (defn sink-mode-released [world event]
   (if-let [part-name (:edited-part world)]
     (let [parent-name (get-parent-part world part-name)
@@ -52,5 +63,6 @@
           (update-in [:parts part-name]
                      #(set-part-position % position))
           (create-relative-transform part-name parent-name)
+          (move-other-gear part-name)
           (dissoc-in [:edited-part])))
     world))

@@ -7,7 +7,7 @@
    "A-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)
    ":add c" #(assoc-in % [:add-type] :cylinder)
-   ":add v" #(assoc-in % [:add-type] :cone)
+   ":add S-c" #(assoc-in % [:add-type] :cone)
    ":add s" #(assoc-in % [:add-type] :sphere)
    ":add w" #(assoc-in % [:add-type] :wagon)
    ":add t" #(assoc-in % [:add-type] :track)
@@ -17,6 +17,7 @@
    ":add S-b" #(assoc-in % [:add-type] :button)
    ":add l" #(assoc-in % [:add-type] :lamp)
    ":add S-s" #(assoc-in % [:add-type] :speaker)
+   ":add S-g" #(assoc-in % [:add-type] :gear)
 
    "A-e" #(change-mode % :edit)
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)

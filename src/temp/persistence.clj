@@ -84,6 +84,7 @@
                                     (:spheres world)))]
     (spit filename {:parts parts
                     :camera (:camera world)
+                    :gears (:gears world)
                     :visible-layers (:visible-layers world)
                     :sphere-transforms sphere-transforms})
     (user-message! "saved " filename)
@@ -105,7 +106,7 @@
   (try
     (let [filename (get-last-version-filename text)
           {:keys [parts camera
-                  visible-layers
+                  visible-layers gears
                   sphere-transforms]} (read-string (slurp filename))
           parts (map-map (fn [[name part]]
                            {name (get-complex-part part (:info world))})
@@ -116,6 +117,7 @@
                     (create-spheres sphere-transforms)
                     (assoc-in [:parts :ground-part :transform] (make-transform [0 -0.1 0] [1 0 0 0]))
                     (assoc-in [:camera] camera)
+                    (assoc-in [:gears] gears)
                     (assoc-in [:visible-layers] (or visible-layers [1]))
                     (compute-camera)
                     (create-weld-groups)
