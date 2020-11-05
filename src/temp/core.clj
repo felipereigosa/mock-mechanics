@@ -100,17 +100,40 @@
 (reset-world!)
 )
 
+(defn set-partner-values [world part-name]
+  (let [world (assoc-in world [:parts part-name :already-set] true)
+        value (get-in world [:parts part-name :value])
+        partners (remove-nil
+                  (map (fn [entry]
+                         (cond
+                           (= (:part-1-name entry) part-name) [(:part-2-name entry) (:ratio entry)]
+                           (= (:part-2-name entry) part-name) [(:part-1-name entry) (/ 1.0 (:ratio entry))]
+                           :else nil))
+                       (vals (:gears world))))]
+    (reduce (fn [w [partner-name ratio]]
+              (if (not (get-in w [:parts partner-name :already-set]))
+                (-> w
+                    (assoc-in [:parts partner-name :value] (* -1 ratio value))
+                    (set-partner-values partner-name))
+                w))
+            world
+            partners)))
+
 (defn enforce-gears [world]
-  (reduce (fn [w {:keys [part-1-name part-2-name ratio]}]
-            (let [swap (= part-1-name (get-in world [:mouse-force :part-name]))
-                  [part-1-name part-2-name ratio] (if swap
-                                          [part-2-name part-1-name (/ 1.0 ratio)]
-                                          [part-1-name part-2-name ratio])
-                  part-2 (get-in world [:parts part-2-name])]
-              (assoc-in w [:parts part-1-name :value]
-                        (* -1 ratio (:value part-2)))))
-          world
-          (vals (:gears world))))
+  (let [gear-part-names (distinct (flatten (map (fn [entry]
+                                                  [(:part-1-name entry)
+                                                   (:part-2-name entry)])
+                                                (vals (:gears world)))))
+        world (reduce (fn [w part-name]
+                        (assoc-in w [:parts part-name :already-set] false))
+                      world
+                      gear-part-names)
+        driven-parts [(:part-name (:mouse-force world))] ;;##### add chip parts
+        ]
+    (reduce (fn [w driven-part]
+              (set-partner-values w driven-part))
+            world
+            driven-parts)))
 
 (defn update-world [world elapsed]
   (cond

@@ -64,31 +64,6 @@
         world))
     world))
 
-(defn property-mode-pressed [world {:keys [x y] :as event}]
-  (if (inside-box? (:property-box world) x y)
-    (set-property world x y)
-    (let [{:keys [part-name point]} (get-part-collision world event)
-          part (get-in world [:parts part-name])
-          world (-> world
-                    (assoc-in [:selected-part] part-name)
-                    (assoc-in [:press-time] (get-current-time))
-                    (tree-will-change))]
-      (case (:type part)
-        :wagon
-        (let [transform (:transform part)
-              inverse-transform (get-inverse-transform transform)
-              local-point (apply-transform inverse-transform point)
-              mouse-line (get-spec-line world event)]
-          (assoc-in world [:force] {:part-name part-name
-                                    :velocity 0
-                                    :line mouse-line
-                                    :point local-point}))
-        :track
-        (assoc-in world [:track-force] {:part-name part-name
-                                        :point point
-                                        :start-value (:value part)})        
-        world))))
-
 (defn special-track-moved [world spec]
   (let [{:keys [part-name point start-value]} (:track-force world)
         key (if (:use-weld-groups world)
@@ -114,17 +89,37 @@
         new-value (+ start-value s)]
     (assoc-in world [:parts part-name :value] new-value)))
 
+(defn property-mode-pressed [world {:keys [x y] :as event}]
+  (if (inside-box? (:property-box world) x y)
+    (set-property world x y)
+    (let [{:keys [part-name point]} (get-part-collision world event)
+          part (get-in world [:parts part-name])
+          world (-> world
+                    (assoc-in [:selected-part] part-name)
+                    (assoc-in [:press-time] (get-current-time))
+                    (tree-will-change))]
+      (case (:type part)
+        :wagon
+        (let [transform (:transform part)
+              inverse-transform (get-inverse-transform transform)
+              local-point (apply-transform inverse-transform point)]
+          (assoc-in world [:mouse-force]
+                    {:part-name part-name
+                     :local-point local-point
+                     :line (get-spec-line world event)}))
+
+        :track
+        (assoc-in world [:track-force] {:part-name part-name
+                                        :point point
+                                        :start-value (:value part)})
+        world))))
+
 (defn property-mode-moved [world event]
   (cond
-    (:force world)
-    (let [mouse-line (get-spec-line world event)
-          part-name (get-in world [:force :part-name])
-          wagon (get-in world [:parts part-name])
-          new-value (:value wagon)
-          loop-length (reduce + (:track-lengths wagon))]
-      (-> world
-          (assoc-in [:force :line] mouse-line)
-          (redraw)))
+    (:mouse-force world)
+    (-> world
+        (assoc-in [:mouse-force :line] (get-spec-line world event))
+        (redraw))
 
     (:track-force world)
     (-> world
@@ -141,6 +136,6 @@
                 (select-part world (:selected-part world))
                 world)]
     (-> world
-        (dissoc-in [:force])
+        (dissoc-in [:mouse-force])
         (dissoc-in [:track-force])
         (tree-changed))))

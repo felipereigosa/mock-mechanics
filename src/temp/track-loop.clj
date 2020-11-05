@@ -16,7 +16,7 @@
              (tracks-connected? world other-part-name part-name)))
           (get-parts-with-type (:parts world) :track)))
 
-(defn grow-loop [world loop color]
+(defn grow-loop [world loop]
   (let [start (first loop)
         end (last loop)
         get-next (fn [tip]
@@ -25,7 +25,6 @@
                               (let [part (get-in world [:parts part-name])]
                                 (and
                                  (= (:type part) :track)
-                                 (color= (:color part) color)
                                  (not (in? part-name loop)))))
                             (get-track-neighbours world tip))))
         before (get-next start)
@@ -43,7 +42,7 @@
 
                        :else
                        (vec (concat [before] (conj loop after))))]
-        (recur world new-loop color)))))
+        (recur world new-loop)))))
 
 (defn get-tail-point [world track-name]
   (let [track (get-in world [:parts track-name])
@@ -53,7 +52,7 @@
 (defn get-track-loop [world t0-name]
   (let [t0 (get-in world [:parts t0-name])
         loop-color (:color t0)
-        loop-names (grow-loop world [t0-name] loop-color)
+        loop-names (grow-loop world [t0-name])
         loop-names (if (in? (get-parent-part world (first loop-names))
                             loop-names)
                      (vec (reverse loop-names))

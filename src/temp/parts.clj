@@ -224,6 +224,12 @@
     (assoc-in part [:transform]
               (make-transform position rotation))))
 
+(defn get-parent-part [world child-name]
+  (find-if (fn [name]
+             (let [parent (get-in world [:parts name])]
+               (in? child-name (keys (:children parent)))))
+           (keys (:parts world))))
+
 (defn move-part [world part-name offset]
   (let [part (get-in world [:parts part-name])
         transform (:transform part)
@@ -233,12 +239,6 @@
         (update-in [:parts part-name]
                       #(set-part-position % (vector-add position offset)))
         (create-relative-transform part-name parent-name))))
-
-(defn get-parent-part [world child-name]
-  (find-if (fn [name]
-             (let [parent (get-in world [:parts name])]
-               (in? child-name (keys (:children parent)))))
-           (keys (:parts world))))
 
 (defn get-parts-with-type [parts type]
   (map first (filter (fn [[name part]]

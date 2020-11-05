@@ -10,7 +10,7 @@
 (defn simulation-mode-pressed [world event]
   (if-let [{:keys [part-name point]} (get-part-collision world event)]
     (let [part (get-in world [:parts part-name])
-          world (if (in? (:type part) [:button :block])
+          world (if (in? (:type part) [:button :block :cylinder :cone :sphere])
                   (-> world
                       (assoc-in [:parts part-name :value] 1)
                       (assoc-in [:pressed-part] part-name))

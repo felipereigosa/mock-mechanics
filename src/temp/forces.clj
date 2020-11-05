@@ -221,9 +221,6 @@
 
 (defn apply-force-to-wagon [world force elapsed]
   (let [{:keys [part-name vector]} force
-        key (if (:use-weld-groups world)
-              :weld-groups
-              :parts)
         track-direction (get-wagon-direction world part-name)
         force-component (/ (vector-dot-product vector track-direction)
                            (vector-length track-direction))
@@ -237,7 +234,10 @@
 
 (defn apply-force-to-track [world force elapsed]
   (if-let [{:keys [part-name vector local-point]} force]
-    (let [track (get-in world [:weld-groups part-name])
+    (let [key (if (:use-weld-groups world)
+                :weld-groups
+                :parts)
+          track (get-in world [key part-name])
           transform (:transform track)
           p1 (apply-transform transform local-point)
           rotation (get-rotation-component transform)
@@ -274,7 +274,10 @@
 (defn update-mouse-force [world]
   (if-let [mouse-force (:mouse-force world)]
     (let [{:keys [part-name local-point line]} mouse-force
-          part (get-in world [:weld-groups part-name])
+          key (if (:use-weld-groups world)
+                :weld-groups
+                :parts)
+          part (get-in world [key part-name])
           transform (:transform part)
           p1 (apply-transform transform local-point)
           p2 (point-line-projection p1 line)
