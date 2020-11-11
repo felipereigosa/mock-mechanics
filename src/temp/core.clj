@@ -96,10 +96,8 @@
       (place-elements)
       (create-weld-groups)
 
-      ;; (assoc-in [:update-cube] ;;###################################
-      ;;           (create-cube-mesh [0 0 0] [1 0 0 0] 0.1 :red))
-
-      ;; (create-input-indicator)
+      ;; (create-update-cube)
+      (create-input-indicator 600)
       ))
 (reset-world!)
 )
@@ -152,8 +150,7 @@
   (draw-selection! world)
   (draw-buttons! world)
   (draw-lamps! world)
-
-  ;; (draw-update-cube! world)
+  (draw-update-cube! world)
   )
 
 (do
@@ -190,11 +187,14 @@
 (redraw!))
 
 (defn mouse-scrolled [world event]
-  (if (and (= (:mode world) :graph)
-           (inside-box? (:graph-box world) (:x event) (:y event)))
-    (graph-mode-scrolled world event)
-    (let [amount (+ 1 (* (:amount event) -0.05))]
-      (zoom-camera world amount))))
+  (let [world (-> world
+                  (input-indicator-mouse-scrolled event)
+                  (redraw))]
+    (if (and (= (:mode world) :graph)
+             (inside-box? (:graph-box world) (:x event) (:y event)))
+      (graph-mode-scrolled world event)
+      (let [amount (+ 1 (* (:amount event) -0.05))]
+        (zoom-camera world amount)))))
 
 (defn action-menu-pressed [world x y]
   (if-let [region (get-region-at (:action-menu world) x y)]
@@ -224,6 +224,7 @@
         world (-> world
                   (assoc-in [:press-time] (get-current-time))
                   (assoc-in [:press-point] [x y])
+                  (input-indicator-mouse-pressed event)
                   (redraw))]
     (cond
       (and
@@ -265,6 +266,7 @@
                 world)
         world (-> world
                   (dissoc-in [:press-point])
+                  (input-indicator-mouse-released event)
                   (redraw))]
     (if (not-nil? (:last-point world))
       (dissoc-in world [:last-point])

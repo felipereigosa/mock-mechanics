@@ -391,7 +391,7 @@
     (if (= type :ground)
       world
       (do
-        (redraw-after-delay! 350)
+        (do-later redraw! 350)
         (-> world
             (assoc-in [:selection :time] (get-current-time))
             (assoc-in [:selection :mesh] mesh)

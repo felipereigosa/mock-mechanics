@@ -298,3 +298,13 @@
                    [x y])
                  (range i)))
           (range j)))
+
+(defn do-later [func time]
+  (.start
+   (new Thread
+        (proxy [Runnable] []
+          (run []
+            (try
+              (sleep time)
+              (func)
+              (catch Exception e)))))))

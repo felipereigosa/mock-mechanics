@@ -68,7 +68,7 @@
                           {:text (get-in texts [menu action])
                            :time (get-current-time)
                            })]
-      (redraw-after-delay! 1000)      
+      (do-later redraw! 1000)
       (redraw world))
     world))
 

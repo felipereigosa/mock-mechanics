@@ -690,16 +690,6 @@
   (reset! redraw-flag true)
   world)
 
-(defn redraw-after-delay! [delay]
-  (.start
-   (new Thread
-        (proxy [Runnable] []
-          (run []
-            (try
-              (sleep delay)
-              (redraw!)
-              (catch Exception e)))))))
-
 (defn -main [& args]
   (window-init!)
   (reset! out *out*)

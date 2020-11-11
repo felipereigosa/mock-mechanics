@@ -153,8 +153,14 @@
       (assoc-in [:text] "")
       (assoc-in [:text-input] false)))
 
+(declare input-indicator-key-pressed)
+(declare input-indicator-key-released)
+
 (defn key-pressed [world event]
-  (let [key-name (get-in keymap [(:code event)])]
+  (let [key-name (get-in keymap [(:code event)])
+        world (-> world
+                  (input-indicator-key-pressed event)
+                  (redraw))]
     (cond
       (= key-name :delete) (do ;;##############################
                              (clear-output!)
@@ -184,7 +190,9 @@
 
 (defn key-released [world event]
   (let [key-name (get-in keymap [(:code event)])
-        world (redraw world)]
+        world (-> world
+                  (input-indicator-key-released event)
+                  (redraw))]
     (cond
       (= key-name :control) (assoc-in world [:control-pressed] false)
       (= key-name :shift) (assoc-in world [:shift-pressed] false)

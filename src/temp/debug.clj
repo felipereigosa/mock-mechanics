@@ -103,11 +103,16 @@
       (/ (count (get-in world [:info part-type :model :vertices])) 3)
       0)))
 
-;; (defn draw-update-cube! [world] ;;#########################
-;;   (if-let [mesh (:update-cube world)]
-;;     (let [green-value (if (float= (second (:color mesh)) 1.0)
-;;                         0.0
-;;                         1.0)]
-;;       (set-thing! [:update-cube :color 1] green-value)
-;;       (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
-;;       (draw-mesh! world mesh))))
+(defn create-update-cube [world]
+  (assoc-in world [:update-cube]
+            (create-cube-mesh [0 0 0] [1 0 0 0] 0.1 :red)))
+
+(defn draw-update-cube! [world]
+  (if-let [mesh (:update-cube world)]
+    (let [green-value (if (float= (second (:color mesh)) 1.0)
+                        0.0
+                        1.0)]
+      (set-thing! [:update-cube :color 1] green-value)
+      (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
+      (draw-mesh! world mesh))))
+
