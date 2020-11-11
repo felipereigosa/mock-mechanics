@@ -313,6 +313,19 @@
 (defn set-window-size! [width height]
   (GLFW/glfwSetWindowSize @the-window width height))
 
+(declare place-elements)
+
+(defn set-recording! []
+  (GLFW/glfwSetWindowSize @the-window 1280 720)
+  (update-thing!
+   []
+   (fn [world]
+     (-> world
+         (assoc-in [:show-hints] false)
+         (assoc-in [:num-lines] 1)
+         (place-elements)
+         (redraw)))))
+
 (defmacro gl-thread [form]
   `(reset! to-run (fn [] ~form)))
 

@@ -21,6 +21,7 @@
 (load "collision")
 (load "weld-optimization")
 (load "mechanical-tree")
+(load "gears")
 (load "undo")
 (load "persistence")
 (load "forces")
@@ -28,6 +29,7 @@
 (load "commands")
 (load "track-loop")
 (load "hints")
+(load "input-indicator")
 
 (do
 1
@@ -96,44 +98,11 @@
 
       ;; (assoc-in [:update-cube] ;;###################################
       ;;           (create-cube-mesh [0 0 0] [1 0 0 0] 0.1 :red))
+
+      ;; (create-input-indicator)
       ))
 (reset-world!)
 )
-
-(defn set-partner-values [world part-name]
-  (let [world (assoc-in world [:parts part-name :already-set] true)
-        value (get-in world [:parts part-name :value])
-        partners (remove-nil
-                  (map (fn [entry]
-                         (cond
-                           (= (:part-1-name entry) part-name) [(:part-2-name entry) (:ratio entry)]
-                           (= (:part-2-name entry) part-name) [(:part-1-name entry) (/ 1.0 (:ratio entry))]
-                           :else nil))
-                       (vals (:gears world))))]
-    (reduce (fn [w [partner-name ratio]]
-              (if (not (get-in w [:parts partner-name :already-set]))
-                (-> w
-                    (assoc-in [:parts partner-name :value] (* -1 ratio value))
-                    (set-partner-values partner-name))
-                w))
-            world
-            partners)))
-
-(defn enforce-gears [world]
-  (let [gear-part-names (distinct (flatten (map (fn [entry]
-                                                  [(:part-1-name entry)
-                                                   (:part-2-name entry)])
-                                                (vals (:gears world)))))
-        world (reduce (fn [w part-name]
-                        (assoc-in w [:parts part-name :already-set] false))
-                      world
-                      gear-part-names)
-        driven-parts [(:part-name (:mouse-force world))] ;;##### add chip parts
-        ]
-    (reduce (fn [w driven-part]
-              (set-partner-values w driven-part))
-            world
-            driven-parts)))
 
 (defn update-world [world elapsed]
   (cond
@@ -160,15 +129,6 @@
                               :weld-groups
                               :parts)))
     :else world))
-
-;; (defn draw-update-cube! [world] ;;#########################
-;;   (if-let [mesh (:update-cube world)]
-;;     (let [green-value (if (float= (second (:color mesh)) 1.0)
-;;                         0.0
-;;                         1.0)]
-;;       (set-thing! [:update-cube :color 1] green-value)
-;;       (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
-;;       (draw-mesh! world mesh))))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -224,6 +184,8 @@
 
   (draw-buffer! world)
   (draw-hint! world)
+
+  (draw-input-indicator! world)
   )
 (redraw!))
 
@@ -261,7 +223,8 @@
         y (:y event)
         world (-> world
                   (assoc-in [:press-time] (get-current-time))
-                  (assoc-in [:press-point] [x y]))]
+                  (assoc-in [:press-point] [x y])
+                  (redraw))]
     (cond
       (and
        (show-buttons? world)
@@ -299,7 +262,10 @@
                        (< (distance (:press-point world)
                                     [(:x event) (:y event)]) 10))
                 (set-pivot world event)
-                world)]
+                world)
+        world (-> world
+                  (dissoc-in [:press-point])
+                  (redraw))]
     (if (not-nil? (:last-point world))
       (dissoc-in world [:last-point])
       (mode-mouse-released world event))))

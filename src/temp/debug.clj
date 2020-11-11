@@ -103,27 +103,11 @@
       (/ (count (get-in world [:info part-type :model :vertices])) 3)
       0)))
 
-;; (do
-;; 1
-
-
-
-;; (clear-output!)
-;; (let [world @world
-;;       part-name :probe11450
-;;       part-name :track10278
-;;       part (get-in world [:parts part-name])
-;;       part-type (:type part)
-;;       ]
-
-;;   (reduce + (map #(get-num-vertices world %) (keys (:parts world))))
-;;   ))
-
-;; parts    6500
-;; spheres  5760
-;; cylinder 372
-
-;; total    12632
-
-
-
+;; (defn draw-update-cube! [world] ;;#########################
+;;   (if-let [mesh (:update-cube world)]
+;;     (let [green-value (if (float= (second (:color mesh)) 1.0)
+;;                         0.0
+;;                         1.0)]
+;;       (set-thing! [:update-cube :color 1] green-value)
+;;       (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
+;;       (draw-mesh! world mesh))))

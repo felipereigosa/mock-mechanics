@@ -37,7 +37,9 @@
   (if (not (in? (:layer part) (:visible-layers world)))
     {}
     (let [type (:type part)
-          model (get-in world [:info type :model])
+          model (if (= type :gear)
+                  (:model part)
+                  (get-in world [:info type :model]))
           transform (if (= type :track)
                       (get-tail-transform part)
                       (:transform part))

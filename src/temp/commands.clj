@@ -159,13 +159,10 @@
       (= key-name :delete) (do ;;##############################
                              (clear-output!)
                              world)
-                             
       (= key-name :control) (assoc-in world [:control-pressed] true)
       (= key-name :shift) (assoc-in world [:shift-pressed] true)
       (= key-name :alt) (assoc-in world [:alt-pressed] true)
-
-      (= key-name :esc)
-      (cancel-action world)
+      (= key-name :esc) (cancel-action world)
 
       :else
       (if-let [key (get-key (:code event)

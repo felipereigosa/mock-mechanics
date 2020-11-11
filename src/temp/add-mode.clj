@@ -123,18 +123,36 @@
       :else
       (user-message! "can't place part on" (kw->str (:type target))))))
 
+(defn add-gear-models [world ratio gear-1-name r1 gear-2-name r2]
+  (let [scale-1 [r1 0.2 r1]
+        scale-2 [r2 0.2 r2]
+        inverse-scale-1 (map #(/ 1.0 %) scale-1)
+        inverse-scale-2 (map #(/ 1.0 %) scale-2)
+        n (int (/ (* 2 pi r2) 0.5))
+        n (if (odd? n) (inc n) n)
+        model-1 (create-gear-mesh world r1 [0 0 0] [1 0 0 0]
+                                  inverse-scale-1 (int (/ n ratio)) 0 :red)
+        angle-offset (/ 180 n)
+        model-2 (create-gear-mesh world r2 [0 0 0] [1 0 0 0]
+                                  inverse-scale-2 n angle-offset :red)]
+    (-> world
+        (assoc-in [:parts gear-1-name :model] model-1)
+        (assoc-in [:parts gear-2-name :model] model-2))))
+
 (defn add-gears-with-ratio [world parent-1-name parent-2-name ratio]
   (let [parent-1 (get-in world [:parts parent-1-name])
         parent-2 (get-in world [:parts parent-2-name])
         layer (apply min (:visible-layers world))
 
-        gear-1 (create-part :gear :orange layer (:info world))
+        color-1 (new Color 10 10 10)
+        gear-1 (create-part :gear color-1 layer (:info world))
         gear-1-name (gen-keyword :gear)
         offset (+ 0.1 (* -1 (second (:scale parent-1))))
         gear-1-transform (combine-transforms (:transform parent-1)
                                              (make-transform [0 offset 0] [1 0 0 0]))
 
-        gear-2 (create-part :gear :blue layer (:info world))
+        color-2 (new Color 128 128 128)
+        gear-2 (create-part :gear color-2 layer (:info world))
         gear-2-name (gen-keyword :gear)
         parent-2-plane (map #(apply-transform (:transform parent-2) %)
                             [[0 0 0] [1 0 0] [0 0 1]])
@@ -147,19 +165,24 @@
         ratio (/ 1.0 ratio)
         d (* 2 (distance gear-1-point gear-2-point))
         r2 (* (/ ratio (+ ratio 1)) d)
-        r1 (* (/ 1 (+ ratio 1)) d)]
+        r1 (* (/ 1 (+ ratio 1)) d)
+        scale-1 [r1 0.2 r1]
+        scale-2 [r2 0.2 r2]]
     (-> world
         (assoc-in [:parts gear-1-name] gear-1)
-        (assoc-in [:parts gear-1-name :scale] [r1 0.2 r1])
+        (assoc-in [:parts gear-1-name :scale] scale-1)
         (assoc-in [:parts gear-1-name :transform] gear-1-transform)
         (create-relative-transform gear-1-name parent-1-name)
         (assoc-in [:parts gear-2-name] gear-2)
-        (assoc-in [:parts gear-2-name :scale] [r2 0.2 r2])
+        (assoc-in [:parts gear-2-name :scale] scale-2)
         (assoc-in [:parts gear-2-name :transform] gear-2-transform)
         (create-relative-transform gear-2-name parent-2-name)
+        (add-gear-models ratio gear-1-name r1 gear-2-name r2)
         (assoc-in [:gears [gear-1-name gear-2-name]]
                   {:part-1-name parent-1-name
+                   :radius-1 r1
                    :part-2-name parent-2-name
+                   :radius-2 r2
                    :ratio ratio}))))
 
 (defn add-gear [world spec]
@@ -170,7 +193,7 @@
     (read-input world
                 (fn [w text]
                   (-> w
-                      (add-gears-with-ratio (:first-gear-part w) (get-part-at w spec) (parse-int text))
+                      (add-gears-with-ratio (:first-gear-part w) (get-part-at w spec) (parse-float text))
                       (dissoc-in [:first-gear-part])
                       (tree-changed))))))
 

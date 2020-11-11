@@ -26,6 +26,7 @@
                           (:children part))]
     (-> part
         (dissoc-in [:transform])
+        (dissoc-in [:model])
         (modify-field :color get-simple-color)
         (modify-field :dark-color get-simple-color)
         (assoc-in [:children] children))))
@@ -102,6 +103,15 @@
                         (make-sphere world position rotation))
                       sphere-transforms))))
 
+(declare add-gear-models)
+
+(defn recreate-gears [world entry]
+  (let [[gear-1-name gear-2-name] (first entry)
+        {:keys [radius-1 radius-2 ratio]} (second entry)]
+    (add-gear-models world ratio
+                     gear-1-name radius-1
+                     gear-2-name radius-2)))
+  
 (defn open-machine [world text]
   (try
     (let [filename (get-last-version-filename text)
@@ -119,6 +129,7 @@
                     (assoc-in [:camera] camera)
                     (assoc-in [:gears] gears)
                     (assoc-in [:visible-layers] (or visible-layers [1]))
+                    (#(reduce recreate-gears % gears))
                     (compute-camera)
                     (create-weld-groups)
                     (save-checkpoint!)
