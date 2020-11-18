@@ -53,6 +53,7 @@
                                 value)]
                     (-> w
                         (assoc-in [:parts part-name key] value)
+                        (enforce-gears part-name)
                         (tree-changed)))))))
 
 (defn set-property [world x y]

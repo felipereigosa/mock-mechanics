@@ -314,6 +314,7 @@
   (GLFW/glfwSetWindowSize @the-window width height))
 
 (declare place-elements)
+(declare create-input-indicator)
 
 (defn set-recording! []
   (GLFW/glfwSetWindowSize @the-window 1280 720)
@@ -323,6 +324,7 @@
      (-> world
          (assoc-in [:show-hints] false)
          (assoc-in [:num-lines] 1)
+         (create-input-indicator 670)
          (place-elements)
          (redraw)))))
 

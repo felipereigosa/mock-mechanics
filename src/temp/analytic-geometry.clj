@@ -174,3 +174,15 @@
     (reduce vector-add [a
                         (vector-multiply v1 s)
                         (vector-multiply v2 t)])))
+
+(defn line->plane [[point direction]]
+  (let [direction (vector-normalize direction)
+        v (if (float= (vector-dot-product direction [1 0 0]) 1.0)
+            [0 1 0]
+            [1 0 0])
+        v1 (vector-cross-product direction v)
+        v2 (vector-cross-product v1 direction)
+        p1 (vector-add point v1)
+        p2 (vector-add point v2)]
+    [point p1 p2]))
+

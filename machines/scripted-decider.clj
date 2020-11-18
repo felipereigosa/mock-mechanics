@@ -6,3 +6,7 @@
     (if (on? probe)
       (activate open-chip)
       (activate close-chip))))
+
+
+
+

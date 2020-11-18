@@ -104,13 +104,16 @@
                       sphere-transforms))))
 
 (declare add-gear-models)
+(declare add-gear-and-rack-models)
 
 (defn recreate-gears [world entry]
-  (let [[gear-1-name gear-2-name] (first entry)
-        {:keys [radius-1 radius-2 ratio]} (second entry)]
-    (add-gear-models world ratio
-                     gear-1-name radius-1
-                     gear-2-name radius-2)))
+  (let [[a b] (first entry)
+        {:keys [radius-1 radius-2 radius length ratio]} (second entry)]
+    (if (nil? length)
+      (add-gear-models
+       world ratio a radius-1 b radius-2)
+      (add-gear-and-rack-models
+       world a radius b length))))
   
 (defn open-machine [world text]
   (try

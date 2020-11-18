@@ -88,7 +88,7 @@
       (assoc-in [:properties] [:free :solid :.])
 
       (create-physics-world)
-      (reset-undo! [:parts])
+      (reset-undo! [:parts :gears])
       (assoc-in [:mode] :simulation)
 
       (assoc-in [:track-head-model]
@@ -97,7 +97,7 @@
       (create-weld-groups)
 
       ;; (create-update-cube)
-      (create-input-indicator 600)
+      ;; (create-input-indicator 600)
       ))
 (reset-world!)
 )
@@ -115,7 +115,8 @@
                                           :parts))
                     (update-motherboards)
                     (enforce-gears)
-                    )]
+                    )
+          ]
       (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)
       world)
@@ -125,7 +126,12 @@
         (apply-forces elapsed)
         (compute-transforms (if (:use-weld-groups world)
                               :weld-groups
-                              :parts)))
+                              :parts))
+        (enforce-gears)
+        ;; ((fn [w]
+        ;;    (println! "here" (rand))
+        ;;    w))
+        )
     :else world))
 
 (defn draw-3d! [world]
@@ -279,3 +285,11 @@
         (place-elements))))
 
 ;;----------------------------------------------------------------------;;
+
+;; (println! (keys (:parts @world)))
+;; (println! (count (remove-nil @undo-ring)))
+;; (println! @undo-index)
+;; (do (redo! @world) nil)
+;; (save-checkpoint! @world)
+
+

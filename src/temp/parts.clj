@@ -34,7 +34,7 @@
     :collision-model (create-model-mesh "res/cylinder-collision.obj"
                                         [0 0 0] [1 0 0 0] [1 1 1] :white)
 
-    :body (create-model-mesh "res/gear-body2.obj"
+    :body (create-model-mesh "res/gear-body.obj"
                              [0 0 0] [1 0 0 0] [1 1 1] :gray)
 
     :tooth (create-model-mesh "res/gear-tooth.obj"
@@ -42,7 +42,13 @@
 
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
-    :color :orange
+    :properties {:value 0}
+    }
+
+   :rack
+   {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :points [[0 0.5 0] [0 -0.5 0]]
+    :scale [0.5 0.5 0.5]
     :properties {:value 0}
     }
 
@@ -271,15 +277,13 @@
         transform (if (= (:type part) :track)
                     (get-tail-transform part)
                     (:transform part))
-
-        mesh (if (= (:type part) :gear)
-               (set-mesh-color (:model part) (:color part))
-               (if (= (:mode world) :toggle)
-                 (set-mesh-color (or (:white-model info)
-                                     (:model info))
-                                 (get-toggle-color world part))
-                 (set-mesh-color (:model info) (:color part))))
-        
+        model (or (:model part)
+                  (:model info))
+        mesh (if (= (:mode world) :toggle)
+               (set-mesh-color (or (:white-model info)
+                                   model)
+                               (get-toggle-color world part))
+               (set-mesh-color model (:color part)))
         mesh (-> mesh
                  (assoc-in [:transform] transform)
                  (assoc-in [:scale] (:scale part)))]
@@ -439,7 +443,8 @@
 
                 (set-thing! [:bodies] (:bodies fast-world))
                 
-                (set-thing! [:use-weld-groups] true))
+                (set-thing! [:use-weld-groups] true)
+                (redraw!))
               (catch Exception e))))))
   w)
 
@@ -450,3 +455,8 @@
       (reset-wagons)
       (assoc-in [:use-weld-groups] false)
       (async-create-weld-groups)))
+
+(defn get-track-direction [track]
+  (let [rotation (get-rotation-component (:transform track))]
+    (apply-transform rotation [0 1 0])))
+

@@ -86,14 +86,6 @@
     (reduce (fn [w part-name]
               (let [type (get-in w [:parts part-name :type])]
                 (case type
-                  :lamp
-                  (assoc-in w [:parts part-name :value]
-                            (get-element-value w motherboard part-name))
-
-                  :button
-                  (assoc-in w [:parts part-name :value]
-                            (get-element-value w motherboard part-name))
-                  
                   :chip
                   (let [value (get-element-value w motherboard part-name)]
                     (if (float= value 1.0)
@@ -107,7 +99,10 @@
                     (if (float= value 1.0)
                       (note-on note)
                       (note-off note))
-                    w))))
+                    w)
+                  
+                  (assoc-in w [:parts part-name :value]
+                            (get-element-value w motherboard part-name)))))
             world
             output-names)))
 
