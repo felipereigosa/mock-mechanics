@@ -104,34 +104,21 @@
 
 (defn update-world [world elapsed]
   (cond
-    (in? (:mode world) [:simulation :graph :motherboard])
+    (in? (:mode world) [:simulation :graph :motherboard :property])
     (let [elapsed 16 ;;######################
           world (-> world
                     (set-probe-values)
                     (apply-forces elapsed)
                     (run-chips elapsed)
+                    (enforce-gears)
                     (compute-transforms (if (:use-weld-groups world)
                                           :weld-groups
                                           :parts))
                     (update-motherboards)
-                    (enforce-gears)
-                    )
-          ]
+                    )]
       (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)
       world)
-
-    (= (:mode world) :property)
-    (-> world
-        (apply-forces elapsed)
-        (compute-transforms (if (:use-weld-groups world)
-                              :weld-groups
-                              :parts))
-        (enforce-gears)
-        ;; ((fn [w]
-        ;;    (println! "here" (rand))
-        ;;    w))
-        )
     :else world))
 
 (defn draw-3d! [world]
@@ -285,11 +272,3 @@
         (place-elements))))
 
 ;;----------------------------------------------------------------------;;
-
-;; (println! (keys (:parts @world)))
-;; (println! (count (remove-nil @undo-ring)))
-;; (println! @undo-index)
-;; (do (redo! @world) nil)
-;; (save-checkpoint! @world)
-
-

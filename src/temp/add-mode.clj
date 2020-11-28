@@ -130,6 +130,9 @@
       (assoc-in world [:first-gear-part] (get-part-at world spec)))
     (let [part-1-name (:first-gear-part world)
           part-2-name (get-part-at world spec)
+          world (-> world
+                    (assoc-in [:parts part-1-name :free] true)
+                    (assoc-in [:parts part-2-name :free] true))                    
           part-1 (get-in world [:parts part-1-name])
           part-2 (get-in world [:parts part-2-name])]
       (if (or (= (:type part-1) :wagon)

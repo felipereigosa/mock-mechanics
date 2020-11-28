@@ -72,7 +72,7 @@
   ([a b axis]
    (let [value (vector-angle a b)
          cross-axis (vector-cross-product a b)]
-     (if (= (vector-length cross-axis) 0.0)
+     (if (float= (vector-length cross-axis) 0.0)
        value
        (let [cross-axis (vector-normalize cross-axis)
              axis (vector-normalize axis)
@@ -100,5 +100,6 @@
             p1 p2)))
 
 (defn vector-project [v other]
-  (let [length (vector-dot-product v (vector-normalize other))]
+  (let [other (vector-normalize other)
+        length (vector-dot-product v other)]
     (vector-multiply other length)))

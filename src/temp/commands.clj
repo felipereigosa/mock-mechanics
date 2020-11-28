@@ -151,7 +151,8 @@
       (assoc-in [:graph-subcommand] :move)
       (assoc-in [:motherboard-subcommand] :move)
       (assoc-in [:text] "")
-      (assoc-in [:text-input] false)))
+      (assoc-in [:text-input] false)
+      (dissoc-in [:first-gear-part])))
 
 (declare input-indicator-key-pressed)
 (declare input-indicator-key-released)

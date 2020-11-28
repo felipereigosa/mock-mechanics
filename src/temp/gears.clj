@@ -22,15 +22,6 @@
             world
             partners)))
 
-(defn get-driven-parts [world]
-  (let [chip-names (get-parts-with-type (:parts world) :chip)]
-    (mapcat (fn [chip-name]
-              (let [chip (get-in world [:parts chip-name])]
-                (if (< (:time chip) (:final-time chip))
-                  (keys (:functions chip))
-                  nil)))
-            chip-names)))    
-
 (defn enforce-gears [world & extra]
   (let [gear-part-names (distinct (flatten (map (fn [entry]
                                                   [(:part-1-name entry)
@@ -40,13 +31,15 @@
                         (assoc-in w [:parts part-name :already-set] false))
                       world
                       gear-part-names)
+        chip-driven-parts (:chip-driven-parts world)
         driven-parts (remove-nil
                       (concat [(:part-name (:mouse-force world))
                                (:part-name (:track-force world))]
                               extra
                               (into [] (clojure.set/intersection
-                                        (into #{} (get-driven-parts world))
-                                        (into #{} gear-part-names)))))]
+                                        (into #{} chip-driven-parts)
+                                        (into #{} gear-part-names)))))
+        world (assoc-in world [:chip-driven-parts] [])]
     (reduce (fn [w driven-part]
               (set-partner-values w driven-part))
             world
@@ -92,21 +85,21 @@
         normals (flatten (concat body-normals teeth-normals))]
     (create-mesh vertices position rotation [1 1 1] skin nil normals)))
 
-(defn add-gear-models [world ratio gear-1-name r1 gear-2-name r2]
+(defn add-gear-models [world ratio gear-1-name r1 gear-2-name r2 angle-offset]
   (let [scale-1 (get-in world [:parts gear-1-name :scale])
         scale-2 (get-in world [:parts gear-2-name :scale])
         inverse-scale-1 (map #(/ 1.0 %) scale-1)
         inverse-scale-2 (map #(/ 1.0 %) scale-2)
         n (int (/ (* 2 pi (* 2 r2)) 0.5))
-        n (if (odd? n) (inc n) n)
+        n (if (odd? n) (dec n) n)
         tooth-height 0.09
+        other-angle-offset (/ 180 n)
         model-1 (create-gear-mesh world (- r1 (* tooth-height 0.5))
                                   [0 0 0] [1 0 0 0] inverse-scale-1
-                                  (int (* n ratio)) 0 :red)
-        angle-offset (/ 180 n)
+                                  (int (* n ratio)) angle-offset :red)
         model-2 (create-gear-mesh world (- r2 (* tooth-height 0.5))
                                   [0 0 0] [1 0 0 0] inverse-scale-2
-                                  n angle-offset :red)]
+                                  n (+ angle-offset other-angle-offset) :red)]
     (-> world
         (assoc-in [:parts gear-1-name :model] model-1)
         (assoc-in [:parts gear-2-name :model] model-2))))
@@ -118,24 +111,39 @@
         color-1 (new Color 10 10 10)
         gear-1 (create-part :gear color-1 layer (:info world))
         gear-1-name (gen-keyword :gear)
-        offset (+ 0.1 (* -1 (second (:scale parent-1))))
-        gear-1-transform (combine-transforms (:transform parent-1)
-                                             (make-transform [0 offset 0] [1 0 0 0]))
+        axis (vector-normalize (get-track-direction parent-1))
+        offset (vector-multiply
+                axis
+                (+ 0.1 (* -1 (second (:scale parent-1)))))
+        gear-1-transform (combine-transforms
+                          (:transform parent-1)
+                          (make-transform offset [1 0 0 0]))
         color-2 (new Color 128 128 128)
         gear-2 (create-part :gear color-2 layer (:info world))
         gear-2-name (gen-keyword :gear)
-        parent-2-plane (map #(apply-transform (:transform parent-2) %)
-                            [[0 0 0] [1 0 0] [0 0 1]])
+        parent-2-plane (get-track-plane parent-2)
         gear-1-point (get-transform-position gear-1-transform)
-        offset (point-plane-distance gear-1-point parent-2-plane)
-        gear-2-transform (combine-transforms (:transform parent-2)
-                                             (make-transform [0 offset 0] [1 0 0 0]))
+        offset (vector-multiply
+                axis
+                (point-plane-distance gear-1-point parent-2-plane))
+        gear-2-transform (combine-transforms
+                          (:transform parent-2)
+                          (make-transform offset [1 0 0 0]))
         gear-2-point (get-transform-position gear-2-transform)
         d (distance gear-1-point gear-2-point)
         r1 (* (/ ratio (+ ratio 1)) d)
         r2 (* (/ 1 (+ ratio 1)) d)
         scale-1 [(* r1 2) 0.2 (* r1 2)]
-        scale-2 [(* r2 2) 0.2 (* r2 2)]]
+        scale-2 [(* r2 2) 0.2 (* r2 2)]
+        w (set-value-0-transform world parent-1-name)
+        p1 (get-in w [:parts parent-1-name])
+        track-1-rotation (get-rotation-component (:transform p1))
+        track-1-x (apply-transform track-1-rotation [1 0 0])
+        track-1-position (get-part-position world parent-1-name)
+        track-2-position (get-part-position world parent-2-name)
+        point (point-line-projection track-2-position [track-1-position axis])
+        to-track-2 (vector-subtract track-2-position point)
+        angle-offset (vector-angle track-1-x to-track-2 axis)]
     (-> world
         (assoc-in [:parts gear-1-name] gear-1)
         (assoc-in [:parts gear-1-name :scale] scale-1)
@@ -145,12 +153,13 @@
         (assoc-in [:parts gear-2-name :scale] scale-2)
         (assoc-in [:parts gear-2-name :transform] gear-2-transform)
         (create-relative-transform gear-2-name parent-2-name)
-        (add-gear-models ratio gear-1-name r1 gear-2-name r2)
+        (add-gear-models ratio gear-1-name r1 gear-2-name r2 angle-offset)
         (assoc-in [:gears [gear-1-name gear-2-name]]
                   {:part-1-name parent-1-name
                    :radius-1 r1
                    :part-2-name parent-2-name
                    :radius-2 r2
+                   :angle-offset angle-offset
                    :ratio ratio})
         (enforce-gears parent-1-name))))
 
@@ -188,14 +197,14 @@
         vertices (flatten vertices)]
     (create-mesh vertices position rotation [1 1 1] skin nil nil)))
 
-(defn add-gear-and-rack-models [world gear-name radius rack-name length]
+(defn add-gear-and-rack-models [world gear-name radius rack-name length angle-offset]
   (let [scale-1 (get-in world [:parts gear-name :scale])
         scale-2 (get-in world [:parts rack-name :scale])
         inverse-scale-1 (map #(/ 1.0 %) scale-1)
         inverse-scale-2 (map #(/ 1.0 %) scale-2)
-        n (int (/ (* 2 pi (* 2 radius)) 0.5))
+        n (Math/floor (/ (* 2 pi (* 2 radius)) 0.5))
         model-1 (create-gear-mesh world radius [0 0 0] [1 0 0 0]
-                                  inverse-scale-1 n 0 :red)
+                                  inverse-scale-1 n angle-offset :red)
         gap (/ (* 2 pi radius) n)
         model-2 (create-rack-mesh world [0 0 0] [1 0 0 0]
                                   inverse-scale-2 length gap :red)]
@@ -216,15 +225,19 @@
         gear (create-part :gear color-1 layer (:info world))
         gear-name (gen-keyword :gear)
         track-plane (get-track-plane track)
-        offset (point-plane-distance wagon-position track-plane)
+        axis (vector-normalize (get-track-direction track))
+        offset (vector-multiply
+                axis
+                (point-plane-distance wagon-position track-plane))
         gear-transform (combine-transforms
                         (:transform track)
-                        (make-transform [0 offset 0] [1 0 0 0]))
+                        (make-transform offset [1 0 0 0]))
         wagon-parent-name (get-parent-part world wagon-name)
         wagon-parent (get-in world [:parts wagon-parent-name])
         wagon-parent-direction (get-track-direction wagon-parent)
-        to-wagon (vector-cross-product
-                  wagon-parent-direction (get-track-direction track))
+        gear-position (get-transform-position gear-transform)
+        point (point-line-projection gear-position [wagon-position wagon-parent-direction])
+        to-wagon (vector-normalize (vector-subtract point gear-position))
         d (point-plane-distance
            wagon-position
            (line->plane [track-position to-wagon]))
@@ -236,33 +249,48 @@
                     (get-part-position world wagon-parent-name)
                     [gear-position to-wagon])
         wagon-parent-length (second (:scale wagon-parent))
-        h-offset (- (/ wagon-parent-length 2) h-distance)
-        h-offset (vector-multiply
-                  (vector-normalize wagon-parent-direction) h-offset)                                  
+        parallel-offset (- (/ wagon-parent-length 2) h-distance)
+        parallel-offset (vector-multiply
+                         (vector-normalize wagon-parent-direction) parallel-offset)
+        perpendicular-offset (vector-multiply to-wagon -0.125)
+        wagon-rotation (get-rotation-component (:transform wagon))
+        rack-angle (vector-angle (apply-transform wagon-rotation [-1 0 0])
+                            (vector-multiply to-wagon -1) wagon-parent-direction)
         rack-transform (combine-transforms
-                        (:transform wagon)
-                        (make-transform (vector-add [-0.125 0 0] h-offset)
-                                        [1 0 0 0]))
+                        (make-transform [0 0 0] [0 1 0 rack-angle])
+                        (combine-transforms
+                         (:transform wagon)
+                         (make-transform (vector-add parallel-offset perpendicular-offset)
+                                         [1 0 0 0])))
         tooth-height 0.09
         radius (- d 0.175 tooth-height)
         scale-1 [(* radius 2) 0.2 (* radius 2)]
         rack-length (+ wagon-parent-length 0.0)
-        scale-2 [0.1 rack-length 0.2]]    
+        scale-2 [0.1 rack-length 0.2]
+        w (set-value-0-transform world track-name)
+        p1 (get-in w [:parts track-name])
+        track-1-rotation (get-rotation-component (:transform p1))
+        track-1-x (apply-transform track-1-rotation [1 0 0])
+        angle-offset (- (vector-angle track-1-x to-wagon axis))
+        sign (- (vector-dot-product to-wagon
+                                 (vector-cross-product
+                                  wagon-parent-direction
+                                  (get-track-direction track))))]
     (-> world
         (assoc-in [:parts gear-name] gear)
         (assoc-in [:parts gear-name :scale] scale-1)
         (assoc-in [:parts gear-name :transform] gear-transform)
         (create-relative-transform gear-name track-name)
-
         (assoc-in [:parts rack-name] rack)
         (assoc-in [:parts rack-name :scale] scale-2)
         (assoc-in [:parts rack-name :transform] rack-transform)
         (create-relative-transform rack-name wagon-name)
-        (add-gear-and-rack-models gear-name radius rack-name rack-length)
+        (add-gear-and-rack-models gear-name radius rack-name rack-length angle-offset)
         (assoc-in [:gears [gear-name rack-name]] 
                   {:part-1-name track-name
                    :radius radius
                    :part-2-name wagon-name
                    :length rack-length
-                   :ratio (/ (* 2 pi radius) (* -1 wagon-parent-length))})
+                   :angle-offset angle-offset
+                   :ratio (/ (* 2 pi radius) (* sign wagon-parent-length))})
         (enforce-gears track-name))))

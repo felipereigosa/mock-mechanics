@@ -27,7 +27,7 @@
           (keys (:pins motherboard))))
 
 (defn get-input-pin-value [world motherboard pin-name]
-  (get-in world [:parts pin-name :value]))
+  (within (round (float (get-in world [:parts pin-name :value]))) 0 1))
 
 (defn get-output-pin-value [world motherboard pin-name]
   (let [inputs (get-input-names world motherboard pin-name)]
@@ -100,7 +100,7 @@
                       (note-on note)
                       (note-off note))
                     w)
-                  
+
                   (assoc-in w [:parts part-name :value]
                             (get-element-value w motherboard part-name)))))
             world

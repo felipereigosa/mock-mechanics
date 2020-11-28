@@ -42,14 +42,14 @@
 
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
-    :properties {:value 0}
+    :properties {}
     }
 
    :rack
    {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
-    :properties {:value 0}
+    :properties {}
     }
 
    :sphere
@@ -116,6 +116,7 @@
     :poinpts []
     :scale [0.3 0.07 0.3]
     :color :dark-gray
+    :properties {:value 0}
     }
    
    :speaker

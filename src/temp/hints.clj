@@ -4,7 +4,7 @@
 (defn show-hint [world menu action]
   (if (:show-hints world)
     (let [texts {:action {:new "Ctrl + N,New File"
-                          :view "Ctrl + C,Reset Camera"
+                          :view "Ctrl + C,Center Camera"
                           :save "Ctrl + S,Save"
                           :open "Ctrl + O,Open"
                           :undo "Ctrl + Z,Undo"

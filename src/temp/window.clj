@@ -242,7 +242,7 @@
 
       (swap! time-since-update #(+ elapsed %))
 
-      (if (and (in? (:mode @world) [:simulation :graph :motherboard])
+      (if (and (in? (:mode @world) [:simulation :graph :motherboard :property])
                (or
                 (any-chip-active? @world)
                 (> @motherboard-activation-count 0)))

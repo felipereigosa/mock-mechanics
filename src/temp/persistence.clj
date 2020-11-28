@@ -108,13 +108,14 @@
 
 (defn recreate-gears [world entry]
   (let [[a b] (first entry)
-        {:keys [radius-1 radius-2 radius length ratio]} (second entry)]
+        {:keys [radius-1 radius-2 radius
+                length angle-offset ratio]} (second entry)]
     (if (nil? length)
       (add-gear-models
-       world ratio a radius-1 b radius-2)
+       world ratio a radius-1 b radius-2 angle-offset)
       (add-gear-and-rack-models
-       world a radius b length))))
-  
+       world a radius b length angle-offset))))
+
 (defn open-machine [world text]
   (try
     (let [filename (get-last-version-filename text)
@@ -174,3 +175,4 @@
 
 (defn import-machine-version [world]
   (read-input world #(import-machine %1 %2)))
+

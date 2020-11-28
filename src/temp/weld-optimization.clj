@@ -48,8 +48,14 @@
                                           (* a b)) v scale)]
                             (apply-transform transform sv)))
                         (vec (partition 3 (:vertices model))))
-          rotation-transform (get-rotation-component transform)
-          normals (map #(apply-transform rotation-transform %)
+          matrix (multiply-matrices
+                  (apply get-scale-matrix scale)
+                  (get-transform-matrix transform))
+          it-matrix (get-transpose-matrix (get-inverse-matrix matrix))
+          normals (map (fn [normal]
+                         (let [array (into-array Float/TYPE (conj (vec normal) 0.0))
+                               [x y z w] (vec (multiply-matrix-vector it-matrix array))]
+                           (vector-normalize [x y z])))
                        (vec (partition 3 (:normals model))))
           part-color (let [color (get-color (:color part))
                            ;; color (get-color :purple) ;;##########
@@ -185,3 +191,4 @@
         (create-part-bodies parts groups)
         (compute-transforms :weld-groups)
         )))
+

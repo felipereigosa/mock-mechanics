@@ -177,7 +177,7 @@
 
 (defn line->plane [[point direction]]
   (let [direction (vector-normalize direction)
-        v (if (float= (vector-dot-product direction [1 0 0]) 1.0)
+        v (if (float= (abs (vector-dot-product direction [1 0 0])) 1.0)
             [0 1 0]
             [1 0 0])
         v1 (vector-cross-product direction v)

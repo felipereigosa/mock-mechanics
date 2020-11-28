@@ -208,21 +208,37 @@
                     world)
             final-points (get-in world [:parts part-name :final-points])
             new-value (float (get-function-value
-                              final-points time linear-interpolator))]
+                              final-points time linear-interpolator))
+            world (update-in world [:chip-driven-parts] #(conj % part-name))]
         (if (= chip-name (:controlling-chip part))
-          (cond
-            (= (:type part) :wagon)
+          (case (:type part)
+            :wagon
             (let [total-length (reduce + (:track-lengths part))]
               (assoc-in world [:parts part-name :value]
                         (within (/ new-value total-length) 0 1)))
 
-            (= (:type part) :track)
+            :track
             (let [max-angle (get-in world [:parts part-name :max-angle])]
               (assoc-in world [:parts part-name :value]
                         (if (nil? max-angle)
                           new-value
                           (within new-value 0 max-angle))))
-            (= (:type part) :button)
+
+            :speaker
+            (-> world
+                ((fn [w]
+                   (let [note (get-note (:frequency part))]
+                     (cond
+                       (and (> new-value 0.5)
+                            (< (get-in world [:parts part-name :value]) 0.5))
+                       (note-on note)
+
+                       (and (< new-value 0.5)
+                            (> (get-in world [:parts part-name :value]) 0.5))
+                       (note-off note)))
+                   w))
+                (assoc-in [:parts part-name :value] new-value))
+            
             (assoc-in world [:parts part-name :value] (round new-value)))
           world))
       world)))
@@ -535,7 +551,8 @@
           chip (get-in world [:parts chip-name])
           part (get-in world [:parts part-name])
           part-type (:type part)]
-      (if (in? part-type [:wagon :track :button])
+      (if (in? part-type [:wagon :track :button :block
+                          :cylinder :cone :sphere :lamp :speaker])
         (let [world (if (in? part-name (keys (:functions chip)))
                       (dissoc-in world [:parts chip-name :functions part-name])
                       (assoc-in world [:parts chip-name :functions part-name]

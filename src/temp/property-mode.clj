@@ -40,21 +40,42 @@
         (draw-text-in-box! key-text :white 16 key-region)
         (draw-text-in-box! value-text :white 16 value-region)))))
 
+(declare activate-chip)
+
 (defn set-part-value [world key]
   (let [part-name (:selected-part world)
         part (get-in world [:parts part-name])]
     (read-input world
                 (fn [w text]
-                  (let [value (read-string text)
-                        value (if (and (= (:type part) :wagon)
-                                       (= key :value))
-                                (/ value
-                                   (reduce + (:track-lengths part)))
-                                value)]
-                    (-> w
-                        (assoc-in [:parts part-name key] value)
-                        (enforce-gears part-name)
-                        (tree-changed)))))))
+                  (let [value (read-string text)]
+                    (if (= key :value)
+                      (let [world (case (:type part)
+                                    :wagon
+                                    (assoc-in world [:parts part-name key]
+                                              (/ value (reduce + (:track-lengths part))))
+
+                                    :chip
+                                    (-> world
+                                        ((fn [w] (if (float= value 1.0)
+                                                   (activate-chip w part-name)
+                                                   w)))
+                                        (assoc-in [:parts part-name key] value))
+
+                                    :speaker
+                                    (-> world
+                                        ((fn [w]
+                                           (let [note (get-note (:frequency part))]
+                                             (if (float= value 1.0)
+                                               (note-on note)
+                                               (note-off note)))
+                                           w))
+                                        (assoc-in [:parts part-name key] value))
+                                    
+                                    (assoc-in world [:parts part-name key] value))]
+                        (-> world
+                            (enforce-gears part-name)
+                            (tree-changed)))
+                      (assoc-in world [:parts part-name key] value)))))))
 
 (defn set-property [world x y]
   (if-let [region (get-region-at (:property-box world) x y)]
