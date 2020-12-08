@@ -16,7 +16,7 @@
              (tracks-connected? world other-part-name part-name)))
           (get-parts-with-type (:parts world) :track)))
 
-(defn grow-loop [world loop]
+(defn grow-loop [world loop color]
   (let [start (first loop)
         end (last loop)
         get-next (fn [tip]
@@ -25,6 +25,7 @@
                               (let [part (get-in world [:parts part-name])]
                                 (and
                                  (= (:type part) :track)
+                                 (= (:color part) color)
                                  (not (in? part-name loop)))))
                             (get-track-neighbours world tip))))
         before (get-next start)
@@ -42,26 +43,45 @@
 
                        :else
                        (vec (concat [before] (conj loop after))))]
-        (recur world new-loop)))))
+        (recur world new-loop color)))))
 
 (defn get-tail-point [world track-name]
   (let [track (get-in world [:parts track-name])
         [_ sy _] (:scale track)]
     (apply-transform (:transform track) [0 (- sy) 0])))
 
-(defn get-track-loop [world t0-name]
+(defn get-loop-names [world t0-name]
   (let [t0 (get-in world [:parts t0-name])
         loop-color (:color t0)
-        loop-names (grow-loop world [t0-name])
-        loop-names (if (in? (get-parent-part world (first loop-names))
-                            loop-names)
-                     (vec (reverse loop-names))
-                     loop-names)
+        loop-names (grow-loop world [t0-name] loop-color)]
+    (if (in? (get-parent-part world (first loop-names))
+             loop-names)
+      (vec (reverse loop-names))
+      loop-names)))
+
+(defn get-loop-value [world track-name spec]
+  (let [track (get-in world [:parts track-name])
+        track-plane (get-track-plane track)
+        collision-point (:point (get-part-collision world spec))
+        d (point-plane-distance collision-point track-plane)
+        all-names (get-loop-names world track-name)
+        before-names (conj (vec (take-while #(not= % track-name) all-names)) track-name)
+        total-length (reduce + (map (fn [track-name]
+                                      (get-in world [:parts track-name :scale 1]))
+                                    all-names))
+        partial-length (reduce + (map (fn [track-name]
+                                        (get-in world [:parts track-name :scale 1]))
+                                      before-names))]
+    (/ (+ partial-length d) total-length)))
+
+(defn get-track-loop [world t0-name]
+  (let [loop-names (get-loop-names world t0-name)
         points (map (fn [name]
                       (get-part-position world name))
                     loop-names)
         tail-point (get-tail-point world (first loop-names))
         points (cons tail-point points)
+        t0 (get-in world [:parts t0-name])
         inverse-transform (get-inverse-transform (:transform t0))]
     (vec (map #(apply-transform inverse-transform %) points))))
 

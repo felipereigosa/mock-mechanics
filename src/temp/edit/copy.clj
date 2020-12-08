@@ -78,19 +78,24 @@
             (assoc-in [:selected-part] part-name)
             (select-part part-name)))
       (if-let [selected-part (:selected-part world)]
-        (if (can-place-part-at? world collision)
-          (let [suffix (gen-keyword :copy)
-                [parts copy-part-name] (copy-tree (:parts world) selected-part suffix)
-                copied-parts (get-tree-with-root parts selected-part)
-                parts (fix-references parts copied-parts suffix)
-                new-parent-name (:part-name collision)
-                new-parent (get-in world [:parts new-parent-name])]
-            (reset! copy-name copy-part-name)
+        (let [part (get-in world [:parts selected-part])
+              suffix (gen-keyword :copy)
+              [parts copy-part-name] (copy-tree (:parts world) selected-part suffix)
+              copied-parts (get-tree-with-root parts selected-part)
+              parts (fix-references parts copied-parts suffix)
+              new-parent-name (:part-name collision)
+              new-parent (get-in world [:parts new-parent-name])]
+          (reset! copy-name copy-part-name)
+          (if (= (:type part) :wagon)
             (-> world
                 (assoc-in [:parts] parts)
-                (place-part-at copy-part-name collision)
-                (move-part-pressed copy-part-name nil)))
-          world)
+                (add-wagon-to-track copy-part-name new-parent-name event))
+            (if (can-place-part-at? world collision)
+              (-> world
+                  (assoc-in [:parts] parts)
+                  (place-part-at copy-part-name collision)
+                  (move-part-pressed copy-part-name nil))
+              world)))
         world))
     world))
 

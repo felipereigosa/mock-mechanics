@@ -69,6 +69,7 @@
         world (-> world
                   (assoc-in [:projection-matrix] projection-matrix)
                   (assoc-in [:ortho-mesh] (create-ortho-mesh width height))
+                  (assoc-in [:moving-ortho-mesh] (create-ortho-mesh width height))
                   (assoc-in [:window-width] width)
                   (assoc-in [:window-height] height))]
     (GL11/glViewport 0 0 width height)
@@ -1272,3 +1273,4 @@
                                       (nth corners index)) indices)))]
     (create-wireframe-mesh vertices position rotation
                            scale color-name)))
+

@@ -314,19 +314,22 @@
 (defn scale-sphere-released [world event]
   (dissoc-in world [:edited-part]))
 
+(declare scale-mode-moved)
+
 (defn scale-mode-pressed [world event]
   (if-let [part-name (get-part-at world event)]
     (let [type (get-in world [:parts part-name :type])
-          world (assoc-in world [:scale-type] type)]
-      (case type
-        :block (scale-block-pressed world event)
-        :track (scale-track-pressed world event)
-        :cylinder (scale-cylinder-pressed world event)
-        :cone (scale-cone-pressed world event)
-        :sphere (scale-sphere-pressed world event)
-        (do
-          (user-message! "can't scale" (kw->str type))
-          world)))
+          world (assoc-in world [:scale-type] type)
+          world (case type
+                  :block (scale-block-pressed world event)
+                  :track (scale-track-pressed world event)
+                  :cylinder (scale-cylinder-pressed world event)
+                  :cone (scale-cone-pressed world event)
+                  :sphere (scale-sphere-pressed world event)
+                  (do
+                    (user-message! "can't scale" (kw->str type))
+                    world))]
+      (scale-mode-moved world event))
     world))
 
 (defn scale-mode-moved [world event]

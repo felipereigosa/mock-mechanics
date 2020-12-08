@@ -5,6 +5,7 @@
 (declare move-part-moved)
 (declare move-part-released)
 (declare set-wagon-loop)
+(declare get-loop-value)
 
 (defn add-mode-draw [world]
   (let [add-menu (:add-menu world)]
@@ -17,20 +18,27 @@
       (dotimes [i 3]
         (draw-rect! :black x y (- w i) (- h i 1))))))
 
+(defn add-wagon-to-track [world wagon-name track-name event]
+  (let [transform (get-in world [:parts track-name :transform])]
+    (-> world
+        (assoc-in [:parts wagon-name :transform] transform)
+        (assoc-in [:parts track-name :children wagon-name]
+                  (make-transform [0 0 0] [1 0 0 0]))
+        (set-wagon-loop wagon-name track-name)
+        (assoc-in [:parts wagon-name :value]
+                  (get-loop-value world track-name event))
+        (compute-transforms :parts))))
+
 (defn add-wagon [world color spec]
-  (let [part-name (get-part-at world spec)]
-    (if (and (not-nil? part-name)
-             (= (get-in world [:parts part-name :type]) :track))
+  (let [track-name (get-part-at world spec)]
+    (if (and (not-nil? track-name)
+             (= (get-in world [:parts track-name :type]) :track))
       (let [layer (apply min (:visible-layers world))
-            part (create-part :wagon color layer (:info world))
-            name (gen-keyword :wagon)
-            transform (get-in world [:parts part-name :transform])]
+            wagon (create-part :wagon color layer (:info world))
+            wagon-name (gen-keyword :wagon)]
         (-> world
-            (assoc-in [:parts name] part)
-            (assoc-in [:parts name :transform] transform)
-            (assoc-in [:parts part-name :children name]
-                      (make-transform [0 0 0] [1 0 0 0]))
-            (set-wagon-loop name part-name)))
+            (assoc-in [:parts wagon-name] wagon)
+            (add-wagon-to-track wagon-name track-name spec)))
       world)))
 
 (defn get-ground-anchor [world part collision]

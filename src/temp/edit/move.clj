@@ -101,6 +101,8 @@
           (dissoc-in [:edited-part])))
     world))
 
+(declare move-mode-moved)
+
 (defn move-mode-pressed [world event]
   (if-let [{:keys [part-name point]} (get-part-collision world event)]
     (let [type (get-in world [:parts part-name :type])]
@@ -108,7 +110,9 @@
         (do
           (user-message! "can't move wagon")
           world)
-        (move-part-pressed world part-name point)))
+        (-> world
+            (move-part-pressed part-name point)
+            (move-mode-moved event))))
     world))
 
 (defn move-mode-moved [world event]

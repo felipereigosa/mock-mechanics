@@ -20,9 +20,9 @@
         part-name (get-part-at world event)
         part (get-in world [:parts part-name])
         ]        
-    (println! x y)
-    (println! part-name)
+    (println! part-name x y)
     (print-transform (:transform part))
+    (println! "scale: " (:scale part))
     world))
 
 (defn debug-mode-moved [world event]

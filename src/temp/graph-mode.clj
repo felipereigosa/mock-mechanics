@@ -243,6 +243,30 @@
           world))
       world)))
 
+(defn draw-cursor! [world time]
+  (let [mesh (get-in world [:moving-ortho-mesh])
+        color (new Color 0 0 255 50)
+        graph-box (:graph-box world)
+        chip (get-in world [:parts (:selected-chip world)])
+        view (:view chip)
+        final-time (:final-time chip)
+        [x1 _] (local->global graph-box view [0 0])
+        [x2 _] (local->global graph-box view [final-time 0])
+        x (map-between-ranges time 0 final-time x1 x2)
+        hw (* (:w graph-box) 0.5)
+        gx1 (- (:x graph-box) hw)
+        gx2 (+ (:x graph-box) hw)
+        x (+ x gx1)
+        y (:y graph-box)
+        w 10
+        h (:h graph-box)]
+    (clear (:image mesh))
+    (when (< gx1 x gx2)
+      (fill-rect (:image mesh) color x y w h))
+    (reset-texture mesh)
+    (GL11/glClear GL11/GL_DEPTH_BUFFER_BIT)
+    (draw-ortho-mesh! world (:moving-ortho-mesh world))))
+
 (defn run-chip [world chip-name dt]
   (let [chip (get-in world [:parts chip-name])
         final-time (:final-time chip)
@@ -250,6 +274,9 @@
     (if (> time (+ final-time dt))
       world
       (let [world (update-in world [:parts chip-name :time] #(+ % dt))]
+        (when (and (= (:mode world) :graph)
+                   (= (:selected-chip world) chip-name))
+          (draw-cursor! world time))
         (reduce (fn [w function-name]
                   (run-wave w chip-name function-name time dt))
                 world

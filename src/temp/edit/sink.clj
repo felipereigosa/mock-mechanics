@@ -1,6 +1,8 @@
 
 (ns temp.core (:gen-class))
 
+(declare sink-mode-moved)
+
 (defn sink-mode-pressed [world event]
   (if-let [{:keys [part-name point index]} (get-part-collision world event)]
     (let [type (get-in world [:parts part-name :type])]
@@ -17,7 +19,8 @@
               (assoc-in [:start-position] part-position)
               (assoc-in [:edited-part] part-name)
               (assoc-in [:sink-line] [point y-axis])
-              (assoc-in [:offset] offset)))))
+              (assoc-in [:offset] offset)
+              (sink-mode-moved event)))))
     world))
 
 (defn sink-mode-moved [world event]
