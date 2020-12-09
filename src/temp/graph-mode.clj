@@ -36,8 +36,9 @@
     (draw-line buffer :dark-gray x1 y1 x2 y2)
     (draw-line buffer :dark-gray x1 y2 x2 y1)))
 
-(defn draw-normal-function! [graph-box view points color]
-  (let [{:keys [x y w h]} graph-box]
+(defn draw-function! [graph-box view function color]
+  (let [{:keys [x y w h]} graph-box
+        points (:points function)]
     (doseq [i (range 1 (count points))]
       (let [buffer (:buffer graph-box)
             [x1 y1] (local->global
@@ -45,31 +46,15 @@
             [x2 y2] (local->global
                      graph-box view (nth points i))]
         (draw-line buffer color x1 y1 x2 y2)
-        (fill-circle buffer color x2 y2 7)
 
-        (if (= i 1)
-          (fill-circle buffer color x1 y1 7))))))
+        (if (:relative function)
+          (fill-rect buffer color x2 y2 12 12)
+          (fill-circle buffer color x2 y2 7))          
 
-(defn draw-square-function! [graph-box view points color]
-  (let [{:keys [x y w h]} graph-box]
-    (doseq [i (range 1 (count points))]
-      (let [buffer (:buffer graph-box)
-            p1 (nth points (dec i))
-            p2 (nth points i)
-            h1 (second p1)
-            h2 (second p2)
-            [x1 y1] (local->global graph-box view p1)
-            [x2 y2] (local->global graph-box view p2)]
-        (draw-line buffer color x1 y1 x2 y1)
-        (fill-rect buffer color x2 y2 12 12)
-        (draw-line buffer color x2 y1 x2 y2)
-        (if (= i 1)
-          (fill-rect buffer color x1 y1 12 12))))))
-
-(defn draw-function! [graph-box view function color]
-  (if (:relative function)
-    (draw-square-function! graph-box view (:points function) color)
-    (draw-normal-function! graph-box view (:points function) color)))
+        (when (= i 1)
+          (if (:relative function)
+            (fill-rect buffer color x1 y1 12 12)
+            (fill-circle buffer color x1 y1 7)))))))
 
 (defn draw-grid [graph-box view]
   (let [buffer (:buffer graph-box)
@@ -170,13 +155,10 @@
     world))
 
 (defn compute-absolute-points [start-value relative-points]
-  (let [pairs (map vector relative-points (rest relative-points))
-        deltas (map (fn [[[t1 v1] [t2 v2]]]
-                      (* (- t2 t1) v1))
-                    pairs)]
-    (vec (map vector (map first relative-points)
-              (map #(+ start-value %) (accumulate deltas))))))
-
+  (let [delta (- start-value (second (first relative-points)))]
+    (map (fn [[t v]]
+           [t (+ v delta)])
+         relative-points)))
 
 (defn compute-final-points [world function part-name]
   (let [part (get-in world [:parts part-name])
@@ -331,61 +313,27 @@
       (user-message! "invalid value")
       world)))
 
-(defn set-node-values-callback [world node text]
-  (let [values (map parse-float (split text #","))]
-    (if (or (not (= (count values) 2))
-            (some nil? values))
-      (do
-        (user-message! "invalid format")
-        world)
-      (let [[x y] values
-            [function-name node-index] node]
-        (update-in world [:parts (:selected-chip world)
-                          :functions function-name]
-                   (fn [function]
-                     (-> function
-                         (assoc-in [:points node-index 0] x)
-                         (assoc-in [:points node-index 1] y)
-                         (normalize-function))))))))
-
 (defn set-node [world which x y]
   (if-let [node (get-node-at world x y)]
-    (if (= which :both)
-      (read-input world #(set-node-values-callback %1 node %2))
-      (read-input world #(set-node-value-callback %1 node which %2)))
+    (read-input world #(set-node-value-callback %1 node which %2))
     world))
 
-(defn normal-function-collision [world [name function] x y]
-  (if (= (first (get-node-at world x y)) name)
-    name
-    (let [point [x y]
-          graph-box (:graph-box world)
-          chip-name (:selected-chip world)
-          view (get-in world [:parts chip-name :view])
-          p2 (local->global graph-box view
-                            (global->local graph-box view point))
-          points (:points function)
-          points (map #(local->global graph-box view %) points)
-          segments (map vector points (rest points))]
-      (some (fn [[a b]]
-              (point-between-points? p2 a b 10))
-            segments))))
-
-(defn square-function-collision [world [name function] x y]
-  (let [points (:points function)
-        segments (map vector points (rest points))
-        corners (map (fn [[[_ y1] [x2 _]]]
-                       [x2 y1])
-                     segments)
-        new-points (butlast (interleave points
-                                        (conj (vec corners) nil)))
-        new-function (assoc-in function [:points] new-points)]
-    (normal-function-collision world {name new-function} x y)))
-
 (defn function-collision [world function x y]
-  (if (:relative function)
-    (square-function-collision world function x y)
-    (normal-function-collision world function x y)))
+  (let [[name points] function]
+    (if (= (first (get-node-at world x y)) name)
+      name
+      (let [point [x y]
+            graph-box (:graph-box world)
+            chip-name (:selected-chip world)
+            view (get-in world [:parts chip-name :view])
+            p2 (local->global graph-box view
+                              (global->local graph-box view point))
+            points (:points points)
+            points (map #(local->global graph-box view %) points)
+            segments (map vector points (rest points))]
+        (some (fn [[a b]]
+                (point-between-points? p2 a b 10))
+              segments)))))
 
 (defn get-function-at [world x y]
   (let [chip-name (:selected-chip world)
@@ -621,7 +569,6 @@
         (let [world (case (:graph-subcommand world)
                       :set-x (set-node world :x x y)
                       :set-y (set-node world :y x y)
-                      :set-both (set-node world :both x y)
                       :add (add-node world x y)
                       :delete (delete-node world x y)
                       :move (pan-or-move-pressed world x y)

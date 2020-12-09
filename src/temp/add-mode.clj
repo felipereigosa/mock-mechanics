@@ -16,7 +16,7 @@
     (let [box (get-in add-menu [:regions (:add-type world)])
           {:keys [x y w h]} (get-absolute-region box add-menu)]
       (dotimes [i 3]
-        (draw-rect! :black x y (- w i) (- h i 1))))))
+        (draw-rect! :black x y (- w i -2) (- h i 1))))))
 
 (defn add-wagon-to-track [world wagon-name track-name event]
   (let [transform (get-in world [:parts track-name :transform])]
