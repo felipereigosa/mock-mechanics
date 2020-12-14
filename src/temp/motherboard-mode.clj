@@ -381,11 +381,18 @@
 (defn draw-tab-switcher [motherboard motherboard-box]
   (let [tab-x 659
         buffer (:buffer motherboard-box)
-        y (* (:h motherboard-box) 0.5)]
+        y (* (:h motherboard-box) 0.5)
+        active-tabs (distinct (map (fn [[name value]]
+                                     (:tab value))
+                                   (:connections motherboard)))]
     (fill-rect buffer :dark-gray tab-x y 30 130)
     (doseq [i (range 0 5)]
       (let [tab-y (+ 25 (* i 25))]
         (fill-rect buffer :black tab-x tab-y 25 23)
+
+        (if (in? i active-tabs)
+          (fill-circle buffer :white tab-x tab-y 3))
+        
         (if (= i (:tab motherboard))
           (draw-rect buffer :white tab-x tab-y 25 23))))))
 
@@ -447,8 +454,7 @@
     (let [x (+ x (* w -0.5) +20)
           y (:y menu)]
       (draw-rect! :gray x y 15 10)
-      (draw-line! :gray (- x 4) y (+ x 3) y))
-    ))
+      (draw-line! :gray (- x 4) y (+ x 3) y))))
 
 (defn prune-connections [motherboard]
   (let [elements (concat (vec (keys (:pins motherboard)))
@@ -743,7 +749,7 @@
 (defn motherboard-mode-moved [world event]
   (case (:motherboard-subcommand world)
     :move (motherboard-move-moved world event)
-    world))1
+    world))
 
 (defn motherboard-mode-released [world event]
   (case (:motherboard-subcommand world)
