@@ -171,6 +171,16 @@
     :color :red
     :properties {:value 0}
     }
+
+   :display
+   {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :points [[0.5 0 0] [-0.5 0 0]
+             [0 0.5 0] [0 -0.5 0]
+             [0 0 0.5] [0 0 -0.5]]
+    :scale [0.5 0.05 0.3]
+    :color :black
+    :properties {}
+    }
    })
 
 (defn create-ground-part []
@@ -179,6 +189,45 @@
    :color :dark-gray
    :scale [12 0.2 12]
    :children {}})
+
+(defn create-bitmap [width height]
+  (let [bitmap (new-image width height)]
+    (clear bitmap :black)
+    (draw-pixel bitmap :red 0 0)
+    (draw-pixel bitmap :red 2 0)
+    (draw-pixel bitmap :red 2 2)
+    bitmap))
+
+(defn create-textured-plane [width height]
+  (let [vertices (vec (flatten
+                       [-0.5 0 0.5
+                        0.5 0 0.5
+                        -0.5 0 -0.5
+                        -0.5 0 -0.5
+                        0.5 0 0.5
+                        0.5 0 -0.5]))
+        position [0 0 0]
+        rotation [1 0 0 0] 
+        scale [0.5 1 0.3]
+        tex-coords [0 1 1 1 0 0 0 0 1 1 1 0]
+        normals (vec (compute-normals vertices))
+        base-mesh {:vertices vertices
+                   :vertices-buffer (get-float-buffer vertices)
+                   :normals normals
+                   :normals-buffer (get-float-buffer normals)
+                   :transform (make-transform position rotation)
+                   :scale scale}
+        texture-id (GL11/glGenTextures)
+        tex-coords (vec (flatten tex-coords))]
+    (-> base-mesh
+        (assoc-in [:draw-fn] draw-textured-mesh!)
+        (assoc-in [:program] :textured)
+        (assoc-in [:image] (create-bitmap width height))
+        (assoc-in [:texture-coordinates] tex-coords)
+        (assoc-in [:texture-coordinates-buffer]
+                  (get-float-buffer tex-coords))
+        (assoc-in [:texture-id] texture-id)
+        (set-texture))))
 
 (defn create-part [type color layer info]
   (let [type-info (get-in info [type])
@@ -198,6 +247,10 @@
 
         part (if (= type :motherboard)
                (assoc-in part [:tab] 0)
+               part)
+
+        part (if (= type :display)
+               (assoc-in part [:texture] (create-textured-plane 10 6))
                part)
 
         part (if (= type :chip)
@@ -378,6 +431,21 @@
                 mesh (-> bulb-mesh
                          (assoc-in [:transform] base-transform)
                          (assoc-in [:color] (get-color-vector color)))]
+            (draw-mesh! world mesh)))))))
+
+(defn draw-displays! [world]
+  (let [display-names (get-parts-with-type (:parts world) :display)]
+    (doseq [display-name display-names]
+      (let [display (get-in world [:parts display-name])]
+        (if (in? (:layer display) (:visible-layers world))
+          (let [base-transform (use-root-relative-transform world display-name)
+                rotation (get-transform-rotation (:transform display))
+                rotation-transform (make-transform [0 0 0] rotation)
+                up (apply-transform rotation-transform [0 1 0])
+                offset (make-transform (vector-multiply up 0.026) [1 0 0 0])
+                transform (combine-transforms base-transform offset)
+                mesh (-> (:texture display)
+                         (assoc-in [:transform] transform))]
             (draw-mesh! world mesh)))))))
 
 (defn select-part [world part-name]

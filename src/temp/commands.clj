@@ -18,6 +18,7 @@
    ":add l" #(assoc-in % [:add-type] :lamp)
    ":add S-s" #(assoc-in % [:add-type] :speaker)
    ":add S-g" #(assoc-in % [:add-type] :gear)
+   ":add d" #(assoc-in % [:add-type] :display)
 
    "A-e" #(change-mode % :edit)
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)

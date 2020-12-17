@@ -142,7 +142,7 @@
   (let [part-names
         (map first (filter (fn [[name part]]
                              (or
-                              (in? (:type part) [:probe :lamp :button])
+                              (in? (:type part) [:probe :lamp :button :display])
                               (and (= (:type part) :block)
                                    (:collision part))
                               ))

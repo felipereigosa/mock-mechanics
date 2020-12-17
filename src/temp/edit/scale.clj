@@ -314,6 +314,18 @@
 (defn scale-sphere-released [world event]
   (dissoc-in world [:edited-part]))
 
+(defn scale-display-pressed [world event]
+  (println! "scale display pressed")
+  world)
+
+(defn scale-display-moved [world event]
+  (println! "scale display moved")
+  world)
+
+(defn scale-display-released [world event]
+  (println! "scale display released")
+  world)
+
 (declare scale-mode-moved)
 
 (defn scale-mode-pressed [world event]
@@ -326,6 +338,7 @@
                   :cylinder (scale-cylinder-pressed world event)
                   :cone (scale-cone-pressed world event)
                   :sphere (scale-sphere-pressed world event)
+                  :display (scale-display-pressed world event)
                   (do
                     (user-message! "can't scale" (kw->str type))
                     world))]
@@ -339,6 +352,7 @@
     :cylinder (scale-cylinder-moved world event)
     :cone (scale-cone-moved world event)
     :sphere (scale-sphere-moved world event)
+    :display (scale-display-moved world event)
     world))
 
 (defn scale-mode-released [world event]
@@ -348,5 +362,6 @@
                 :cylinder (scale-cylinder-released world event)
                 :cone (scale-cone-released world event)
                 :sphere (scale-sphere-released world event)
+                :display (scale-display-released world event)
                 world)]
     (dissoc-in world [:scale-type])))

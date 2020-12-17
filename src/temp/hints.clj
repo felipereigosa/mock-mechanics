@@ -34,6 +34,7 @@
                        :lamp "L,Lamp"
                        :speaker "Shift + S,Speaker"
                        :gear "Shift + G,Gear"
+                       :display "D,Display"
                        }
                  :edit {:move "M,Move"
                         :sink "H,Change Height"
