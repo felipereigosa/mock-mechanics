@@ -75,19 +75,26 @@
 
 (defn get-color [name]
   (if (keyword? name)
-    (let [colors {:red (. Color red)
-                  :green (new Color 0 158 0)
-                  :blue (. Color blue)
-                  :white (. Color white)
-                  :black (. Color black)
-                  :gray (. Color gray)
-                  :dark-gray (new Color 30 30 30)
-                  :lightgray (. Color lightGray)
-                  :yellow (. Color yellow)
-                  :purple (new Color 85 26 139)
-                  :orange (new Color 255 140 0)
-                  :pink (new Color 255 20 147)
-                  }]
+    (let [colors {:medium-gray (new Color 128 128 128)
+                  :gray (new Color 128 128 128)
+                  :orange (new Color 255 102 0)
+                  :white (new Color 255 255 255)
+                  :light-gray (new Color 179 179 179)
+                  :yellow (new Color 255 255 0)
+                  :green (new Color 0 255 0)
+                  :dark-red (new Color 128 0 0)
+                  :dark-yellow (new Color 255 204 0)
+                  :dark-gray (new Color 51 51 51)
+                  :red (new Color 255 0 0)
+                  :blue (new Color 0 0 255)
+                  :dark-green (new Color 0 145 0)
+                  :dark-blue (new Color 0 0 128)
+                  :almost-black (new Color 10 10 10)
+                  :pink (new Color 255 0 255)
+                  :teal (new Color 170 212 0)
+                  :purple (new Color 128 0 175)
+                  :beige (new Color 170 136 0)
+                  :black (new Color 0 0 0)}]
       (get colors name))
     name))
 
@@ -308,3 +315,11 @@
               (sleep time)
               (func)
               (catch Exception e)))))))
+
+(defn snap-axis [v]
+  (let [m (apply max (map abs v))]
+    (map (fn [e]
+           (if (float= (abs e) m)
+             (/ e (abs e))
+             0))
+         v)))

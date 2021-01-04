@@ -1,71 +1,53 @@
 
 (ns temp.core (:gen-class))
 
+(defn get-display-plane [display]
+  (let [rotation (:transform display)]
+    [(apply-transform rotation [0 0.025 0])
+     (apply-transform rotation [1 0.025 0])
+     (apply-transform rotation [0 0.025 1])]))
 
-;; (do
-;; 1
-
-;; (clear-output!)
-;; (let [world @world
-;;       display-name :display10686
-;;       display (get-in world [:parts display-name])
-;;       mesh (:texture display)
-;;       image (:image mesh)
-;;       ]
-;;   (clear image :dark-gray)
-;;   (draw-pixel image :red 0 0)
-;;   (draw-pixel image :red 1 0)
-;;   (draw-pixel image :red 2 0)
-;;   (draw-pixel image :red 3 1)
-;;   (gl-thread (reset-texture mesh))
-;;   ))
-
-(defn set-pixel [display x y color]
-  display)
+(defn set-pixel! [display x y color]
+  (let [mesh (:texture display)
+        image (:image mesh)]
+    (fill-rect image color (+ 10 (* x 20)) (+ 10 (* y 20)) 20 20)))
 
 (defn set-display-color [world event]
   (let [line (unproject-point world [(:x event) (:y event)])
         display-name (get-part-at world event)
         display (get-in world [:parts display-name])
-        ;; transform (:transform display)
-        ;; normal (apply-rotation transform [0 1 0])
-        plane (get-track-plane display)
+        plane (get-display-plane display)
         [a b c] plane
-
         v1 (vector-subtract b a)
         v2 (vector-subtract c a)
         point (line-plane-intersection line plane)
         vp (vector-subtract point a)
         [x y] (get-affine-coordinates v1 v2 vp)
-
-        px (+ 5 (round (/ x 0.05))) ;;############
-        py (+ 2 (round (/ y 0.05)))
-
+        [sx _ sz] (:scale display)
+        px (int (/ (+ x (* sx 0.5)) 0.05))
+        py (int (/ (+ y (* sz 0.5)) 0.05))
         mesh (:texture display)
-        image (:image mesh)
-        ]
-    (draw-pixel image (:current-color world) px py)
-    (gl-thread (reset-texture mesh))
-    world
-    ))
+        image (:image mesh)]
+    (if (:shift-pressed world)
+      (clear image (:current-color world))
+      (set-pixel! display px py (:current-color world)))
+    (update-in world [:parts display-name :texture] reset-texture)))
 
 (defn set-object-color [world event]
-  (let [[r g b] (get-in world [:color-palette :regions
-                               (:current-color world) :color])
-        color (new Color r g b)]
-    (if-let [collision (get-part-collision world event)]
-      (let [part-name (:part-name collision)
-            part (get-in world [:parts part-name])]
-        (if (= (:type part) :display)
-          (set-display-color world event)
-          (let [part (assoc-in part [:color] color)
-                part (if (= (:type part) :lamp)
-                       (assoc-in part [:dark-color] (get-dark-color color))
-                       part)]
-            (-> world
-                (assoc-in [:parts part-name] part)
-                (tree-changed)))))
-      world)))
+  (if-let [collision (get-part-collision world event)]
+    (let [part-name (:part-name collision)
+          part (get-in world [:parts part-name])]
+      (if (= (:type part) :display)
+        (set-display-color world event)
+        (let [color (get-color (:current-color world))
+              part (assoc-in part [:color] color)
+              part (if (= (:type part) :lamp)
+                     (assoc-in part [:dark-color] (get-dark-color color))
+                     part)]
+          (-> world
+              (assoc-in [:parts part-name] part)
+              (tree-changed)))))
+    world))
 
 (defn color-mode-draw [world]
   (let [color-pallete (:color-palette world)]

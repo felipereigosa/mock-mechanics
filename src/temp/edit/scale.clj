@@ -315,16 +315,67 @@
   (dissoc-in world [:edited-part]))
 
 (defn scale-display-pressed [world event]
-  (println! "scale display pressed")
-  world)
+  (if-let [collision (get-part-collision world event)]
+    (let [part-name (:part-name collision)
+          part (get-in world [:parts part-name])
+          transform (:transform part)
+          inverse-transform (get-inverse-transform transform)
+          local-point (apply-transform inverse-transform (:point collision))]
+      (if (float= (second local-point) 0.025)
+        (let [local-point (assoc-in local-point [1] 0)
+              normal (snap-axis (map / local-point (:scale part)))
+              rotation-transform (get-rotation-component (:transform part))
+              v (apply-transform rotation-transform normal)
+              scale (:scale part)
+              center (get-transform-position (:transform part))
+              adjust-line [(:point collision) (vector-normalize v)]]
+          (-> world
+              (assoc-in [:edited-part] part-name)
+              (assoc-in [:adjust-line] adjust-line)
+              (assoc-in [:original-scale] scale)
+              (assoc-in [:original-center] center)
+              (assoc-in [:x] (float= (abs (vector-dot-product normal [1 0 0])) 1.0))
+              (assoc-in [:normal] normal)
+              (assoc-in [:last-dimensions] nil)))
+        world))
+    world))
 
 (defn scale-display-moved [world event]
-  (println! "scale display moved")
-  world)
+  (if-let [display-name (:edited-part world)]
+    (let [adjust-line (:adjust-line world)
+          mouse-line (get-spec-line world event)
+          d (line-line-closest-point adjust-line mouse-line)
+          grain-size 0.05
+          d (snap-value d grain-size)
+          scale (:original-scale world)
+          center (:original-center world)
+          normal (:normal world)
+          l1 (+ d (abs (reduce + (map * normal scale))))
+          l2 (within l1 0.1 10)
+          increase-vector (map * (:normal world) [l2 l2 l2])
+          scale-offset (vector-multiply (second adjust-line) d)
+          dimensions (if (:x world)
+                       [(round (/ l2 0.05))
+                        (round (/ (last scale) 0.05))]
+                       [(round (/ (first scale) 0.05))
+                        (round (/ l2 0.05))])]
+      (user-message! (apply format "dimensions: %d x %d" dimensions))
+      (-> world
+          (set-block-size display-name scale center increase-vector)
+          (#(if (not= dimensions (:last-dimensions %))
+                  (resize-display-texture % display-name)
+                  %))
+          (assoc-in [:last-dimensions] dimensions)))
+    world))
 
 (defn scale-display-released [world event]
-  (println! "scale display released")
-  world)
+  (if-let [display-name (:edited-part world)]
+    (let [parent-name (get-parent-part world display-name)]
+      (-> world
+          (create-relative-transform display-name parent-name)
+          (dissoc-in [:edited-part])
+          (resize-display-texture display-name)))
+    world))
 
 (declare scale-mode-moved)
 

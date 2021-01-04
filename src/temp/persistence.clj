@@ -15,6 +15,17 @@
      (.getGreen color)
      (.getBlue color)]))
 
+(defn get-simple-texture [texture]
+  (let [image (:image texture)
+        width (/ (get-image-width image) 20)
+        height (/ (get-image-height image) 20)]
+    (vec (map (fn [y]
+                (vec (map (fn [x]
+                            (let [color (get-pixel image (* x 20) (* y 20))]
+                              (get-color-vector color)))
+                          (range width))))
+              (range height)))))
+
 (defn modify-field [object key function]
   (if-let [value (get-in object [key])]
     (update-in object [key] function)
@@ -29,6 +40,7 @@
         (dissoc-in [:model])
         (modify-field :color get-simple-color)
         (modify-field :dark-color get-simple-color)
+        (modify-field :texture get-simple-texture)
         (assoc-in [:children] children))))
 
 (defn get-complex-transform [transform]
@@ -39,6 +51,18 @@
     (apply make-color color)
     color))
 
+(defn get-complex-texture [texture colors]
+  (let [width (count (first colors))
+        height (count colors)]
+    (dotimes [x width]
+      (dotimes [y height]
+        (let [cs (get-in colors [y x])
+              [r g b _] (map #(int (* 255 %)) cs)]
+        (fill-rect (:image texture) (make-color r g b)
+                   (+ 10 (* x 20)) (+ 10 (* y 20))
+                   20 20))))
+    (reset-texture texture)))
+
 (defn get-complex-part [part info]
   (let [children (map-map (fn [[name transform]]
                             {name (get-complex-transform transform)})
@@ -47,6 +71,12 @@
         part (merge-with (fn [a b] a) part properties)
         part (if (= (:type part) :chip)
                (assoc-in part [:time] 10000)
+               part)
+        part (if (= (:type part) :display)
+               (let [colors (:texture part)]
+                 (-> part
+                     (create-display-texture)
+                     (modify-field :texture #(get-complex-texture % colors))))
                part)]
     (-> part
         (assoc-in [:transform] (make-transform [0 0 0] [1 0 0 0]))
@@ -175,4 +205,3 @@
 
 (defn import-machine-version [world]
   (read-input world #(import-machine %1 %2)))
-

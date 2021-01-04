@@ -3,22 +3,29 @@
 
 (defn rotate-mode-pressed [world event]
   (let [{:keys [x y]} event]
-    (if-let [part-name (:part-name (get-part-collision world event))]
-      (let [part (get-in world [:parts part-name])]
+    (if-let [collision (get-part-collision world event)]
+      (let [part-name (:part-name collision)
+            part (get-in world [:parts part-name])
+            rotation (get-rotation-component (:transform part))
+            axis (apply-transform rotation [0 1 0])
+            center (get-part-position world part-name)
+            point (:point collision)
+            v1 (vector-subtract point center)
+            v2 (vector-normalize (vector-cross-product v1 axis))]
         (-> world
             (assoc-in [:edited-part] part-name)
             (assoc-in [:edit-start-point] [x y])
-            (assoc-in [:original-transform] (:transform part))))
+            (assoc-in [:original-transform] (:transform part))
+            (assoc-in [:line] [point v2])))
       world)))
 
 (defn rotate-mode-moved [world event]
   (if-let [part-name (:edited-part world)]
-    (let [dx (/ (- (:x event) (first (:edit-start-point world)))
-                (:window-width world))
-          grain (if (:shift-pressed world)
-                  15
-                  5)
-          angle (snap-value (map-between-ranges dx -1 1 -1000 1000) grain)
+    (let [mouse-line (get-spec-line world event)
+          d (line-line-closest-point (:line world) mouse-line)
+          angle (* d -120)
+          grain-size (if (:shift-pressed world) 45 5)
+          angle (snap-value angle grain-size)
           rotation (make-transform [0 0 0] [0 1 0 angle])
           original-transform (:original-transform world)          
           transform (combine-transforms rotation original-transform)]

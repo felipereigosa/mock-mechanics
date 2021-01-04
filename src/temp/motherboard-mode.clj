@@ -241,6 +241,23 @@
                              ([pointer]
                               (get-part-helper pointer 10000)))
 
+                  clear-display (fn [display-name color]
+                                  (let [display (get-thing! [:parts display-name])
+                                        mesh (:texture display)]
+                                    (clear (:image mesh) color)
+                                    (gl-thread (reset-texture mesh))))
+                  
+                  set-pixel (fn [display-name x y color]
+                              (let [display (get-thing! [:parts display-name])
+                                    mesh (:texture display)]
+                                (set-pixel! display x y color)
+                                (gl-thread (reset-texture mesh))))
+
+                  draw-pattern (fn [display-name pattern x y color]
+                                 (dotimes [yo (count pattern)]
+                                   (dotimes [xo (count (first pattern))]
+                                     (if (= (get-in pattern [yo xo]) 1)
+                                       (set-pixel display (+ x xo) (+ y yo) color)))))
                   ]]
     `(do
        (require '[temp.core :refer :all])

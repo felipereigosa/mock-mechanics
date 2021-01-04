@@ -193,12 +193,9 @@
 (defn create-bitmap [width height]
   (let [bitmap (new-image width height)]
     (clear bitmap :black)
-    (draw-pixel bitmap :red 0 0)
-    (draw-pixel bitmap :red 2 0)
-    (draw-pixel bitmap :red 2 2)
     bitmap))
 
-(defn create-textured-plane [width height]
+(defn create-display-texture [display]
   (let [vertices (vec (flatten
                        [-0.5 0 0.5
                         0.5 0 0.5
@@ -208,7 +205,8 @@
                         0.5 0 -0.5]))
         position [0 0 0]
         rotation [1 0 0 0] 
-        scale [0.5 1 0.3]
+        scale (:scale display)
+        [sx _ sz] scale
         tex-coords [0 1 1 1 0 0 0 0 1 1 1 0]
         normals (vec (compute-normals vertices))
         base-mesh {:vertices vertices
@@ -218,16 +216,30 @@
                    :transform (make-transform position rotation)
                    :scale scale}
         texture-id (GL11/glGenTextures)
-        tex-coords (vec (flatten tex-coords))]
-    (-> base-mesh
-        (assoc-in [:draw-fn] draw-textured-mesh!)
-        (assoc-in [:program] :textured)
-        (assoc-in [:image] (create-bitmap width height))
-        (assoc-in [:texture-coordinates] tex-coords)
-        (assoc-in [:texture-coordinates-buffer]
-                  (get-float-buffer tex-coords))
-        (assoc-in [:texture-id] texture-id)
-        (set-texture))))
+        tex-coords (vec (flatten tex-coords))
+        width (* 400 sx)
+        height (* 400 sz)
+        texture (-> base-mesh
+                    (assoc-in [:draw-fn] draw-textured-mesh!)
+                    (assoc-in [:program] :textured)
+                    (assoc-in [:image] (create-bitmap width height))
+                    (assoc-in [:texture-coordinates] tex-coords)
+                    (assoc-in [:texture-coordinates-buffer]
+                              (get-float-buffer tex-coords))
+                    (assoc-in [:texture-id] texture-id)
+                    (set-texture))]
+    (assoc-in display [:texture] texture)))
+
+(defn resize-display-texture [world display-name]
+  (let [display (get-in world [:parts display-name])
+        old-image (get-in display [:texture :image])
+        display (create-display-texture display)
+        texture (:texture display)
+        new-image (:image texture)]
+    (draw-image new-image old-image 0 0 true)
+    (-> world
+        (assoc-in [:parts display-name] display)
+        (update-in [:parts display-name :texture] reset-texture))))
 
 (defn create-part [type color layer info]
   (let [type-info (get-in info [type])
@@ -250,7 +262,7 @@
                part)
 
         part (if (= type :display)
-               (assoc-in part [:texture] (create-textured-plane 10 6))
+               (create-display-texture part)                         
                part)
 
         part (if (= type :chip)

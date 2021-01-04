@@ -13,10 +13,20 @@
                 {key value}))
             map)))
 
+(defn copy-display-texture [display]
+  (let [old-image (get-in display [:texture :image])
+        display (create-display-texture display)
+        new-image (get-in display [:texture :image])]
+    (draw-image new-image old-image 0 0 true)
+    (update-in display [:texture] reset-texture)))
+
 (defn copy-part [parts part-name suffix]
   (let [copy-name (join-keywords part-name suffix)
         part (get-in parts [part-name])
-        part (update-in part [:children] #(change-keys % suffix))]
+        part (update-in part [:children] #(change-keys % suffix))
+        part (if (= (:type part) :display)
+               (copy-display-texture part)
+               part)]
     (assoc-in parts [copy-name] part)))
 
 (defn copy-tree [parts part-name suffix]
