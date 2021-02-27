@@ -55,6 +55,7 @@
 (declare delete-all-parts)
 (declare delete-all-spheres)
 (declare create-physics-world)
+(declare create-layer-info)
 
 (defn new-file [world]
   (set-title! "-")
@@ -65,7 +66,7 @@
       (delete-all-spheres)
       (reset-camera)
       (change-mode :simulation)
-      (assoc-in [:visible-layers] [1])
+      (create-layer-info)
       (create-physics-world)
       (redraw)))
 

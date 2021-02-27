@@ -27,7 +27,7 @@
           (keys (:pins motherboard))))
 
 (defn get-input-pin-value [world motherboard pin-name]
-  (within (round (float (get-in world [:parts pin-name :value]))) 0 1))
+  (get-in world [:parts pin-name :value]))
 
 (defn get-output-pin-value [world motherboard pin-name]
   (let [inputs (get-input-names world motherboard pin-name)]
@@ -100,6 +100,12 @@
                       (note-on note)
                       (note-off note))
                     w)
+
+                  :wagon
+                  (let [wagon (get-in w [:parts part-name])
+                        value (get-element-value w motherboard part-name)
+                        scaled-value (/ value (reduce + (:track-lengths wagon)))]
+                    (assoc-in w [:parts part-name :value] scaled-value))
 
                   (assoc-in w [:parts part-name :value]
                             (get-element-value w motherboard part-name)))))
@@ -254,10 +260,18 @@
                                 (gl-thread (reset-texture mesh))))
 
                   draw-pattern (fn [display-name pattern x y color]
-                                 (dotimes [yo (count pattern)]
-                                   (dotimes [xo (count (first pattern))]
-                                     (if (= (get-in pattern [yo xo]) 1)
-                                       (set-pixel display (+ x xo) (+ y yo) color)))))
+                                 (let [display (get-thing! [:parts display-name])]
+                                   (dotimes [yo (count pattern)]
+                                     (dotimes [xo (count (first pattern))]
+                                       (if (= (get-in pattern [yo xo]) 1)
+                                         (set-pixel display-name (+ x xo) (+ y yo) color))))))
+
+                  get-pointed-color (fn [pointer]
+                                      (get-color-at @world (make-spec pointer)))
+
+                  get-attribute (fn [part-name attribute]
+                                  (get-thing! [:parts part-name attribute]))
+
                   ]]
     `(do
        (require '[temp.core :refer :all])
@@ -663,7 +677,7 @@
 (defn run-chip-at [world event]
   (let [motherboard (get-in world [:parts (:selected-motherboard world)])
         chip-name (get-pin-at motherboard (:motherboard-box world) (:x event) (:y event))]
-  (activate-chip world chip-name)))
+    (activate-chip world chip-name)))
 
 (defn toggle-script [world]
   (if-let [selected-motherboard (:selected-motherboard world)]

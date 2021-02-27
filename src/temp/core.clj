@@ -1,4 +1,3 @@
-
 (ns temp.core (:gen-class))
 
 (load "util")
@@ -54,9 +53,10 @@
                                     :buffer (new-image 685 150)})
       (assoc-in [:property-box]
                 (create-picture "property-menu" 240 340 -1 60))
-      (assoc-in [:layer-box] {:x 343 :y 575 :w 480 :h 60})
+      (assoc-in [:layer-box]
+                (create-picture "layer-menu" 240 340 -1 200))
       (assoc-in [:toggle-box] {:x 343 :y 575 :w 500 :h 60})
-      (assoc-in [:visible-layers] [1])
+      (create-layer-info)
       (assoc-in [:command] "")
       (assoc-in [:bindings] (get-bindings))
       (assoc-in [:current-color] :red)

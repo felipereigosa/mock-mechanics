@@ -117,6 +117,7 @@
                     :camera (:camera world)
                     :gears (:gears world)
                     :visible-layers (:visible-layers world)
+                    :layer-names (:layer-names world)
                     :sphere-transforms sphere-transforms})
     (user-message! "saved " filename)
     (set-title! text)
@@ -146,11 +147,20 @@
       (add-gear-and-rack-models
        world a radius b length angle-offset))))
 
+(defn set-layer-info [world visible-layers layer-names]
+  (let [world (if visible-layers
+                (assoc-in world [:visible-layers] visible-layers)
+                world)
+        world (if layer-names
+                (assoc-in world [:layer-names] layer-names)
+                world)]
+    world))
+
 (defn open-machine [world text]
   (try
     (let [filename (get-last-version-filename text)
           {:keys [parts camera
-                  visible-layers gears
+                  visible-layers layer-names gears
                   sphere-transforms]} (read-string (slurp filename))
           parts (map-map (fn [[name part]]
                            {name (get-complex-part part (:info world))})
@@ -162,7 +172,7 @@
                     (assoc-in [:parts :ground-part :transform] (make-transform [0 -0.1 0] [1 0 0 0]))
                     (assoc-in [:camera] camera)
                     (assoc-in [:gears] gears)
-                    (assoc-in [:visible-layers] (or visible-layers [1]))
+                    (set-layer-info visible-layers layer-names)
                     (#(reduce recreate-gears % gears))
                     (compute-camera)
                     (create-weld-groups)
@@ -194,8 +204,7 @@
                                #(merge % ground-children))
                     (create-weld-groups)
                     (save-checkpoint!)
-                    (assoc-in [:use-weld-groups] true)
-                    )]
+                    (assoc-in [:use-weld-groups] true))]
       (user-message! "opened " filename)
       world)
     (catch Exception e

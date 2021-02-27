@@ -71,9 +71,10 @@
           point (line-plane-intersection line plane)
           offset (:offset world)
           grain-size (or grain
-                         (if (:shift-pressed world)
-                           0.25
-                           0.05))
+                         (cond
+                           (:shift-pressed world) 0.25
+                           (:control-pressed world) 0.01
+                           :else 0.05))
           point (get-normalized-plane-point plane point grain-size)
           v (vector-subtract point (first plane))
           point (vector-add point offset)

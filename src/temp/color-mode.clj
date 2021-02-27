@@ -12,9 +12,9 @@
         image (:image mesh)]
     (fill-rect image color (+ 10 (* x 20)) (+ 10 (* y 20)) 20 20)))
 
-(defn set-display-color [world event]
-  (let [line (unproject-point world [(:x event) (:y event)])
-        display-name (get-part-at world event)
+(defn get-pixel-coordinates [world spec]
+  (let [line (get-spec-line world spec)
+        display-name (get-part-at world spec)
         display (get-in world [:parts display-name])
         plane (get-display-plane display)
         [a b c] plane
@@ -25,9 +25,15 @@
         [x y] (get-affine-coordinates v1 v2 vp)
         [sx _ sz] (:scale display)
         px (int (/ (+ x (* sx 0.5)) 0.05))
-        py (int (/ (+ y (* sz 0.5)) 0.05))
+        py (int (/ (+ y (* sz 0.5)) 0.05))]
+    [px py]))
+
+(defn set-display-color [world event]
+  (let [display-name (get-part-at world event)
+        display (get-in world [:parts display-name])
         mesh (:texture display)
-        image (:image mesh)]
+        image (:image mesh)
+        [px py] (get-pixel-coordinates world event)]
     (if (:shift-pressed world)
       (clear image (:current-color world))
       (set-pixel! display px py (:current-color world)))

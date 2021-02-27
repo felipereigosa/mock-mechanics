@@ -18,7 +18,7 @@
    ":add l" #(assoc-in % [:add-type] :lamp)
    ":add S-s" #(assoc-in % [:add-type] :speaker)
    ":add S-g" #(assoc-in % [:add-type] :gear)
-   ":add d" #(assoc-in % [:add-type] :display)
+   ":add i" #(assoc-in % [:add-type] :display)
 
    "A-e" #(change-mode % :edit)
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)
@@ -72,14 +72,6 @@
    ":color p" #(assoc-in % [:current-color] :pink)
 
    "A-l" #(change-mode % :layer)
-   ":layer 1" #(set-layer % 1)
-   ":layer 2" #(set-layer % 2)
-   ":layer 3" #(set-layer % 3)
-   ":layer 4" #(set-layer % 4)
-   ":layer 5" #(set-layer % 5)
-   ":layer 6" #(set-layer % 6)
-   ":layer 7" #(set-layer % 7)
-   ":layer 8" #(set-layer % 8)
 
    "A-x p" #(change-mode % :physics)
    "A-p" #(change-mode % :property)

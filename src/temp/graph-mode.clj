@@ -258,7 +258,8 @@
       (let [world (update-in world [:parts chip-name :time] #(+ % dt))]
         (when (and (= (:mode world) :graph)
                    (= (:selected-chip world) chip-name))
-          (draw-cursor! world time))
+          ;; (draw-cursor! world time)
+          )
         (reduce (fn [w function-name]
                   (run-wave w chip-name function-name time dt))
                 world

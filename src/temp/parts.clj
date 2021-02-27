@@ -14,7 +14,7 @@
              [0 0 0.5] [0 0 -0.5]]
     :scale [0.5 0.5 0.5]
     :color :white
-    :properties {:value 0}
+    :properties {:value 0 :data ""}
     }
 
    :cylinder
@@ -71,7 +71,7 @@
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.5 0.5 0.5]
-    :color :green
+    :color :dark-green
     :properties {:value 0}
     }
 
