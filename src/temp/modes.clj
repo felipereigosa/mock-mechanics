@@ -11,6 +11,7 @@
 (load "color-mode")
 (load "layer-mode")
 (load "physics-mode")
+(load "avatar-mode")
 
 (defn get-function [mode function]
   (resolve (symbol (str "temp.core/"

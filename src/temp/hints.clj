@@ -19,6 +19,7 @@
                         :property "Alt + P,Property Mode"
                         :toggle "Alt + T,Toggle Mode"
                         :layer "Alt + L,Layer Mode"
+                        :avatar "Alt + F,Avatar Mode"
                         :simulation "Alt + S,Simulation Mode"
                         }
                  :add {:block "B,Block"

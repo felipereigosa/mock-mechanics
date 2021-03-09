@@ -93,18 +93,40 @@
 
       (assoc-in [:track-head-model]
                 (create-cube-mesh [0 -10000 0] [1 0 0 0] 0.2 :white))
+
+      (assoc-in [:avatar] {:relative-position {:block :ground
+                                               :offset [0 0.25 0]
+                                               }
+                           :mesh (create-model-mesh "res/avatar.obj"
+                                                    [0 0 0] [1 0 0 0] 0.15 nil)
+                           :position [0 0.25 0]
+                           :velocity [0 0 0]
+                           :max-speed 0.06
+                           :state :running
+                           :angle 0
+                           :friction-coefficient 0.8
+                           :vertical-velocity 0.0
+                           :shadow-mesh (create-model-mesh "res/cylinder.obj"
+                                                           [0 0 0] [1 0 0 0] [0.5 0.01 0.5] :black)
+                           ;; :collision-radius 0.4
+                           })
+
+      (assoc-in  [:cameraman] {:position [0 0 70]
+                               :distance 30
+                               :height 15
+                               })
+
       (place-elements)
       (create-weld-groups)
-
       ;; (create-update-cube)
-      ;; (create-input-indicator 600)
       ))
 (reset-world!)
 )
 
 (defn update-world [world elapsed]
   (cond
-    (in? (:mode world) [:simulation :graph :motherboard :property])
+    (in? (:mode world) [:simulation :graph :motherboard
+                        :property :avatar])
     (let [elapsed 16 ;;######################
           world (-> world
                     (set-probe-values)
@@ -118,7 +140,9 @@
                     )]
       (recompute-body-transforms! world)
       (step-simulation! (:planet world) elapsed)
-      world)
+      (if (= (:mode world) :avatar)
+        (avatar-mode-update world elapsed)
+        world))
     :else world))
 
 (defn draw-3d! [world]
@@ -129,6 +153,9 @@
     (draw-mesh! world (:other-ground world)))
 
   (draw-spheres! world)
+
+  (if (= (:mode world) :avatar)
+    (avatar-mode-draw-3d! world))
   
   (if (:use-weld-groups world)
     (doseq [group (vals (:weld-groups world))]
@@ -168,10 +195,9 @@
     (let [{:keys [image x y w h]} (:mode-menu world)]
       (fill-rect! (make-color 70 70 70) x y (+ 20 w) (+ 20 h))
       (draw-image! image x y))
-    )
-  
-  (if-let [fun (get-function (:mode world) :draw)]
-    (fun world))
+
+    (if-let [fun (get-function (:mode world) :draw)]
+      (fun world)))
 
   (draw-buffer! world)
   (draw-hint! world)
@@ -183,9 +209,15 @@
   (let [world (-> world
                   (input-indicator-mouse-scrolled event)
                   (redraw))]
-    (if (and (= (:mode world) :graph)
-             (inside-box? (:graph-box world) (:x event) (:y event)))
+    (cond
+      (and (= (:mode world) :graph)
+           (inside-box? (:graph-box world) (:x event) (:y event)))
       (graph-mode-scrolled world event)
+
+      (= (:mode world) :avatar)
+      world
+
+      :else
       (let [amount (+ 1 (* (:amount event) -0.05))]
         (zoom-camera world amount)))))
 
@@ -233,7 +265,8 @@
       (and
        (in? (:button event) [:middle :right])
        (not (and (= (:mode world) :graph)
-                 (inside-box? (:graph-box world) x y))))
+                 (inside-box? (:graph-box world) x y)))
+       (not (= (:mode world) :avatar)))
       (assoc-in world [:last-point] [x y])
 
       :else

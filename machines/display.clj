@@ -2,14 +2,14 @@
 [wagon image]
 
 (defn get-segments-pattern [& segments]
-  (let [blanck (vec (repeat 7 [0 0 0 0]))
+  (let [blank (vec (repeat 7 [0 0 0 0]))
         coords {0 [[1 0] [2 0]] 1 [[0 1] [0 2]]
                 2 [[3 1] [3 2]] 3 [[1 3] [2 3]]
                 4 [[0 4] [0 5]] 5 [[3 4] [3 5]]
                 6 [[1 6] [2 6]]}]
     (reduce (fn [b [x y]]
               (assoc-in b [y x] 1))
-            blanck
+            blank
             (mapcat #(get coords %) segments))))
 
 (defn get-number-pattern [number]

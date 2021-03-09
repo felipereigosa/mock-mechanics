@@ -214,6 +214,70 @@
 
 (declare motherboard-activation-count)
 (declare spheres-moving?)
+(declare is-avatar-active?)
+
+(def joystick (atom {:buttons {:triangle :released
+                               :circle :released
+                               :x :released
+                               :square :released
+                               :top-left :released
+                               :top-right :released
+                               :bottom-left :released
+                               :bottom-right :released
+                               :select :released
+                               :start :released
+                               :left-stick :released
+                               :right-stick :released}
+                     :axes {:horizontal 0.0
+                            :vertical 0.0}}))
+
+(defn update-joystick-buttons [joystick]
+  (let [button-array (GLFW/glfwGetJoystickButtons GLFW/GLFW_JOYSTICK_1)
+        names [:triangle :circle :x :square  :top-left :top-right
+               :bottom-left :bottom-right :select :start :left-stick :right-stick]]
+    (reduce (fn [j n]
+              (let [name (nth names n)
+                    bit (.get button-array n)
+                    old-value (get-in j [:buttons name])
+                    new-value (case old-value
+                                :pressed
+                                (if (= bit 1)
+                                  :repeated
+                                  :released)
+
+                                :released
+                                (if (= bit 1)
+                                  :pressed
+                                  :released)
+
+                                :repeated
+                                (if (= bit 1)
+                                  :repeated
+                                  :released)
+
+                                :released)]
+                (assoc-in j [:buttons name] new-value)))
+            joystick
+            (range (count names)))))
+
+(defn update-joystick-axes [joystick]
+  (let [array (GLFW/glfwGetJoystickAxes GLFW/GLFW_JOYSTICK_1)
+        joystick (assoc-in joystick [:axes :horizontal] (int (.get array 0)))
+        joystick (assoc-in joystick [:axes :vertical] (int (.get array 1)))]
+    joystick))
+
+(defn update-joystick! []
+  (let [old-joystick @joystick]
+    (swap! joystick update-joystick-buttons)
+    (swap! joystick update-joystick-axes)
+    (when (not= old-joystick @joystick)
+      (reset! time-since-update 0))))
+
+(defn joystick-button-pressed? [button-name]
+  (= (get-in @joystick [:buttons button-name]) :pressed))
+
+(defn joystick-button-repeated? [button-name]
+  (= (get-in @joystick [:buttons button-name]) :repeated))
 
 (defn update-and-draw! [window]
   (try
@@ -225,10 +289,10 @@
           ;; (:forces-active? @world)
           (spheres-moving? @world)
           (not (nil? (:mouse-force @world)))
+          (is-avatar-active? @world)
           )
     (let [current-time (get-current-time)
           elapsed (within (- current-time @last-time) 0 40)]
-      ;; (println "update" (rand)) ;;#######################
       (reset! last-time current-time)
       (GL11/glClear (bit-or GL11/GL_COLOR_BUFFER_BIT
                             GL11/GL_DEPTH_BUFFER_BIT))
@@ -243,16 +307,22 @@
 
       (swap! time-since-update #(+ elapsed %))
 
-      (if (and (in? (:mode @world) [:simulation :graph :motherboard :property])
+      (when (and (in? (:mode @world) [:simulation :graph
+                                    :motherboard :property
+                                    :avatar])
                (or
                 (any-chip-active? @world)
                 (> @motherboard-activation-count 0)))
         (reset! time-since-update 0))
+
       )
     (sleep 5))
   
   (GLFW/glfwPollEvents)
-  )
+
+  (when (= (:mode @world) :avatar)
+    (update-joystick!)
+  ))
 
 (defn loop! [window]
   (try
@@ -1275,4 +1345,3 @@
                                       (nth corners index)) indices)))]
     (create-wireframe-mesh vertices position rotation
                            scale color-name)))
-
