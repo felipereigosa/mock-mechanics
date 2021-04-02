@@ -206,9 +206,10 @@
 
 (defn add-mode-moved [world event]
   (let [world (set-track-head world event)
-        grain-size (if (:shift-pressed world)
-                     0.05
-                     0.25)]
+        grain-size (cond
+                     (:shift-pressed world) 0.05
+                     (:control-pressed world) 0.01
+                     :else 0.25)]
     (move-part-moved world event :grain grain-size)))
 
 (defn add-mode-released [world event]

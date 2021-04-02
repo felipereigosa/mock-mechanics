@@ -3,6 +3,7 @@
 
 (defn get-bindings []
   {"A-d" #(change-mode % :debug)
+   "A-q" #(update-in % [:draw-update-cube] not)
 
    "A-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)
@@ -78,9 +79,6 @@
    "A-t" #(change-mode % :toggle)
 
    "A-f" #(change-mode % :avatar)
-   ":avatar a" (fn [w]
-                 (println! "move left")
-                 w)
    
    "A-s" #(change-mode % :simulation)
 
@@ -88,7 +86,7 @@
               (new-file)
               (tree-changed))
    
-   "C-c" #(view-all-parts %)
+   "C-c" #(reset-camera %)
 
    "C-s" #(save-machine-version %)
    "C-x s" #(-> %
@@ -191,6 +189,11 @@
           (:text-input world)
           (text-input-key-pressed world event)
 
+          (and
+           (= (:mode world) :avatar)
+           (avatar-key? key))
+          (avatar-key-pressed world key)
+
           (string? key)
           (-> world
               (update-in [:command] (fn [c]
@@ -209,4 +212,10 @@
       (= key-name :control) (assoc-in world [:control-pressed] false)
       (= key-name :shift) (assoc-in world [:shift-pressed] false)
       (= key-name :alt) (assoc-in world [:alt-pressed] false)
+
+      (and
+       (= (:mode world) :avatar)
+       (avatar-key? key-name))
+      (avatar-key-released world key-name)
+
       :else world)))

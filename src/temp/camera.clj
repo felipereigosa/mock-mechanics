@@ -112,10 +112,8 @@
                             (map #(get-transform-position (:transform %))
                                  (vals real-parts)))
                     (/ 1.0 (count real-parts)))
-            distance 50 ;;############################
-            ]
+            distance 50]
         (-> world
             (assoc-in [:camera :pivot] center)
             (assoc-in [:camera :distance] distance)
             (compute-camera))))))
-

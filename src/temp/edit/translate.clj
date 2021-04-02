@@ -20,7 +20,6 @@
           (if (= (:type part) :wagon)
             (let [old-parent-name (get-parent-part world selected-part)
                   new-parent-name (:part-name collision)]
-              ;;##################### if new-parent is track
               (-> world
                   (dissoc-in [:parts old-parent-name :children selected-part])
                   (add-wagon-to-track selected-part new-parent-name event)))
@@ -30,10 +29,14 @@
                   subtree (get-tree-with-root (:parts world) selected-part)]
               (if (and (can-place-part-at? world collision)
                        (not (in? new-parent-name subtree)))
-                (-> world
-                    (dissoc-in [:parts old-parent-name :children selected-part])
-                    (place-part-at selected-part collision)
-                    (move-part-pressed selected-part nil))
+                (let [world (-> world
+                                (dissoc-in [:parts old-parent-name :children selected-part])
+                                (place-part-at selected-part collision))]
+                  (if (= (:type new-parent) :track)
+                    world
+                    (-> world
+                        (move-part-pressed selected-part nil)
+                        (move-part-moved event :grain 0.25))))
                 world))))
         world))
     world))

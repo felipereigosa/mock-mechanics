@@ -152,6 +152,8 @@
                   get-part-position #(get-part-position
                                       (compute-transforms @world :parts) %)
 
+                  get-color #(get-thing! [:parts % :color])
+
                   wait (fn [pred]
                          (while (pred) (sleep 50))
                          (sleep 100))
@@ -203,6 +205,7 @@
                                               :y 100000
                                               :line pointer})
                                       press-function (get-function mode :pressed)
+                                      move-function (get-function mode :moved)
                                       release-function (get-function mode :released)
                                       s (in? :shift keys)
                                       c (in? :control keys)
@@ -211,6 +214,7 @@
                                             (assoc-in [:shift-pressed] s)
                                             (assoc-in [:control-pressed] c)
                                             (press-function spec)
+                                            (move-function spec)
                                             (release-function spec)
                                             (assoc-in [:shift-pressed] false)
                                             (assoc-in [:control-pressed] false))]

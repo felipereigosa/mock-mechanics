@@ -205,7 +205,7 @@
                     (create-weld-groups)
                     (save-checkpoint!)
                     (assoc-in [:use-weld-groups] true))]
-      (user-message! "opened " filename)
+      (user-message! "imported " filename)
       world)
     (catch Exception e
       (user-message! "cannot open" text)

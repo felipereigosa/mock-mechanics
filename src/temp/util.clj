@@ -37,7 +37,7 @@
   (Math/pow n e))
 
 (defn round [n]
-  (Math/round n))
+  (Math/round (float n)))
 
 (defn cartesian-to-polar [ox oy x y]
   (let [x (- x ox)

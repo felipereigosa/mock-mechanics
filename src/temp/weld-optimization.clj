@@ -144,7 +144,7 @@
                              (or
                               (in? (:type part) [:probe :lamp :button :display])
                               (and (= (:type part) :block)
-                                   (:collision part))
+                                   (:solid part))
                               ))
                            parts))
         rrt (apply merge (map #(get-relative-transform % parts groups)
@@ -159,7 +159,6 @@
           root-transform (:transform root)]
       (combine-transforms transform root-transform))
     (get-in world [:parts part-name :transform])))
-
 
 (defn create-weld-groups [world]
   (reset! the-thread (Thread/currentThread))

@@ -216,68 +216,7 @@
 (declare spheres-moving?)
 (declare is-avatar-active?)
 
-(def joystick (atom {:buttons {:triangle :released
-                               :circle :released
-                               :x :released
-                               :square :released
-                               :top-left :released
-                               :top-right :released
-                               :bottom-left :released
-                               :bottom-right :released
-                               :select :released
-                               :start :released
-                               :left-stick :released
-                               :right-stick :released}
-                     :axes {:horizontal 0.0
-                            :vertical 0.0}}))
-
-(defn update-joystick-buttons [joystick]
-  (let [button-array (GLFW/glfwGetJoystickButtons GLFW/GLFW_JOYSTICK_1)
-        names [:triangle :circle :x :square  :top-left :top-right
-               :bottom-left :bottom-right :select :start :left-stick :right-stick]]
-    (reduce (fn [j n]
-              (let [name (nth names n)
-                    bit (.get button-array n)
-                    old-value (get-in j [:buttons name])
-                    new-value (case old-value
-                                :pressed
-                                (if (= bit 1)
-                                  :repeated
-                                  :released)
-
-                                :released
-                                (if (= bit 1)
-                                  :pressed
-                                  :released)
-
-                                :repeated
-                                (if (= bit 1)
-                                  :repeated
-                                  :released)
-
-                                :released)]
-                (assoc-in j [:buttons name] new-value)))
-            joystick
-            (range (count names)))))
-
-(defn update-joystick-axes [joystick]
-  (let [array (GLFW/glfwGetJoystickAxes GLFW/GLFW_JOYSTICK_1)
-        joystick (assoc-in joystick [:axes :horizontal] (int (.get array 0)))
-        joystick (assoc-in joystick [:axes :vertical] (int (.get array 1)))]
-    joystick))
-
-(defn update-joystick! []
-  (let [old-joystick @joystick]
-    (swap! joystick update-joystick-buttons)
-    (swap! joystick update-joystick-axes)
-    (when (not= old-joystick @joystick)
-      (reset! time-since-update 0))))
-
-(defn joystick-button-pressed? [button-name]
-  (= (get-in @joystick [:buttons button-name]) :pressed))
-
-(defn joystick-button-repeated? [button-name]
-  (= (get-in @joystick [:buttons button-name]) :repeated))
+(def avatar-active-time (atom 10000))
 
 (defn update-and-draw! [window]
   (try
@@ -285,12 +224,11 @@
     (catch Exception e))
   
   (if (or (< @time-since-update 200)
+          (< @avatar-active-time 2000)
           ;; (not (empty? (:spheres @world)))
           ;; (:forces-active? @world)
           (spheres-moving? @world)
-          (not (nil? (:mouse-force @world)))
-          (is-avatar-active? @world)
-          )
+          (not (nil? (:mouse-force @world))))
     (let [current-time (get-current-time)
           elapsed (within (- current-time @last-time) 0 40)]
       (reset! last-time current-time)
@@ -314,15 +252,11 @@
                 (any-chip-active? @world)
                 (> @motherboard-activation-count 0)))
         (reset! time-since-update 0))
-
       )
     (sleep 5))
   
   (GLFW/glfwPollEvents)
-
-  (when (= (:mode @world) :avatar)
-    (update-joystick!)
-  ))
+  )
 
 (defn loop! [window]
   (try
@@ -1096,12 +1030,12 @@
 (defn parse-line [line]
   (map read-string (rest (.split line " "))))
 
-(defn parse-material [lines]
+(defn parse-material [directory lines]
   (let [name (subs (find-line lines "newmtl") 7)
         texture-line (find-line lines "map_Kd")]
     {name {:diffuse (parse-line (find-line lines "Kd"))
            :texture (if texture-line
-                      (str "res/" (subs texture-line 7)))}}))
+                      (str directory "/" (subs texture-line 7)))}}))
 
 (defn parse-materials [filename]
   (with-open [reader (clojure.java.io/reader filename)]
@@ -1111,10 +1045,11 @@
                               (.startsWith line "Kd")
                               (.startsWith line "map_Kd")))
                         lines)
+          directory (subs filename 0 (.lastIndexOf filename "/"))
           materials (create-groups [] #(.startsWith % "newmtl") lines)]
       (apply merge (cons {"white" {:diffuse [1 1 1]
                                    :texture nil}}
-                         (map parse-material materials))))))
+                         (map #(parse-material directory %) materials))))))
 
 (defn parse-line-with-slashes [line]
   (map (fn [item]

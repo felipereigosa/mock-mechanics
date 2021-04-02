@@ -101,10 +101,14 @@
                 (assoc-in [:parts] parts)
                 (add-wagon-to-track copy-part-name new-parent-name event))
             (if (can-place-part-at? world collision)
-              (-> world
-                  (assoc-in [:parts] parts)
-                  (place-part-at copy-part-name collision)
-                  (move-part-pressed copy-part-name nil))
+              (let [world (-> world
+                              (assoc-in [:parts] parts)
+                              (place-part-at copy-part-name collision))]
+                (if (= (:type new-parent) :track)
+                  world
+                  (-> world
+                      (move-part-pressed copy-part-name nil)
+                      (move-part-moved event :grain 0.25))))
               world)))
         world))
     world))

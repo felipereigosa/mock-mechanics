@@ -56,6 +56,7 @@
 (declare delete-all-spheres)
 (declare create-physics-world)
 (declare create-layer-info)
+(declare reset-avatar)
 
 (defn new-file [world]
   (set-title! "-")
@@ -68,6 +69,7 @@
       (change-mode :simulation)
       (create-layer-info)
       (create-physics-world)
+      (reset-avatar)
       (redraw)))
 
 (defn place-box [world name & {:keys [rx ry wx wy ox oy]}]

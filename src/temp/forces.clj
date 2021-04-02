@@ -288,9 +288,10 @@
 
 (defn apply-forces [world elapsed]
   (let [mouse-force (update-mouse-force world)
-        forces (remove-nil (cons mouse-force
-                                 (get-collision-forces world)
-                                 ))]
+        avatar-force (get-in world [:avatar :force])
+        forces (remove-nil (concat [mouse-force avatar-force]
+                                 ;; (get-collision-forces world)
+                                   ))]
     (reduce (fn [w force]
               (apply-force w force elapsed))
             world

@@ -430,7 +430,7 @@
                 property (nth (get-in world [:properties])
                               (:selected-property world))
                 color (if (and (float= (:value lamp) 0)
-                               (in? (:mode world) [:simulation :motherboard :property]))
+                               (in? (:mode world) [:simulation :motherboard :property :avatar]))
                         (:dark-color lamp)
                         (:color lamp))
                 

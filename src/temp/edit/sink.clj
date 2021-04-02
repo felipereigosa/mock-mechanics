@@ -27,9 +27,10 @@
   (if-let [part-name (:edited-part world)]
     (let [mouse-line (get-spec-line world event)
           d (line-line-closest-point (:sink-line world) mouse-line)
-          grain-size (if (:shift-pressed world)
-                       0.25
-                       0.05)
+          grain-size (cond
+                       (:shift-pressed world) 0.25
+                       (:control-pressed world) 0.01
+                       :else 0.05)
           d (* grain-size (round (/ d grain-size)))
           snapped-position (vector-add (line-get-point (:sink-line world) d)
                                        (:offset world))
