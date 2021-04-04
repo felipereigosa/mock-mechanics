@@ -12,9 +12,9 @@
 
 (defn rotate-cameraman [world angle]
   (let [pivot (get-in world [:avatar :position])
-        eye (get-in world [:cameraman :position])
+        eye (get-in world [:avatar :cameraman :position])
         new-eye (vector-rotate eye pivot [0 1 0] angle)]
-    (assoc-in world [:cameraman :position] new-eye)))
+    (assoc-in world [:avatar :cameraman :position] new-eye)))
 
 (defn update-pose [world]
   (let [pose-counter (get-in world [:avatar :pose-counter])
@@ -25,7 +25,7 @@
           (update-in [:avatar :pose-index] #(mod (inc %) num-poses)))
       (update-in world [:avatar :pose-counter] inc))))
 
-(defn run-handle-direction-keys [world]
+(defn get-acceleration [world]
   (let [direction (cond
                     (and
                      (avatar-key-on? world "s")
@@ -54,16 +54,21 @@
                     
                     :else [0 0 0])]
     (if (float= (vector-length direction) 0.0)
-      world
+      [0 0 0]
       (let [[vx _ vz] (vector-normalize direction)
             angle (- (atan2 (- vz) vx) 90)
             avatar (:avatar world)
-            cameraman (:cameraman world)
+            cameraman (:cameraman avatar)
             dv (vector-subtract (:position avatar) (:position cameraman))
-            dv (assoc dv 1 0)
-            dv (vector-rotate dv [0 1 0] angle)
+            dv (assoc dv 1 0)]
+        (vector-rotate dv [0 1 0] angle)))))
+
+(defn run-handle-direction-keys [world]
+  (let [acceleration (get-acceleration world)]
+    (if (not (vector= acceleration [0 0 0]))
+      (let [avatar (:avatar world)
             velocity (:velocity avatar)
-            new-velocity (vector-add velocity dv)
+            new-velocity (vector-add velocity acceleration)
             ;; max-speed (if (not (joystick-button-released? :top-right))
             ;;             (* 2.5 (:max-speed avatar))
             ;;             (:max-speed avatar))
@@ -73,7 +78,8 @@
                            (vector-multiply
                             (vector-normalize new-velocity) max-speed)
                            new-velocity)
-            absolute-direction (vector-normalize dv)
+            absolute-direction (vector-normalize new-velocity)
+            avatar (:avatar world)
             block (get-solid-block world (:block avatar))
             block-rotation (get-rotation-component (:transform block))
             inverse-rotation (get-inverse-transform block-rotation)
@@ -81,7 +87,9 @@
         (-> world
             (update-pose)
             (assoc-in [:avatar :velocity] new-velocity)
-            (assoc-in [:avatar :relative-direction] relative-direction))))))
+            (assoc-in [:avatar :relative-direction] relative-direction)
+            ))
+      world)))
 
 (defn run-handle-other-keys [world]
   (let [keys (get-in world [:avatar :keys])]
@@ -91,7 +99,8 @@
       
       (avatar-key-pressed? world "j")
       (-> world
-          (assoc-in [:avatar :vertical-velocity] 0.15)
+          (assoc-in [:avatar :vertical-velocity] 0.2)
+          (update-in [:avatar :velocity] #(vector-multiply % 1.5))
           (change-state :jumping))
 
       (avatar-key-pressed? world "k")
@@ -139,14 +148,14 @@
       (let [avatar (:avatar world)
             velocity (:velocity avatar)
             fc (:friction-coefficient avatar)
-            block (:block avatar)
-            mesh (get-solid-block world block)
-            transform (:transform mesh)
+            block-name (:block avatar)
+            block (get-solid-block world block-name)
+            transform (:transform block)
             position (apply-transform transform
                                       (:relative-position avatar))
             new-position (vector-add position velocity)
             new-position (vector-add new-position [0 0.1 0])]
-        (if-let [ground-position (project-down world mesh new-position)]
+        (if-let [ground-position (project-down world block new-position)]
           (let [inverse-transform (get-inverse-transform transform)
                 offset (apply-transform inverse-transform ground-position)]
             (-> world
@@ -169,6 +178,8 @@
         relative-direction (:relative-direction avatar)
         rotation-transform (get-rotation-component transform)
         direction (apply-transform rotation-transform relative-direction)
+        direction (assoc-in direction [1] 0)
+        direction (vector-normalize direction)
         angle (vector-angle direction [0 0 1] [0 -1 0])]
     (-> world
         (assoc-in [:avatar :position] position)
@@ -176,8 +187,8 @@
 
 (defn update-running-state [world]
   (-> world
-      (run-handle-other-keys)
       (run-handle-direction-keys)
+      (run-handle-other-keys)
       (move-avatar)      
       (compute-avatar-transform)
       ;; (handle-collisions)

@@ -22,7 +22,12 @@
 
 (defn reset-avatar [world]
   (assoc-in world [:avatar]
-            {:velocity [0 0 0]
+            {:cameraman {:position [0 0 70]
+                         :distance 30
+                         :height 15
+                         }
+             :acceleration [0 0 0]
+             :velocity [0 0 0]
              :block :ground
              :relative-position [0 0.25 0]
              :relative-direction [0 0 1]
@@ -32,13 +37,16 @@
                      :jumping (load-poses "jump")}
              :pose-index 0
              :pose-counter 0
-             :max-speed 0.045
+             :max-speed 0.06
              :state :running
              :friction-coefficient 0.8
              :vertical-velocity 0.0
              :shadow-mesh (create-model-mesh "res/cylinder.obj"
                                              [0 0 0] [1 0 0 0]
                                              1 :black)
+             :rope-mesh (create-model-mesh "res/rope.obj"
+                                             [0 0 0] [1 0 0 0]
+                                             1 :red)
              :keys (apply merge (map (fn [key] {key :released}) avatar-keys))
              }))
 
@@ -51,76 +59,41 @@
           (assoc-in [:transform] transform)
           (assoc-in [:scale] (:scale part))))))
 
-;; (defn project-down-full [world block point]
-;;   (let [line [point [0 -1 0]]
-;;         collision (get-mesh-collision block (:transform block)
-;;                                       (:scale block) line)
-;;         d (:d collision)]
-;;     (if (and (not-nil? d)
-;;              (< d -0.1))
-;;       nil
-;;       collision)))
-
 (defn project-down [world block point]
-  ;;###################################################
   (let [line [point [0 -1 0]]
-        [_ d ground-point]
-        (get-mesh-collision block (:transform block)
-                            (:scale block) line)]
+        [_ d point] (get-mesh-collision block (:transform block)
+                                        (:scale block) line)]
     (if (and (not-nil? d)
              (< d -0.1))
       nil
-      ground-point)))
+      point)))
 
-;; (defn get-down-collision [world point]
-;;   (->> (map (fn [block-name]
-;;               (let [block (get-solid-block world block-name)]
-;;                 (if-let [collision (project-down-full world block point)]
-;;                   [block-name collision]
-;;                   nil)))
-;;             (:block-names world))
-;;        (filter not-nil?)
-;;        (sort-by (comp second second) <)
-;;        (first)))
+(defn get-down-collision [world point]
+  (->> (map (fn [block-name]
+              (let [block (get-solid-block world block-name)]
+                (if-let [collision (get-block-collision world block point)]
+                  (conj collision block-name)
+                  nil)))
+            (:block-names world))
+       (filter not-nil?)
+       (sort-by second <)
+       (first)))
 
 (defn get-shadow-transform [world point]
-    ;; (let [;; block-transform (:transform block)
-    ;;       ;; ;; block-rotation (get-transform-rotation block-transform)
-    ;;       ;; [_ h _] point-underneath
-    ;;       ;; position (assoc-in point [1] (+ h 0.01))
-    ;;       ;; rotation [1 0 0 0]
-    ;;       ]
-    ;;   ;; (make-transform position rotation)
-    ;;   ;; nil
-    ;;   (make-transform [0 0 0] [1 0 0 0])
-  ;;   )
-
-  ;; (if-let [[block-name collision] (get-down-collision world point)]
-  ;;   (let [block (get-solid-block world block-name)
-  ;;         ;; block-transform (:transform block)
-  ;;         ;; [_ h _] (nth collision 2)
-  ;;         ;; position (assoc-in point [1] (+ h 0.01))
-  ;;         ;;       ;; rotation [1 0 0 0]
-  ;;         position (vector-add (nth collision 2) [0 0.01 0])
-  ;;         rotation [1 0 0 0]
-  ;;         ]
-  ;;     ;; (println! (get-collision-normal world collision))
-  ;;     ;; (println! collision)
-  ;;     (make-transform position rotation))
-  ;;   nil)
-  (make-transform [0 0 0] [1 0 0 0])
-  )
-   
-;; (clear-output!)
-;; (let [world @world
-;;       position (get-in world [:avatar :position])
-;;       collision [6 0.29999992596235536 [2.992332935333252 0.45603035343560916 -2.73593807220459]]
-;;       ]
-;;   ;; (println! 
-;;   ;;  (get-shadow-transform world position)
-;;   ;;  )
-;;   (println! (get-collision-normal collision) )
-;;   )
+  (if-let [collision (get-down-collision world point)]
+    (let [[index d point block-name] collision
+          block (get-solid-block world block-name)
+          triangles (partition 3 (partition 3 (:vertices block)))
+          [a b c] (nth triangles index)
+          v1 (vector-subtract b a)
+          v2 (vector-subtract c a)
+          local-normal (vector-cross-product v1 v2)
+          block-rotation (get-rotation-component (:transform block))
+          global-normal (apply-transform block-rotation local-normal)]
+      (if (< (vector-angle global-normal [0 1 0]) 60)
+        (let [position (vector-add point [0 0.001 0])
+              rotation (quaternion-from-normal global-normal)]
+          (make-transform position rotation))))))
 
 (defn draw-shadow! [world]
   (let [avatar (:avatar world)
@@ -136,6 +109,33 @@
                      (assoc-in [:scale] scale))]
         (draw-mesh! world mesh)))))
 
+;; (defn get-force-point [world]
+;;   (if-let [{:keys [part-name local-point]}
+;;            (get-in world [:avatar :force])]
+;;     (let [part (get-in world [:weld-groups part-name])
+;;           transform (:transform part)]
+;;       (apply-transform transform local-point))
+;;     (if (:pressed-part world)
+;;       (:pressed-point world)
+;;       nil)))
+
+;; (defn draw-rope! [world]
+;;   (if-let [start-point (get-force-point world)]
+;;     (let [end-point (vector-subtract
+;;                      (get-in world [:avatar :position])
+;;                      [0 0.1 0])
+;;           v (vector-subtract end-point start-point)
+;;           scale [0.02 (vector-length v) 0.02]
+;;           middle (vector-add (vector-multiply v 0.5) start-point)
+;;           rotation (quaternion-from-normal v)
+;;           transform (make-transform middle rotation)
+;;           mesh (-> (get-in world [:avatar :rope-mesh])
+;;                    (assoc-in [:scale] scale)
+;;                    (assoc-in [:transform] transform))]
+;;       (draw-mesh! world mesh))))
+;; press-point
+;; rope-mesh
+
 (defn avatar-mode-draw-3d! [world]
   (let [avatar (:avatar world)
         state (:state avatar)]
@@ -148,19 +148,21 @@
             mesh (get-in avatar [:poses state pose-index])
             mesh (assoc-in mesh [:transform] transform)]
         (draw-mesh! world mesh)
-        (draw-shadow! world)))))
+        (draw-shadow! world)
+        ;; (draw-rope! world)
+        ))))
 
 (defn normalize-cameraman [world]
   (let [avatar (:avatar world)
         avatar-position (:position avatar)
-        cameraman (:cameraman world)
+        cameraman (:cameraman avatar)
         cameraman-position (:position cameraman)
         to-cameraman (vector-normalize
                       (vector-subtract
                        cameraman-position avatar-position))
         to-cameraman (vector-multiply to-cameraman (:distance cameraman))
         new-cameraman-position (vector-add avatar-position to-cameraman)]
-    (assoc-in world [:cameraman :position] new-cameraman-position)))
+    (assoc-in world [:avatar :cameraman :position] new-cameraman-position)))
 
 (defn set-view [world]
   (let [avatar (:avatar world)
@@ -175,7 +177,7 @@
             p2 (vector-add position direction)
             matrix (get-look-at-matrix p1 p2 [0 1 0])]
         (assoc-in world [:view-matrix] matrix))
-      (let [cameraman (:cameraman world)
+      (let [cameraman (:cameraman avatar)
             avatar-position (:position avatar)
             cameraman-position (:position cameraman)
             cameraman-position (assoc cameraman-position
@@ -230,7 +232,8 @@
                       (if (in? (:type part) [:button :block :cylinder :cone :sphere])
                         (-> world
                             (assoc-in [:parts part-name :value] 1)
-                            (assoc-in [:pressed-part] part-name))
+                            (assoc-in [:pressed-part] part-name)
+                            (assoc-in [:pressed-point] point))
                         world))]
           (if-let [dof-part-name (get-first-dof world part-name)]
             (let [part (get-in world [:weld-groups dof-part-name])

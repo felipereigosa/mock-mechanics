@@ -95,12 +95,7 @@
                 (create-cube-mesh [0 -10000 0] [1 0 0 0] 0.2 :white))
 
       (reset-avatar)
-
-      (assoc-in  [:cameraman] {:position [0 0 70]
-                               :distance 30
-                               :height 15
-                               })
-
+      
       (place-elements)
       (create-weld-groups)
       (create-update-cube)
