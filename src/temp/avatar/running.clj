@@ -91,16 +91,26 @@
             ))
       world)))
 
+(defn set-jump-velocity [world vertical]
+  (let [avatar (:avatar world)
+        velocity (:velocity avatar)
+        absolute-velocity (:absolute-velocity avatar)
+        block-velocity (-> absolute-velocity
+                           (vector-subtract velocity)
+                           (vector-multiply 0.7))
+        final-velocity (-> velocity
+                           (vector-multiply 1.5)
+                           (vector-add block-velocity))]
+    (-> world
+        (assoc-in [:avatar :vertical-velocity] vertical)
+        (assoc-in [:avatar :velocity] final-velocity))))
+
 (defn run-handle-other-keys [world]
   (let [keys (get-in world [:avatar :keys])]
     (cond
-      ;; (avatar-key-pressed? world "q")
-      ;; (change-state world :vision)
-      
       (avatar-key-pressed? world "j")
       (-> world
-          (assoc-in [:avatar :vertical-velocity] 0.2)
-          (update-in [:avatar :velocity] #(vector-multiply % 1.5))
+          (set-jump-velocity 0.15)
           (change-state :jumping))
 
       (avatar-key-pressed? world "k")
@@ -126,6 +136,15 @@
           (assoc-in [:parts block-name :value] 1)
           (assoc-in [:avatar :stopped] true))
       world)))
+
+(defn project-down [world block point]
+  (let [line [point [0 -1 0]]
+        [_ d point] (get-mesh-collision block (:transform block)
+                                        (:scale block) line)]
+    (if (and (not-nil? d)
+             (< d -0.1))
+      nil
+      point)))
 
 (defn move-avatar [world]
   (let [avatar (:avatar world)
@@ -162,7 +181,7 @@
                 (assoc-in [:avatar :relative-position] offset)
                 (update-in [:avatar :velocity] #(vector-multiply % fc))))
           (-> world
-              (assoc-in [:avatar :vertical-velocity] 0.03)
+              (set-jump-velocity 0.03)
               (change-state :jumping)))))))
 
 (defn compute-avatar-transform [world]
@@ -186,10 +205,13 @@
         (assoc-in [:avatar :angle] angle))))     
 
 (defn update-running-state [world]
-  (-> world
-      (run-handle-direction-keys)
-      (run-handle-other-keys)
-      (move-avatar)      
-      (compute-avatar-transform)
-      ;; (handle-collisions)
-      ))
+  (let [avatar (:avatar world)
+        velocity (vector-subtract (:position avatar)
+                                  (:last-position avatar))]
+    (-> world
+        (assoc-in [:avatar :last-position] (:position avatar))
+        (assoc-in [:avatar :absolute-velocity] velocity)
+        (run-handle-direction-keys)
+        (run-handle-other-keys)
+        (move-avatar)
+        (compute-avatar-transform))))

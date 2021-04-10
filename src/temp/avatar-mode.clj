@@ -59,28 +59,24 @@
           (assoc-in [:transform] transform)
           (assoc-in [:scale] (:scale part))))))
 
-(defn project-down [world block point]
-  (let [line [point [0 -1 0]]
-        [_ d point] (get-mesh-collision block (:transform block)
-                                        (:scale block) line)]
-    (if (and (not-nil? d)
-             (< d -0.1))
-      nil
-      point)))
-
-(defn get-down-collision [world point]
-  (->> (map (fn [block-name]
-              (let [block (get-solid-block world block-name)]
-                (if-let [collision (get-block-collision world block point)]
-                  (conj collision block-name)
-                  nil)))
-            (:block-names world))
-       (filter not-nil?)
-       (sort-by second <)
-       (first)))
+(defn set-down-collision [world]
+  (let [point (get-in world [:avatar :position])
+        point (vector-subtract point [0 0.29 0])
+        collision (->> (map (fn [block-name]
+                              (let [block (get-solid-block world block-name)]
+                                (if-let [collision (get-mesh-collision
+                                                    block (:transform block)
+                                                    (:scale block) [point [0 -1 0]])]
+                                  (conj collision block-name)
+                                  nil)))
+                            (:block-names world))
+                       (filter not-nil?)
+                       (sort-by second <)
+                       (first))]
+    (assoc-in world [:avatar :down-collision] collision)))
 
 (defn get-shadow-transform [world point]
-  (if-let [collision (get-down-collision world point)]
+  (if-let [collision (get-in world [:avatar :down-collision])]
     (let [[index d point block-name] collision
           block (get-solid-block world block-name)
           triangles (partition 3 (partition 3 (:vertices block)))
@@ -138,19 +134,18 @@
 
 (defn avatar-mode-draw-3d! [world]
   (let [avatar (:avatar world)
-        state (:state avatar)]
-    (if (not= state :vision)
-      (let [position (:position avatar)
-            angle (:angle avatar)
-            rotation [0 1 0 angle]
-            transform (make-transform position rotation)
-            pose-index (:pose-index avatar)
-            mesh (get-in avatar [:poses state pose-index])
-            mesh (assoc-in mesh [:transform] transform)]
-        (draw-mesh! world mesh)
-        (draw-shadow! world)
-        ;; (draw-rope! world)
-        ))))
+        state (:state avatar)
+        position (:position avatar)
+        angle (:angle avatar)
+        rotation [0 1 0 angle]
+        transform (make-transform position rotation)
+        pose-index (:pose-index avatar)
+        mesh (get-in avatar [:poses state pose-index])
+        mesh (assoc-in mesh [:transform] transform)]
+    (draw-mesh! world mesh)
+    (draw-shadow! world)
+    ;; (draw-rope! world)
+    ))
 
 (defn normalize-cameraman [world]
   (let [avatar (:avatar world)
@@ -166,25 +161,15 @@
 
 (defn set-view [world]
   (let [avatar (:avatar world)
-        state (:state avatar)]
-    (if (= state :vision)
-      (let [position (vector-add (:position avatar) [0 0.1 0])
-            y-angle (:angle avatar)
-            direction (vector-rotate [0 0 1] [0 1 0] y-angle)
-            x-axis (vector-rotate [1 0 0] [0 1 0] y-angle)
-            direction (vector-rotate direction x-axis (:head-angle avatar))
-            p1 (vector-add position (vector-multiply direction -5))
-            p2 (vector-add position direction)
-            matrix (get-look-at-matrix p1 p2 [0 1 0])]
-        (assoc-in world [:view-matrix] matrix))
-      (let [cameraman (:cameraman avatar)
-            avatar-position (:position avatar)
-            cameraman-position (:position cameraman)
-            cameraman-position (assoc cameraman-position
-                                      1 (:height cameraman))
-            matrix (get-look-at-matrix cameraman-position
-                                       avatar-position [0 1 0])]
-        (assoc-in world [:view-matrix] matrix)))))
+        state (:state avatar)
+        cameraman (:cameraman avatar)
+        avatar-position (:position avatar)
+        cameraman-position (:position cameraman)
+        cameraman-position (assoc cameraman-position
+                                  1 (:height cameraman))
+        matrix (get-look-at-matrix cameraman-position
+                                   avatar-position [0 1 0])]
+    (assoc-in world [:view-matrix] matrix)))
 
 (defn get-state-function [state fn-name]
   (let [fn-name (subs (str fn-name) 1)
@@ -323,6 +308,7 @@
 
   (-> world
       (update-state)
+      (set-down-collision)
       (update-avatar-force)
       (update-in [:avatar :keys] update-keys)
       (normalize-cameraman)

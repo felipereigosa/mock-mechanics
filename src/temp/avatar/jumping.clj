@@ -5,18 +5,6 @@
   (let [block-name (get-in world [:avatar :block])]
     (assoc-in world [:parts block-name :value] 0)))
 
-(defn get-end-block [world point]
-  (->> (map (fn [block-name]
-              (let [block (get-solid-block world block-name)
-                    block-point (project-down world block point)]
-                (if (and (not-nil? block-point)
-                         (< (distance block-point point) 0.5))
-                  [block-name block-point]
-                  nil)))
-            (:block-names world))
-       (filter not-nil?)
-       (first)))
-
 (defn set-new-relative-transform [world block-name point]
   (let [block (get-solid-block world block-name)
         transform (:transform block)
@@ -68,9 +56,17 @@
     (avatar-key-on? world "o") (rotate-cameraman world 2)
     :else world))
 
+(defn get-end-block [world point]
+  (let [avatar (:avatar world)
+        [_ _ block-point block-name] (:down-collision avatar)]
+    (if (and (not-nil? block-point)
+             (< (distance block-point point) 0.3))
+      [block-name block-point]
+      nil)))
+
 (defn update-jumping-state [world]
   (let [avatar (:avatar world)
-        v (+ (:vertical-velocity avatar) -0.016)
+        v (+ (:vertical-velocity avatar) -0.01)
         vertical-velocity (vector-multiply [0 1 0] v)        
         horizontal-velocity (:velocity avatar)
         velocity (vector-add vertical-velocity horizontal-velocity)
