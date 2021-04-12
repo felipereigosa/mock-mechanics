@@ -21,22 +21,22 @@
         (assoc-in [:avatar :relative-direction] relative-direction))))
 
 (defn jump-handle-direction-keys [world]
-  ;; (let [acceleration (get-acceleration world)]
-  ;;   (if (not (vector= acceleration [0 0 0]))
-  ;;     (let [avatar (:avatar world)
-  ;;           velocity (:velocity avatar)
-  ;;           new-velocity (vector-add velocity acceleration)
-  ;;           max-speed (:max-speed avatar)
-  ;;           new-velocity (if (> (vector-length new-velocity) max-speed)
-  ;;                          (vector-multiply
-  ;;                           (vector-normalize new-velocity) max-speed)
-  ;;                          new-velocity)]
-  ;;       ;; (assoc-in world [:avatar :velocity] new-velocity)
-  ;;       world
-  ;;       )
-  ;;     world))
-  world
-  )
+  (let [acceleration (get-acceleration world)]
+    (if (not (vector= acceleration [0 0 0]))
+      (let [avatar (:avatar world)
+            velocity (:velocity avatar)
+            acceleration (vector-multiply acceleration 0.0002)
+            new-velocity (vector-add velocity acceleration)
+            max-speed (:max-speed avatar)
+            new-velocity (if (> (vector-length new-velocity) max-speed)
+                           (vector-multiply
+                            (vector-normalize new-velocity) max-speed)
+                           new-velocity)
+            angle (vector-angle [0 0 1] acceleration [0 1 0])]
+        (-> world
+            (assoc-in [:avatar :velocity] new-velocity)
+            (assoc-in [:avatar :angle] angle)))
+      world)))
 
 (defn jump-handle-keys [world]
   (cond

@@ -94,7 +94,8 @@
         v (vector-subtract p0 pl)
         n (vector-cross-product v1 v2)
         den (vector-dot-product vl n)]
-    (if (float= den 0.0)
+    (if (or (float= den 0.0)
+            (pos? (vector-dot-product n vl)))
       nil
       (let [dist (/ (vector-dot-product v n) den)
             point (line-get-point [pl vl] dist)

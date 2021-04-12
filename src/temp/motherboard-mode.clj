@@ -199,27 +199,27 @@
                                :line (probe->line probe-name)})
 
                   mode-click! (fn [mode pointer keys]
-                                (let [spec (if (keyword? pointer)
-                                             (make-spec pointer)
-                                             {:x 100000
-                                              :y 100000
-                                              :line pointer})
-                                      press-function (get-function mode :pressed)
-                                      move-function (get-function mode :moved)
-                                      release-function (get-function mode :released)
-                                      s (in? :shift keys)
-                                      c (in? :control keys)
-                                      w (-> @world
-                                            (compute-transforms :parts)
-                                            (assoc-in [:shift-pressed] s)
-                                            (assoc-in [:control-pressed] c)
-                                            (press-function spec)
-                                            (move-function spec)
-                                            (release-function spec)
-                                            (assoc-in [:shift-pressed] false)
-                                            (assoc-in [:control-pressed] false))]
-                                  (reset! world w)
-                                  nil))
+                                (swap! world
+                                       (fn [world]
+                                         (let [spec (if (keyword? pointer)
+                                                      (make-spec pointer)
+                                                      {:x 100000
+                                                       :y 100000
+                                                       :line pointer})
+                                               press-function (get-function mode :pressed)
+                                               move-function (get-function mode :moved)
+                                               release-function (get-function mode :released)
+                                               s (in? :shift keys)
+                                               c (in? :control keys)]
+                                           (-> world
+                                               (compute-transforms :parts)
+                                               (assoc-in [:shift-pressed] s)
+                                               (assoc-in [:control-pressed] c)
+                                               (press-function spec)
+                                               (move-function spec)
+                                               (release-function spec)
+                                               (assoc-in [:shift-pressed] false)
+                                               (assoc-in [:control-pressed] false))))))
 
                   get-transform (fn [part-name]
                                   (get-thing! [:parts part-name :transform]))

@@ -46,7 +46,7 @@
                                              1 :black)
              :rope-mesh (create-model-mesh "res/rope.obj"
                                              [0 0 0] [1 0 0 0]
-                                             1 :red)
+                                             1 :black)
              :keys (apply merge (map (fn [key] {key :released}) avatar-keys))
              }))
 
@@ -61,7 +61,7 @@
 
 (defn set-down-collision [world]
   (let [point (get-in world [:avatar :position])
-        point (vector-subtract point [0 0.29 0])
+        point (vector-subtract point [0 0.2 0])
         collision (->> (map (fn [block-name]
                               (let [block (get-solid-block world block-name)]
                                 (if-let [collision (get-mesh-collision
@@ -105,32 +105,30 @@
                      (assoc-in [:scale] scale))]
         (draw-mesh! world mesh)))))
 
-;; (defn get-force-point [world]
-;;   (if-let [{:keys [part-name local-point]}
-;;            (get-in world [:avatar :force])]
-;;     (let [part (get-in world [:weld-groups part-name])
-;;           transform (:transform part)]
-;;       (apply-transform transform local-point))
-;;     (if (:pressed-part world)
-;;       (:pressed-point world)
-;;       nil)))
+(defn get-force-point [world]
+  (if-let [{:keys [part-name local-point]}
+           (get-in world [:avatar :force])]
+    (let [part (get-in world [:weld-groups part-name])
+          transform (:transform part)]
+      (apply-transform transform local-point))
+    (if (:pressed-part world)
+      (:pressed-point world)
+      nil)))
 
-;; (defn draw-rope! [world]
-;;   (if-let [start-point (get-force-point world)]
-;;     (let [end-point (vector-subtract
-;;                      (get-in world [:avatar :position])
-;;                      [0 0.1 0])
-;;           v (vector-subtract end-point start-point)
-;;           scale [0.02 (vector-length v) 0.02]
-;;           middle (vector-add (vector-multiply v 0.5) start-point)
-;;           rotation (quaternion-from-normal v)
-;;           transform (make-transform middle rotation)
-;;           mesh (-> (get-in world [:avatar :rope-mesh])
-;;                    (assoc-in [:scale] scale)
-;;                    (assoc-in [:transform] transform))]
-;;       (draw-mesh! world mesh))))
-;; press-point
-;; rope-mesh
+(defn draw-rope! [world]
+  (if-let [start-point (get-force-point world)]
+    (let [end-point (vector-subtract
+                     (get-in world [:avatar :position])
+                     [0 0.1 0])
+          v (vector-subtract end-point start-point)
+          scale [0.02 (vector-length v) 0.02]
+          middle (vector-add (vector-multiply v 0.5) start-point)
+          rotation (quaternion-from-normal v)
+          transform (make-transform middle rotation)
+          mesh (-> (get-in world [:avatar :rope-mesh])
+                   (assoc-in [:scale] scale)
+                   (assoc-in [:transform] transform))]
+      (draw-mesh! world mesh))))
 
 (defn avatar-mode-draw-3d! [world]
   (let [avatar (:avatar world)
@@ -144,8 +142,7 @@
         mesh (assoc-in mesh [:transform] transform)]
     (draw-mesh! world mesh)
     (draw-shadow! world)
-    ;; (draw-rope! world)
-    ))
+    (draw-rope! world)))
 
 (defn normalize-cameraman [world]
   (let [avatar (:avatar world)

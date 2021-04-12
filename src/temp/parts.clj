@@ -540,4 +540,3 @@
 (defn get-track-direction [track]
   (let [rotation (get-rotation-component (:transform track))]
     (apply-transform rotation [0 1 0])))
-

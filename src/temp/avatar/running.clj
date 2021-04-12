@@ -69,10 +69,6 @@
       (let [avatar (:avatar world)
             velocity (:velocity avatar)
             new-velocity (vector-add velocity acceleration)
-            ;; max-speed (if (not (joystick-button-released? :top-right))
-            ;;             (* 2.5 (:max-speed avatar))
-            ;;             (:max-speed avatar))
-
             max-speed (:max-speed avatar)
             new-velocity (if (> (vector-length new-velocity) max-speed)
                            (vector-multiply
@@ -87,8 +83,7 @@
         (-> world
             (update-pose)
             (assoc-in [:avatar :velocity] new-velocity)
-            (assoc-in [:avatar :relative-direction] relative-direction)
-            ))
+            (assoc-in [:avatar :relative-direction] relative-direction)))
       world)))
 
 (defn set-jump-velocity [world vertical]
@@ -204,6 +199,21 @@
         (assoc-in [:avatar :position] position)
         (assoc-in [:avatar :angle] angle))))     
 
+(declare set-new-relative-transform)
+
+(defn climb-small-elevation [world]
+  (let [avatar (:avatar world)
+        old-block (:block avatar)
+        [_ _ point new-block] (:down-collision avatar)]
+    (if (and (not-nil? new-block)
+             (not= new-block old-block))
+      (-> world
+          (assoc-in [:parts old-block :value] 0)
+          (assoc-in [:parts new-block :value] 1)
+          (set-new-relative-transform new-block point)
+          (compute-avatar-transform))
+      world)))
+
 (defn update-running-state [world]
   (let [avatar (:avatar world)
         velocity (vector-subtract (:position avatar)
@@ -214,4 +224,7 @@
         (run-handle-direction-keys)
         (run-handle-other-keys)
         (move-avatar)
-        (compute-avatar-transform))))
+        (compute-avatar-transform)
+        (climb-small-elevation))))
+
+
