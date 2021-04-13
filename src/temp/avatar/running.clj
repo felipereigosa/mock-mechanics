@@ -223,8 +223,7 @@
         (assoc-in [:avatar :absolute-velocity] velocity)
         (run-handle-direction-keys)
         (run-handle-other-keys)
+        (handle-collisions)
         (move-avatar)
         (compute-avatar-transform)
         (climb-small-elevation))))
-
-

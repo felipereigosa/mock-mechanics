@@ -29,6 +29,7 @@
              :acceleration [0 0 0]
              :velocity [0 0 0]
              :block :ground
+             :radius 0.15
              :relative-position [0 0.25 0]
              :relative-direction [0 0 1]
              :position [0 0 0]
@@ -61,7 +62,7 @@
 
 (defn set-down-collision [world]
   (let [point (get-in world [:avatar :position])
-        point (vector-subtract point [0 0.2 0])
+        point (vector-subtract point [0 0.19 0])
         collision (->> (map (fn [block-name]
                               (let [block (get-solid-block world block-name)]
                                 (if-let [collision (get-mesh-collision
@@ -285,26 +286,83 @@
     world
     (let [avatar (:avatar world)
           avatar-force (:force avatar)
-          {:keys [part-name local-point]} avatar-force
-          rope-length (:distance avatar-force)
-          part (get-in world [:weld-groups part-name])
-          transform (:transform part)
-          p1 (apply-transform transform local-point)
-          p2 (vector-subtract (:position avatar) [0 0.1 0])
-          d (distance p1 p2)]
-      (if (> d rope-length)
-        (let [strength (- d rope-length)
-              force-vector (-> (vector-subtract p2 p1)
-                               (vector-normalize)
-                               (vector-multiply strength))]
-          (assoc-in world [:avatar :force :vector] force-vector))
+          {:keys [part-name local-point]} avatar-force]
+      (if (or (= (:block avatar) :ground)
+              (not= (get-first-dof world (:block avatar))
+                    part-name))
+        (let [rope-length (:distance avatar-force)
+              part (get-in world [:weld-groups part-name])
+              transform (:transform part)
+              p1 (apply-transform transform local-point)
+              p2 (vector-subtract (:position avatar) [0 0.1 0])
+              d (distance p1 p2)]
+          (if (> d rope-length)
+            (let [strength (- d rope-length)
+                  force-vector (-> (vector-subtract p2 p1)
+                                   (vector-normalize)
+                                   (vector-multiply strength))]
+              (assoc-in world [:avatar :force :vector] force-vector))
+            world))
         world))))
+
+(defn compute-close-blocks [world]
+  (let [avatar (:avatar world)
+        avatar-position (:position avatar)
+        avatar-radius (:radius avatar)]
+    (filter (fn [block-name]
+           (let [block (get-solid-block world block-name)
+                 transform (:transform block)
+                 position (get-transform-position transform)
+                 scale (:scale block)
+                 d (distance position avatar-position)
+                 block-radius (vector-length (map * [0.5 0.5 0.5] scale))]
+             (< d (+ block-radius avatar-radius))))
+         (:block-names world))))
+
+(defn get-planes [block]
+  (let [transform (:transform block)
+        vertices (map (fn [vertex]
+                        (apply-transform transform
+                                         (map * vertex (:scale block))))
+                      (create-combinations [-0.5 0.5]
+                                           [-0.5 0.5]
+                                           [-0.5 0.5]))
+        plane-indices [[0 2 1] [5 7 4] [1 3 5]
+                       [3 2 7] [2 0 6] [0 1 4]]]
+    (map (fn [indices]
+           (map #(nth vertices %) indices))
+         plane-indices)))
+
+(defn handle-collisions [world]
+  (let [avatar (:avatar world)
+        position (:position avatar)
+        radius (:radius avatar)
+        planes (mapcat (fn [block-name]
+                         (if (and (not= block-name :ground)
+                                  (not= block-name (:block avatar)))
+                           (get-planes (get-solid-block world block-name))
+                           nil))
+                       (:close-block-names world))]
+    (reduce (fn [w plane]
+              (let [collision-point (point-plane-projection position plane)
+                    to-point (vector-subtract collision-point position)
+                    d (vector-length to-point)]
+                (if (< d radius)
+                  (let [wrong-velocity (vector-project (:velocity avatar) to-point)]
+                    (if (pos? (vector-dot-product wrong-velocity to-point))
+                      (update-in w [:avatar :velocity]
+                                 #(vector-subtract % wrong-velocity))
+                      w))
+                  w)))
+            world
+            planes)))
 
 (defn avatar-mode-update [world elapsed]
   (reactivate-avatar! world elapsed)
 
   (-> world
       (update-state)
+      (assoc-in [:close-block-names] (compute-close-blocks world))
       (set-down-collision)
       (update-avatar-force)
       (update-in [:avatar :keys] update-keys)
