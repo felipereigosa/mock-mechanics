@@ -243,6 +243,8 @@
 
       (GLFW/glfwSwapBuffers window)
 
+      ;; (sleep 30)
+
       (swap! time-since-update #(+ elapsed %))
 
       (when (and (in? (:mode @world) [:simulation :graph

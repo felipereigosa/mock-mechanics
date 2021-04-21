@@ -214,6 +214,8 @@
           (compute-avatar-transform))
       world)))
 
+(declare handle-collisions)
+
 (defn update-running-state [world]
   (let [avatar (:avatar world)
         velocity (vector-subtract (:position avatar)

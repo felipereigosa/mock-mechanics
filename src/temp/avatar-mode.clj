@@ -157,18 +157,6 @@
         new-cameraman-position (vector-add avatar-position to-cameraman)]
     (assoc-in world [:avatar :cameraman :position] new-cameraman-position)))
 
-(defn set-view [world]
-  (let [avatar (:avatar world)
-        state (:state avatar)
-        cameraman (:cameraman avatar)
-        avatar-position (:position avatar)
-        cameraman-position (:position cameraman)
-        cameraman-position (assoc cameraman-position
-                                  1 (:height cameraman))
-        matrix (get-look-at-matrix cameraman-position
-                                   avatar-position [0 1 0])]
-    (assoc-in world [:view-matrix] matrix)))
-
 (defn get-state-function [state fn-name]
   (let [fn-name (subs (str fn-name) 1)
         function-name (str fn-name "-" (subs (str state) 1) "-state")]
@@ -356,6 +344,30 @@
                   w)))
             world
             planes)))
+
+(defn avatar-mode-released [world event]
+  (let [position (assoc-in (get-in world [:camera :eye]) [1] 0)]
+    (-> world
+        (assoc-in [:avatar :cameraman :position] position))))
+
+(defn set-view [world]
+  (if (:last-point world)
+    world
+    (let [avatar (:avatar world)
+          state (:state avatar)
+          cameraman (:cameraman avatar)
+          pivot (:position avatar)
+          cameraman-position (:position cameraman)
+          eye (assoc (:position cameraman)
+                     1 (:height cameraman))
+          to-eye (vector-subtract eye pivot)
+          x-angle (- 90 (vector-angle to-eye [0 1 0]))
+          y-angle (vector-angle (assoc to-eye 1 0) [0 0 1] [0 1 0])]
+      (-> world
+          (assoc-in [:camera :x-angle] x-angle)
+          (assoc-in [:camera :y-angle] y-angle)
+          (assoc-in [:camera :pivot] pivot)
+          (compute-camera)))))
 
 (defn avatar-mode-update [world elapsed]
   (reactivate-avatar! world elapsed)

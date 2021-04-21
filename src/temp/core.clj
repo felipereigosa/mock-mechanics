@@ -196,9 +196,6 @@
            (inside-box? (:graph-box world) (:x event) (:y event)))
       (graph-mode-scrolled world event)
 
-      (= (:mode world) :avatar)
-      world
-
       :else
       (let [amount (+ 1 (* (:amount event) -0.05))]
         (zoom-camera world amount)))))
@@ -247,8 +244,7 @@
       (and
        (in? (:button event) [:middle :right])
        (not (and (= (:mode world) :graph)
-                 (inside-box? (:graph-box world) x y)))
-       (not (= (:mode world) :avatar)))
+                 (inside-box? (:graph-box world) x y))))
       (assoc-in world [:last-point] [x y])
 
       :else
@@ -275,7 +271,11 @@
         world (-> world
                   (dissoc-in [:press-point])
                   (input-indicator-mouse-released event)
-                  (redraw))]
+                  (redraw))
+
+        world (if (= (:mode world) :avatar)
+                (mode-mouse-released world event)
+                world)]
     (if (not-nil? (:last-point world))
       (dissoc-in world [:last-point])
       (mode-mouse-released world event))))
