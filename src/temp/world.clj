@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (def world (atom {}))
 
 (defn set-thing! [path value]

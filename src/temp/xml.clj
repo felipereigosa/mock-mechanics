@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (require '[clojure.xml :refer [parse]])
 
 (defn get-children [map child-name]

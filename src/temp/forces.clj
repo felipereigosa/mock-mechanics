@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 ;; (defn get-weld-parent-part [world part-name]
 ;;   (let [weld-groups (:weld-groups world)]
 ;;     (find-if (fn [name]
@@ -296,8 +294,6 @@
               (apply-force w force elapsed))
             world
             forces)))
-
-;; (ns temp.core (:gen-class))
 
 ;; (defn get-scaled-transform [scale transform]
 ;;   (let [[sx sy sz] scale

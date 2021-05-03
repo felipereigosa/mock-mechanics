@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (declare compute-subtree-transforms)
   
 (defn compute-children-transforms [world part-name transform key]

@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (declare change-state)
 (declare get-solid-block)
 (declare project-down)

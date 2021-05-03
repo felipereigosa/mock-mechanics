@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn get-display-plane [display]
   (let [rotation (:transform display)]
     [(apply-transform rotation [0 0.025 0])

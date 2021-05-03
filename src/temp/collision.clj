@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn project-point [world point]
   (let [p-matrix (:projection-matrix world)
         v-matrix (:view-matrix world)

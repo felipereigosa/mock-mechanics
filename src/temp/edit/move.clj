@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn get-block-plane [block normal]
   (let [transform (:transform block)
         rotation-transform (get-rotation-component transform)

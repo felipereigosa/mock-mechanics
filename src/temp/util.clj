@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (import java.awt.Color)
 (import java.io.File)
 

@@ -71,6 +71,7 @@
       (assoc-in [:add-menu]
                 (create-picture "add-menu" 726 675 -1 50))
       (assoc-in [:add-type] :block)
+      (assoc-in [:add-offset] 0)
 
       (assoc-in [:edit-menu]
                 (create-picture "edit-menu" 210 575 -1 50))
@@ -93,6 +94,9 @@
 
       (assoc-in [:track-head-model]
                 (create-cube-mesh [0 -10000 0] [1 0 0 0] 0.2 :white))
+
+      (assoc-in [:cage] (create-wireframe-cube [0 0 0] [1 0 0 0]
+                                               [1 1 1] :white))
 
       (reset-avatar)
       
@@ -134,12 +138,14 @@
 
   (draw-spheres! world)
 
-  (if (= (:mode world) :avatar)
-    (avatar-mode-draw-3d! world))
+  (if-let [fun (get-function (:mode world) :draw-3d)]
+    (fun world))
   
   (if (:use-weld-groups world)
-    (doseq [group (vals (:weld-groups world))]
-      (draw-mesh! world group))
+    (do
+      (doseq [group (vals (:weld-groups world))]
+        (draw-mesh! world group))
+      (draw-textured-parts! world))
     (doseq [[name part] (:parts world)]
       (if (or (= name :ground-part)
               (not (in? (:layer part) (:visible-layers world))))

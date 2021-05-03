@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn change-keys
   ([map suffix]
    (change-keys map suffix nil))

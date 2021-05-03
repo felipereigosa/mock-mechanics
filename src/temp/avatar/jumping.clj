@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn enter-jumping-state [world]
   (let [block-name (get-in world [:avatar :block])]
     (assoc-in world [:parts block-name :value] 0)))
@@ -87,4 +85,5 @@
           (assoc-in [:avatar :position] new-position)
           (assoc-in [:avatar :vertical-velocity] v)
           (jump-handle-keys)
-          (jump-handle-direction-keys)))))
+          (jump-handle-direction-keys)
+          (handle-collisions)))))

@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (declare get-parts-with-type)
 (declare get-tail-transform)
 (declare get-part-position)
@@ -104,6 +102,7 @@
   (let [oy (- (+ (* (:num-lines world) 16) 10))
         menu-offset (if (:show-submenu world) 30 0)]
     (-> world
+        (assoc-in [:add-offset] 0)
         (place-box :action-menu :rx 0.6 :ry 0.5 :oy 10)
         (place-box :mode-menu :rx -0.6 :ry 0.5 :oy 10)
         (place-box :add-menu :wx 0.5 :ry -0.6 :oy oy)

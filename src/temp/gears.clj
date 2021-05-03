@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (declare get-track-plane)
 
 (defn set-partner-values [world part-name]

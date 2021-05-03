@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (declare get-body-transform)
 (declare make-sphere)
 
@@ -77,6 +75,11 @@
                  (-> part
                      (create-display-texture)
                      (modify-field :texture #(get-complex-texture % colors))))
+               part)
+        part (if (not (empty? (:skin part)))
+               (assoc-in part [:model]
+                         (create-model-mesh (str "res/" (:skin part) ".obj")
+                                            [0 0 0] [1 0 0 0] [1 1 1] nil))
                part)]
     (-> part
         (assoc-in [:transform] (make-transform [0 0 0] [1 0 0 0]))

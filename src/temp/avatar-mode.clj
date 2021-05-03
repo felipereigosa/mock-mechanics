@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (load "avatar/running")
 (load "avatar/jumping")
 
@@ -29,7 +27,7 @@
              :acceleration [0 0 0]
              :velocity [0 0 0]
              :block :ground
-             :radius 0.15
+             :radius 0.20
              :relative-position [0 0.25 0]
              :relative-direction [0 0 1]
              :position [0 0 0]
@@ -70,7 +68,7 @@
                                                     (:scale block) [point [0 -1 0]])]
                                   (conj collision block-name)
                                   nil)))
-                            (:block-names world))
+                            (:close-block-names world))
                        (filter not-nil?)
                        (sort-by second <)
                        (first))]
@@ -131,7 +129,7 @@
                    (assoc-in [:transform] transform))]
       (draw-mesh! world mesh))))
 
-(defn avatar-mode-draw-3d! [world]
+(defn avatar-mode-draw-3d [world]
   (let [avatar (:avatar world)
         state (:state avatar)
         position (:position avatar)
@@ -199,13 +197,13 @@
     (if-let [{:keys [part-name point distance]}
              (get-part-collision (compute-transforms world :parts) spec)]
       (if (< distance 1.0)
-        (let [world (let [part (get-in world [:parts part-name])]
-                      (if (in? (:type part) [:button :block :cylinder :cone :sphere])
-                        (-> world
-                            (assoc-in [:parts part-name :value] 1)
-                            (assoc-in [:pressed-part] part-name)
-                            (assoc-in [:pressed-point] point))
-                        world))]
+        (let [part (get-in world [:parts part-name])
+              world (if (in? (:type part) [:button :block :cylinder :cone :sphere])
+                      (-> world
+                          (assoc-in [:parts part-name :value] 1)
+                          (assoc-in [:pressed-part] part-name)
+                          (assoc-in [:pressed-point] point))
+                      world)]
           (if-let [dof-part-name (get-first-dof world part-name)]
             (let [part (get-in world [:weld-groups dof-part-name])
                   transform (:transform part)
@@ -296,7 +294,7 @@
 (defn compute-close-blocks [world]
   (let [avatar (:avatar world)
         avatar-position (:position avatar)
-        avatar-radius (:radius avatar)]
+        avatar-radius (* 2 (:radius avatar))]
     (filter (fn [block-name]
            (let [block (get-solid-block world block-name)
                  transform (:transform block)
@@ -307,35 +305,25 @@
              (< d (+ block-radius avatar-radius))))
          (:block-names world))))
 
-(defn get-planes [block]
+(defn point-block-projection [point block]
   (let [transform (:transform block)
-        vertices (map (fn [vertex]
-                        (apply-transform transform
-                                         (map * vertex (:scale block))))
-                      (create-combinations [-0.5 0.5]
-                                           [-0.5 0.5]
-                                           [-0.5 0.5]))
-        plane-indices [[0 2 1] [5 7 4] [1 3 5]
-                       [3 2 7] [2 0 6] [0 1 4]]]
-    (map (fn [indices]
-           (map #(nth vertices %) indices))
-         plane-indices)))
+        inverse-transform (get-inverse-transform transform)
+        local-point (apply-transform inverse-transform point)
+        scale (map #(* 0.5 %) (:scale block))
+        bounded-point (map (fn [p s]
+                             (within p (- s) s)) local-point scale)]
+    (apply-transform transform bounded-point)))
 
 (defn handle-collisions [world]
   (let [avatar (:avatar world)
         position (:position avatar)
-        radius (:radius avatar)
-        planes (mapcat (fn [block-name]
-                         (if (and (not= block-name :ground)
-                                  (not= block-name (:block avatar)))
-                           (get-planes (get-solid-block world block-name))
-                           nil))
-                       (:close-block-names world))]
-    (reduce (fn [w plane]
-              (let [collision-point (point-plane-projection position plane)
+        radius (:radius avatar)]
+    (reduce (fn [w block-name]
+              (let [block (get-solid-block world block-name)
+                    collision-point (point-block-projection position block)
                     to-point (vector-subtract collision-point position)
                     d (vector-length to-point)]
-                (if (< d radius)
+                (if (< 0.0 d radius)
                   (let [wrong-velocity (vector-project (:velocity avatar) to-point)]
                     (if (pos? (vector-dot-product wrong-velocity to-point))
                       (update-in w [:avatar :velocity]
@@ -343,7 +331,7 @@
                       w))
                   w)))
             world
-            planes)))
+            (:close-block-names world))))
 
 (defn avatar-mode-released [world event]
   (let [position (assoc-in (get-in world [:camera :eye]) [1] 0)]
@@ -371,7 +359,6 @@
 
 (defn avatar-mode-update [world elapsed]
   (reactivate-avatar! world elapsed)
-
   (-> world
       (update-state)
       (assoc-in [:close-block-names] (compute-close-blocks world))

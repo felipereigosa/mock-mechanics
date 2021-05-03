@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (def output (atom ""))
 
 (defn draw-mode-text! [world]

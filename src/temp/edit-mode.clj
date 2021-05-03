@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (load "edit/move")
 (load "edit/sink")
 (load "edit/rotate")
@@ -11,6 +9,18 @@
 
 (defn edit-mode-entered [world]
   (dissoc-in world [:selected-part]))
+
+(defn edit-mode-draw-3d [world]
+  (doseq [[part-name part] (:parts world)]
+    (if (and (= (:type part) :block)
+             (not-nil? (:model part)))
+      (let [transform (combine-transforms
+                       (:transform part)
+                       (make-transform [0 0.001 0] [1 0 0 0]))
+            cage (-> (:cage world)
+                     (assoc-in [:scale] (:scale part))
+                     (assoc-in [:transform] transform))]
+        (draw-mesh! world cage)))))
 
 (defn edit-mode-draw [world]
   (let [edit-menu (:edit-menu world)]

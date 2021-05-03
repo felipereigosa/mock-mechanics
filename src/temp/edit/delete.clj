@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (declare get-sphere-at)
 (declare prune-connections)
 

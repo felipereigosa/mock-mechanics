@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn get-properties [world]
   (if-let [part-name (:selected-part world)]
     (let [part (get-in world [:parts part-name])
@@ -42,13 +40,32 @@
 
 (declare activate-chip)
 
+(defn set-skin [world part-name value]
+  (if (empty? value)
+    (-> world
+        (assoc-in [:parts part-name :skin] value)
+        (dissoc-in [:parts part-name :model])
+        (tree-changed))
+    (-> world
+        (assoc-in [:parts part-name :skin] value)
+        (assoc-in [:parts part-name :model]
+                  (create-model-mesh (str "res/" value ".obj")
+                                     [0 0 0] [1 0 0 0] [1 1 1] nil))
+        (tree-changed))))
+
 (defn set-part-value [world key]
   (let [part-name (:selected-part world)
         part (get-in world [:parts part-name])]
     (read-input world
                 (fn [w text]
-                  (let [value (read-string text)]
-                    (if (= key :value)
+                  (let [value (try
+                                (read-string text)
+                                (catch Exception e ""))
+                        value (if (symbol? value)
+                                text
+                                value)]
+                    (case key
+                      :value
                       (let [world (case (:type part)
                                     :wagon
                                     (assoc-in world [:parts part-name key]
@@ -75,6 +92,9 @@
                         (-> world
                             (enforce-gears part-name)
                             (tree-changed)))
+
+                      :skin (set-skin world part-name value)
+
                       (assoc-in world [:parts part-name key] value)))))))
 
 (defn set-property [world x y]

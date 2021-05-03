@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (declare move-part-pressed)
 (declare move-part-moved)
 (declare move-part-released)
@@ -8,15 +6,17 @@
 (declare get-loop-value)
 
 (defn add-mode-draw [world]
-  (let [add-menu (:add-menu world)]
+  (let [add-menu (:add-menu world)
+        offset (:add-offset world)]
     (let [{:keys [image x y w h]} add-menu]
-      (fill-rect! (make-color 70 70 70) x y (+ w 30) (+ h 20))
-      (draw-image! image x y))
+      (fill-rect! (make-color 70 70 70) (+ x offset) y (+ w 30) (+ h 20))
+      (draw-image! image (+ x offset) y))
 
-    (let [box (get-in add-menu [:regions (:add-type world)])
+    (let [box (or (get-in add-menu [:regions (:add-type world)])
+                  (get-in add-menu [:regions :new]))
           {:keys [x y w h]} (get-absolute-region box add-menu)]
       (dotimes [i 3]
-        (draw-rect! :black x y (- w i -2) (- h i 1))))))
+        (draw-rect! :black (+ x offset) y (- w i -2) (- h i 1))))))
 
 (defn add-wagon-to-track [world wagon-name track-name event]
   (let [transform (get-in world [:parts track-name :transform])]
@@ -157,9 +157,10 @@
                           (tree-changed))))))))
 
 (defn add-mode-pressed [world event]
-  (let [{:keys [x y]} event]
-    (if (inside-box? (:add-menu world) x y)
-      (if-let [region (get-region-at (:add-menu world) x y)]
+  (let [{:keys [x y]} event
+        offset (:add-offset world)]
+    (if (inside-box? (:add-menu world) (- x offset) y)
+      (if-let [region (get-region-at (:add-menu world) (- x offset) y)]
         (-> world
             (assoc-in [:add-type] region)
             (show-hint :add region))

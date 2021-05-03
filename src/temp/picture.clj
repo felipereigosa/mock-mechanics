@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (import org.apache.batik.transcoder.image.ImageTranscoder)
 (import java.io.FileInputStream)
 (import org.apache.batik.transcoder.image.ImageTranscoder)

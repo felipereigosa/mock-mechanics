@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (import android.opengl.Matrix)
 
 (defn get-identity-matrix []

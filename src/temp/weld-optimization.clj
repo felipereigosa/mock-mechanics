@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (declare get-parts-with-type)
 (declare get-tail-transform)
 (declare compute-transforms)
@@ -34,7 +32,8 @@
               roots))))
 
 (defn bake-part [world part]
-  (if (not (in? (:layer part) (:visible-layers world)))
+   (if (or (not (in? (:layer part) (:visible-layers world)))
+           (get-in part [:model :texture-coordinates]))
     {}
     (let [type (:type part)
           model (or (:model part)
@@ -67,7 +66,7 @@
                    (let [property-index (:selected-property world)
                          property (get-in world [:properties property-index])
                          color (if (get-in part [property])
-                                 [1 0 0 1]
+                                 [1 0 0 0]
                                  [1 1 1 0])]
                      (repeat (count vertices) color))
                    (if (empty? (:colors model))
@@ -145,6 +144,7 @@
                               (in? (:type part) [:probe :lamp :button :display])
                               (and (= (:type part) :block)
                                    (:solid part))
+                              (get-in part [:model :texture-coordinates])
                               ))
                            parts))
         rrt (apply merge (map #(get-relative-transform % parts groups)
@@ -190,4 +190,3 @@
         (create-part-bodies parts groups)
         (compute-transforms :weld-groups)
         )))
-

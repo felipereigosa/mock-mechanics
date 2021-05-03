@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn motherboard-mode-entered [world]
   (assoc-in world [:motherboard-subcommand] :move))
 

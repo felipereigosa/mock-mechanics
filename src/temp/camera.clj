@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn compute-camera [world]
   (let [camera (:camera world)
         pivot (:pivot camera)

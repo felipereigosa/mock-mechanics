@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (declare sink-mode-moved)
 
 (defn sink-mode-pressed [world event]

@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn create-input-indicator [world y]
   (let [x 105 
         w 200]

@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (import org.lwjgl.glfw.GLFW)
 
 (def keymap {GLFW/GLFW_KEY_SPACE                   nil

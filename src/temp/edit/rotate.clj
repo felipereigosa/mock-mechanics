@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn rotate-mode-pressed [world event]
   (let [{:keys [x y]} event]
     (if-let [collision (get-part-collision world event)]

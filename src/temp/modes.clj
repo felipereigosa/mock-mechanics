@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (load "property-mode")
 (load "simulation-mode")
 (load "toggle-mode")

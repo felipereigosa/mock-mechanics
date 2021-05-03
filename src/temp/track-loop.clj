@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn tracks-connected? [world t0-name t1-name]
   (let [parts (:parts world)
         t0 (get-in parts [t0-name])

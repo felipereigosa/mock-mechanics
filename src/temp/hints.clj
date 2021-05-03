@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn show-hint [world menu action]
   (if (:show-hints world)
     (let [texts {:action {:new "Ctrl + N,New File"

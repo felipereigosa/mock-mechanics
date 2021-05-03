@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn create-info []
   {:ground
    {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
@@ -9,23 +7,48 @@
 
    :block
    {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :cage (create-model-mesh "res/cage.obj"
+                             [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0.5 0 0] [-0.5 0 0]
              [0 0.5 0] [0 -0.5 0]
              [0 0 0.5] [0 0 -0.5]]
     :scale [0.5 0.5 0.5]
     :color :white
-    :properties {:value 0 :data ""}
+    :properties {:value 0 :data "" :skin ""}
     }
 
    :cylinder
    {:model (create-model-mesh "res/cylinder.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :white)
     :collision-model (create-model-mesh "res/cylinder-collision.obj"
-                              [0 0 0] [1 0 0 0] [1 1 1] :white)
+                                        [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
     :color :orange
-    :properties {:value 0}
+    :properties {:value 0 :data ""}
+    }
+
+   :cone
+   {:model (create-model-mesh "res/cone.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :collision-model (create-model-mesh "res/cone-collision.obj"
+                                        [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :points []
+    :scale [0.5 0.5 0.5]
+    :color :dark-green
+    :properties {:value 0 :data ""}
+    }
+
+   :sphere
+   {:model (create-model-mesh "res/sphere.obj"
+                              [0 0 0] [1 0 0 0]
+                              [1 1 1] :white)
+    :collision-model (create-model-mesh "res/sphere-collision.obj"
+                                        [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :points [[0 0.5 0] [0 -0.5 0]]
+    :scale [0.5 0.5 0.5]
+    :color :blue
+    :properties {:value 0 :data ""}
     }
 
    :gear
@@ -50,29 +73,6 @@
     :points [[0 0.5 0] [0 -0.5 0]]
     :scale [0.5 0.5 0.5]
     :properties {}
-    }
-
-   :sphere
-   {:model (create-model-mesh "res/sphere.obj"
-                              [0 0 0] [1 0 0 0]
-                              [1 1 1] :white)
-    :collision-model (create-model-mesh "res/sphere-collision.obj"
-                              [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :points [[0 0.5 0] [0 -0.5 0]]
-    :scale [0.5 0.5 0.5]
-    :color :blue
-    :properties {:value 0}
-    }
-
-   :cone
-   {:model (create-model-mesh "res/cone.obj"
-                              [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :collision-model (create-model-mesh "res/cone-collision.obj"
-                              [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :points []
-    :scale [0.5 0.5 0.5]
-    :color :dark-green
-    :properties {:value 0}
     }
 
    :wagon
@@ -125,7 +125,7 @@
     :white-model (create-model-mesh "res/speaker.obj"
                                     [0 0 0] [1 0 0 0] [1 1 1] :white)
     :collision-model (create-model-mesh "res/cylinder-collision.obj"
-                              [0 0 0] [1 0 0 0] [1 1 1] :white)
+                                        [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.4 0.1 0.4]
     :color :gray
@@ -165,7 +165,7 @@
     :bulb (create-model-mesh "res/bulb.obj"
                              [0 0 0] [1 0 0 0] [0.3 0.3 0.3] :red)
     :collision-model (create-model-mesh "res/cylinder-collision.obj"
-                              [0 0 0] [1 0 0 0] [1 1 1] :white)
+                                        [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.4 0.2 0.4]
     :color :red
@@ -459,6 +459,16 @@
                 mesh (-> (:texture display)
                          (assoc-in [:transform] transform))]
             (draw-mesh! world mesh)))))))
+
+(defn draw-textured-parts! [world]
+  (doseq [[part-name part] (:parts world)]
+    (if-let [model (get-in part [:model])]
+      (if (:texture-coordinates model)
+        (let [transform (use-root-relative-transform world part-name)
+              model (-> model
+                        (assoc-in [:scale] (:scale part))
+                        (assoc-in [:transform] transform))]
+          (draw-mesh! world model))))))
 
 (defn select-part [world part-name]
   (let [part (get-in world [:parts part-name])

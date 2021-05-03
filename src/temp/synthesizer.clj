@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (import '(javax.sound.midi MidiSystem Synthesizer))
 
 (def synth (doto (MidiSystem/getSynthesizer) .open))

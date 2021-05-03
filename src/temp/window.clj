@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (import org.lwjgl.glfw.GLFW)
 (import org.lwjgl.system.MemoryUtil)
 (import org.lwjgl.opengl.GL)

@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn create-layer-info [world]
   (-> world
       (assoc-in [:visible-layers] [0])
@@ -73,17 +71,6 @@
   (let [index (parse-int (subs (str region) 5))]
     (assoc-in world [:layer-names index] (str name))))
 
-(defn layer-mode-pressed [world {:keys [x y] :as event}]
-  (let [layer-box (:layer-box world)
-        region (get-region-at layer-box x y)]
-    (if (inside-box? layer-box x y)
-      (if (not-nil? region)
-        (if (.startsWith (str region) ":text")
-          (read-input world #(set-layer-name-callback %1 region %2))
-          (set-layer world (layer-name->number region)))
-        world)
-      (assoc-in world [:selected-part] (get-part-at world event)))))
-                  
 (defn move-parts-to-layer [world root-name layer-index]
   (let [names (if (:shift-pressed world)
                 (get-limited-tree (:parts world) root-name [])
@@ -93,16 +80,64 @@
             world
             names)))
 
+(defn layer-mode-pressed [world {:keys [x y] :as event}]
+  (let [layer-box (:layer-box world)
+        region (get-region-at layer-box x y)]
+    (if (inside-box? layer-box x y)
+      (if (not-nil? region)
+        (if (.startsWith (str region) ":text")
+          (assoc-in world [:pressed-layer] region)
+          (set-layer world (layer-name->number region)))
+        world)
+      (assoc-in world [:selected-part] (get-part-at world event)))))
+
+(defn move-layer [world from to]
+  (let [from (parse-int (subs (str from) 5))
+        to (parse-int (subs (str to) 5))
+        new-order (vector-insert (vector-remove (range 15) from) from to)
+        new-layer-names (vec (map (fn [n]
+                                    (nth (:layer-names world) n))
+                                  new-order))
+        order (partition 2 (range 30))
+        element (nth order from)
+        new-order (-> order
+                      (vector-remove from)
+                      (vector-insert element to)
+                      (flatten))
+        new-visible-layers (vec (map (fn [value]
+                                       (get-index value new-order))
+                                     (:visible-layers world)))]
+    (-> (reduce (fn [w part-name]
+                  (let [part (get-in world [:parts part-name])
+                        new-layer (get-index (:layer part) new-order)]
+                    (assoc-in w [:parts part-name :layer] new-layer)))
+                world
+                (keys (:parts world)))
+        (assoc-in [:visible-layers] new-visible-layers)
+        (assoc-in [:layer-names] new-layer-names))))
+
 (defn layer-mode-released [world {:keys [x y]}]
   (let [layer-box (:layer-box world)
         region (get-region-at layer-box x y)
-        world (if (and (not-nil? (:selected-part world))
-                       (inside-box? layer-box x y)
-                       (not-nil? region)
-                       (not (.startsWith (str region) ":text")))
-                (move-parts-to-layer world
-                                     (:selected-part world)
-                                     (layer-name->number (str region)))
-                world)
-        world (dissoc-in world [:selected-part])]
+        world  (if (and (inside-box? layer-box x y)
+                        (not-nil? region))
+                 (if (.startsWith (str region) ":text")
+                   (if-let [pressed-layer (:pressed-layer world)]
+                     (if (= pressed-layer region)
+                       (-> world
+                           (dissoc-in [:pressed-layer])
+                           (read-input #(set-layer-name-callback
+                                         %1 region %2)))
+                       (-> world
+                           (dissoc-in [:pressed-layer])
+                           (move-layer pressed-layer region)))
+                     world)
+                   (if (not-nil? (:selected-part world))
+                     (-> world
+                         (move-parts-to-layer
+                          (:selected-part world)
+                          (layer-name->number (str region)))
+                         (dissoc-in [:selected-part]))
+                     world))
+                 world)]
     (tree-changed world)))

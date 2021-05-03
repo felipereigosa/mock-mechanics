@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (import [com.bulletphysics.collision.dispatch DefaultCollisionConfiguration
          CollisionDispatcher])
 (import com.bulletphysics.collision.broadphase.AxisSweep3)

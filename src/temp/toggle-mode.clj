@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (defn toggle-mode-entered [world]
   (tree-changed world))
 

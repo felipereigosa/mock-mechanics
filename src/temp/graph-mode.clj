@@ -1,4 +1,3 @@
-(ns temp.core (:gen-class))
 
 (defn local->global [graph-box view [t v]]
   (let [{:keys [x y w h]} graph-box

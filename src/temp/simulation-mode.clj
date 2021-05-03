@@ -1,6 +1,4 @@
 
-(ns temp.core (:gen-class))
-
 (declare create-part-bodies)
 
 (defn simulation-mode-entered [w]
