@@ -346,3 +346,6 @@
                   (new Color r g b))
                 (:color part))]
     (reverse-get-color color)))
+
+(defn dekeyword [k]
+  (subs (str k) 1))

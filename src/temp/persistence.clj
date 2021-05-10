@@ -77,9 +77,13 @@
                      (modify-field :texture #(get-complex-texture % colors))))
                part)
         part (if (not (empty? (:skin part)))
-               (assoc-in part [:model]
-                         (create-model-mesh (str "res/" (:skin part) ".obj")
-                                            [0 0 0] [1 0 0 0] [1 1 1] nil))
+               (-> part
+                   (assoc-in [:model]
+                             (create-model-mesh (str "res/" (:skin part) ".obj")
+                                                [0 0 0] [1 0 0 0] [1 1 1] nil))
+                   (assoc-in [:white-model]
+                             (create-model-mesh (str "res/" (:skin part) ".obj")
+                                                [0 0 0] [1 0 0 0] [1 1 1] :white)))
                part)]
     (-> part
         (assoc-in [:transform] (make-transform [0 0 0] [1 0 0 0]))

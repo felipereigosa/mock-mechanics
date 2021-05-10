@@ -10,6 +10,7 @@
 (load "layer-mode")
 (load "physics-mode")
 (load "avatar-mode")
+(load "replay-mode")
 
 (defn get-function [mode function]
   (resolve (symbol (str "temp.core/"

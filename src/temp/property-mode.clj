@@ -51,58 +51,60 @@
         (assoc-in [:parts part-name :model]
                   (create-model-mesh (str "res/" value ".obj")
                                      [0 0 0] [1 0 0 0] [1 1 1] nil))
+        (assoc-in [:parts part-name :white-model]
+                  (create-model-mesh (str "res/" value ".obj")
+                                     [0 0 0] [1 0 0 0] [1 1 1] :white))
         (tree-changed))))
 
-(defn set-part-value [world key]
-  (let [part-name (:selected-part world)
-        part (get-in world [:parts part-name])]
-    (read-input world
-                (fn [w text]
-                  (let [value (try
-                                (read-string text)
-                                (catch Exception e ""))
-                        value (if (symbol? value)
-                                text
-                                value)]
-                    (case key
-                      :value
-                      (let [world (case (:type part)
-                                    :wagon
-                                    (assoc-in world [:parts part-name key]
-                                              (/ value (reduce + (:track-lengths part))))
+(defn set-part-value [world part-name key text]
+  (let [part (get-in world [:parts part-name])
+        value (try
+                (read-string text)
+                (catch Exception e ""))
+        value (if (symbol? value)
+                text
+                value)]
+    (case key
+      :value
+      (let [world (case (:type part)
+                    :wagon
+                    (assoc-in world [:parts part-name key]
+                              (/ value (reduce + (:track-lengths part))))
 
-                                    :chip
-                                    (-> world
-                                        ((fn [w] (if (float= value 1.0)
-                                                   (activate-chip w part-name)
-                                                   w)))
-                                        (assoc-in [:parts part-name key] value))
+                    :chip
+                    (-> world
+                        ((fn [w] (if (float= value 1.0)
+                                   (activate-chip w part-name)
+                                   w)))
+                        (assoc-in [:parts part-name key] value))
 
-                                    :speaker
-                                    (-> world
-                                        ((fn [w]
-                                           (let [note (get-note (:frequency part))]
-                                             (if (float= value 1.0)
-                                               (note-on note)
-                                               (note-off note)))
-                                           w))
-                                        (assoc-in [:parts part-name key] value))
-                                    
-                                    (assoc-in world [:parts part-name key] value))]
-                        (-> world
-                            (enforce-gears part-name)
-                            (tree-changed)))
+                    :speaker
+                    (-> world
+                        ((fn [w]
+                           (let [note (get-note (:frequency part))]
+                             (if (float= value 1.0)
+                               (note-on note)
+                               (note-off note)))
+                           w))
+                        (assoc-in [:parts part-name key] value))
 
-                      :skin (set-skin world part-name value)
+                    (assoc-in world [:parts part-name key] value))]
+        (-> world
+            (enforce-gears part-name)
+            (tree-changed)))
 
-                      (assoc-in world [:parts part-name key] value)))))))
+      :skin (set-skin world part-name value)
+
+      (assoc-in world [:parts part-name key] value))))
 
 (defn set-property [world x y]
   (if-let [region (get-region-at (:property-box world) x y)]
     (let [index (read-string (str (last (str region))))
           properties (get-properties world)]
       (if (< index (count properties))
-        (set-part-value world (keyword (first (nth properties index))))
+        (let [part-name (:selected-part world)
+              key (keyword (first (nth properties index)))]
+          (read-input world #(set-part-value % part-name key %2)))
         world))
     world))
 

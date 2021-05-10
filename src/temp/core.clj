@@ -235,7 +235,10 @@
                   (assoc-in [:press-time] (get-current-time))
                   (assoc-in [:press-point] [x y])
                   (input-indicator-mouse-pressed event)
-                  (redraw))]
+                  (redraw))
+        world (if (= (:mode world) :replay)
+                (replay-pressed world event)
+                world)]
     (cond
       (and
        (show-buttons? world)
@@ -281,6 +284,9 @@
 
         world (if (= (:mode world) :avatar)
                 (mode-mouse-released world event)
+                world)
+        world (if (= (:mode world) :replay)
+                (replay-released world event)
                 world)]
     (if (not-nil? (:last-point world))
       (dissoc-in world [:last-point])
