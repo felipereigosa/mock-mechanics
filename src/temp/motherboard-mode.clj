@@ -273,6 +273,30 @@
                   get-attribute (fn [part-name attribute]
                                   (get-thing! [:parts part-name attribute]))
 
+                  jump (fn [parameters]
+                         (gl-thread
+                           (swap! world
+                             (fn [w]
+                               (let [mode (:mode w)
+                                     {:keys [address
+                                             block relative-position relative-direction cameraman-position
+                                             x-angle y-angle pivot]} parameters
+                                     w (open-machine w address)]
+                                 (if (= mode :avatar)
+                                   (-> w
+                                     (change-mode :avatar)
+                                     (dissoc-in [:avatar :force])
+                                     (dissoc-in [:pressed-part])
+                                     (assoc-in [:avatar :block] block)
+                                     (assoc-in [:avatar :relative-position] relative-position)
+                                     (assoc-in [:avatar :relative-direction] relative-direction)
+                                     (assoc-in [:avatar :cameraman :position] cameraman-position))
+                                   (-> w
+                                     (assoc-in [:camera :x-angle] x-angle)
+                                     (assoc-in [:camera :y-angle] y-angle)
+                                     (assoc-in [:camera :pivot] pivot)
+                                     (compute-camera)))
+                                 )))))
                   ]]
     `(do
        (require '[temp.core :refer :all])

@@ -32,7 +32,18 @@
 
 (declare get-spec-line)
 
-(defn set-pivot [world event]
+(defn pivot-animation [world animation]
+  (let [{:keys [t start end]} animation]
+    (if (float= t 1.0)
+      (-> world
+          (assoc-in [:camera :pivot] end)
+          (compute-camera))
+      (-> world
+          (assoc-in [:camera :pivot]
+                    (vector-interpolate start end t))
+          (compute-camera)))))
+
+(defn create-pivot-animation [world event]
   (let [x (:x event)
         y (:y event)
         part-name (get-part-at world event)
@@ -47,8 +58,13 @@
               (get-transform-position (get-tail-transform part))
               
               :else
-              (get-part-position world part-name))]
-    (compute-camera (assoc-in world [:camera :pivot] pos))))
+              (get-part-position world part-name))
+        pivot (get-in world [:camera :pivot])]
+    {:start pivot
+     :end pos
+     :time (* 0.1 (distance pivot pos))
+     :t 0
+     :fn pivot-animation}))
 
 (declare delete-all-parts)
 (declare delete-all-spheres)
@@ -128,3 +144,18 @@
        (< (distance p p1) l)
        (< (distance p p2) l)))))
 
+(defn run-animation [world elapsed]
+  (if-let [animation (:animation world)]
+    (let [time (or (:time animation) 1.0)
+          dt (/ elapsed (* time 1000))
+          new-t (min (+ (:t animation) dt) 1.0)
+          world (-> world
+                    ((:fn animation) animation)
+                    (assoc-in [:animation :t] new-t))]
+      (reset! time-since-update 0)
+      (if (float= new-t 1.0)
+        (-> world
+            ((:fn animation) (assoc-in animation [:t] 1.0))
+            (dissoc-in [:animation]))
+        world))
+    world))

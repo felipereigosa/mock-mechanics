@@ -25,6 +25,7 @@
 (load "persistence")
 (load "forces")
 (load "modes")
+(load "replayer")
 (load "commands")
 (load "track-loop")
 (load "hints")
@@ -108,26 +109,25 @@
 )
 
 (defn update-world [world elapsed]
-  (cond
-    (in? (:mode world) [:simulation :graph :motherboard
-                        :property :avatar])
-    (let [elapsed 16 ;;######################
-          world (-> world
-                    (set-probe-values)
-                    (apply-forces elapsed)
-                    (run-chips elapsed)
-                    (enforce-gears)
-                    (compute-transforms (if (:use-weld-groups world)
-                                          :weld-groups
-                                          :parts))
-                    (update-motherboards)
-                    )]
-      (recompute-body-transforms! world)
-      (step-simulation! (:planet world) elapsed)
-      (if (= (:mode world) :avatar)
-        (avatar-mode-update world elapsed)
-        world))
-    :else world))
+  (let [world (run-animation world elapsed)]
+    (if (in? (:mode world) [:simulation :graph :motherboard
+                            :property :avatar])
+      (let [world (-> world
+                      (set-probe-values)
+                      (apply-forces elapsed)
+                      (run-chips elapsed)
+                      (enforce-gears)
+                      (compute-transforms (if (:use-weld-groups world)
+                                            :weld-groups
+                                            :parts))
+                      (update-motherboards)
+                      )]
+        (recompute-body-transforms! world)
+        (step-simulation! (:planet world) elapsed)
+        (if (= (:mode world) :avatar)
+          (avatar-mode-update world elapsed)
+          world))
+      world)))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -190,6 +190,9 @@
   (draw-buffer! world)
   (draw-hint! world)
   (draw-input-indicator! world)
+
+  (if (:replay-filename world)
+    (replay-draw world))
   )
 (redraw!))
 
@@ -236,9 +239,7 @@
                   (assoc-in [:press-point] [x y])
                   (input-indicator-mouse-pressed event)
                   (redraw))
-        world (if (= (:mode world) :replay)
-                (replay-pressed world event)
-                world)]
+        world (replay-pressed world event)]
     (cond
       (and
        (show-buttons? world)
@@ -260,14 +261,15 @@
       (mode-mouse-pressed world event))))
 
 (defn mouse-moved [world event]
-  (cond
-    (not-nil? (:last-point world))
+  (let [world (replay-moved world event)]
     (cond
-      (= (:button event) :right) (mouse-rotate world event)
-      (= (:button event) :middle) (mouse-pan world event)
-      :else world)
-    :else
-    (mode-mouse-moved world event)))
+      (not-nil? (:last-point world))
+      (cond
+        (= (:button event) :right) (mouse-rotate world event)
+        (= (:button event) :middle) (mouse-pan world event)
+        :else world)
+      :else
+      (mode-mouse-moved world event))))
 
 (defn mouse-released [world event]
   (let [elapsed (- (get-current-time) (:press-time world))
@@ -275,7 +277,8 @@
                        (= (:button event) :right)
                        (< (distance (:press-point world)
                                     [(:x event) (:y event)]) 10))
-                (set-pivot world event)
+                (assoc-in world [:animation]
+                          (create-pivot-animation world event))
                 world)
         world (-> world
                   (dissoc-in [:press-point])
@@ -285,9 +288,7 @@
         world (if (= (:mode world) :avatar)
                 (mode-mouse-released world event)
                 world)
-        world (if (= (:mode world) :replay)
-                (replay-released world event)
-                world)]
+        world (replay-released world event)]
     (if (not-nil? (:last-point world))
       (dissoc-in world [:last-point])
       (mode-mouse-released world event))))
@@ -299,3 +300,4 @@
         (place-elements))))
 
 ;;----------------------------------------------------------------------;;
+

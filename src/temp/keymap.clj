@@ -17,7 +17,7 @@
              GLFW/GLFW_KEY_7                       "7"
              GLFW/GLFW_KEY_8                       "8"
              GLFW/GLFW_KEY_9                       "9"
-             GLFW/GLFW_KEY_SEMICOLON               nil
+             GLFW/GLFW_KEY_SEMICOLON               ":"
              GLFW/GLFW_KEY_EQUAL                   nil
              GLFW/GLFW_KEY_A                       "a"
              GLFW/GLFW_KEY_B                       "b"

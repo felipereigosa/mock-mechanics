@@ -5,10 +5,13 @@
 (defn get-bindings []
   {"A-d" #(change-mode % :debug)
    "A-q" #(update-in % [:draw-update-cube] not)
-
-   "A-r" #(change-mode % :replay)
-   ":replay left" #(replay-back %)
-   ":replay right" #(replay-forward %)
+   "A-r o" #(toggle-replay %)
+   "A-r s" #(read-input %
+                        (fn [w text]
+                          (create-instructions! w text)
+                          w))
+   "left" #(replay-back %)
+   "right" #(replay-forward %)
 
    "A-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)

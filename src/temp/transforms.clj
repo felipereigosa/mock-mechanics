@@ -100,3 +100,10 @@
 
 (def identity-transform (make-transform [0 0 0] [1 0 0 0]))
 
+(defn interpolate-transforms [t1 t2 s]
+  ;;########################################## interpolate rotation too
+  (let [p1 (get-transform-position t1)
+        p2 (get-transform-position t2)
+        r1 (get-transform-rotation t1)]
+    (make-transform (vector-interpolate p1 p2 s)
+                    r1)))

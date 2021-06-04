@@ -217,7 +217,7 @@
 (defn update-running-state [world]
   (let [avatar (:avatar world)
         velocity (vector-subtract (:position avatar)
-                                  (:last-position avatar))]
+                   (:last-position avatar))]
     (-> world
         (assoc-in [:avatar :last-position] (:position avatar))
         (assoc-in [:avatar :absolute-velocity] velocity)
@@ -226,4 +226,6 @@
         (handle-collisions)
         (move-avatar)
         (compute-avatar-transform)
-        (climb-small-elevation))))
+        (climb-small-elevation)
+        )))
+

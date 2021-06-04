@@ -1,0 +1,5 @@
+add block12200 to ground-part at [0.25 0.35 0.25] [0.0 1.0 0.0 0.0]
+add track12201 to block12200 at [0.0 1.25 0.0] [0.0 1.0 0.0 0.0]
+add block12202 to track12201 at [-1.4901161E-8 0.25000003 0.0] [0.0 1.0 0.0 0.0]
+scale block12202 by [0.4 0 0]
+scale block12202 by [0 -0.3 0]

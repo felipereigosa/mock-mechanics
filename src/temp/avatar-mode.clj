@@ -20,34 +20,34 @@
 
 (defn reset-avatar [world]
   (assoc-in world [:avatar]
-            {:cameraman {:position [0 0 70]
-                         :distance 30
-                         :height 15
-                         }
-             :acceleration [0 0 0]
-             :velocity [0 0 0]
-             :block :ground
-             :radius 0.20
-             :relative-position [0 0.25 0]
-             :relative-direction [0 0 1]
-             :position [0 0 0]
-             :angle 0
-             :poses {:running (load-poses "run")
-                     :jumping (load-poses "jump")}
-             :pose-index 0
-             :pose-counter 0
-             :max-speed 0.06
-             :state :running
-             :friction-coefficient 0.8
-             :vertical-velocity 0.0
-             :shadow-mesh (create-model-mesh "res/cylinder.obj"
-                                             [0 0 0] [1 0 0 0]
-                                             1 :black)
-             :rope-mesh (create-model-mesh "res/rope.obj"
-                                             [0 0 0] [1 0 0 0]
-                                             1 :black)
-             :keys (apply merge (map (fn [key] {key :released}) avatar-keys))
-             }))
+    {:cameraman {:position [0 0 70]
+                 :distance 30
+                 :height 15
+                 }
+     :acceleration [0 0 0]
+     :velocity [0 0 0]
+     :block :ground
+     :radius 0.20
+     :relative-position [0 0.25 0]
+     :relative-direction [0 0 1]
+     :position [0 0 0]
+     :angle 0
+     :poses {:running (load-poses "run")
+             :jumping (load-poses "jump")}
+     :pose-index 0
+     :pose-counter 0
+     :max-speed 0.06
+     :state :running
+     :friction-coefficient 0.8
+     :vertical-velocity 0.0
+     :shadow-mesh (create-model-mesh "res/cylinder.obj"
+                    [0 0 0] [1 0 0 0]
+                    1 :black)
+     :rope-mesh (create-model-mesh "res/rope.obj"
+                  [0 0 0] [1 0 0 0]
+                  1 :black)
+     :keys (apply merge (map (fn [key] {key :released}) avatar-keys))
+     }))
 
 (defn get-solid-block [world block-name]
   (if (= block-name :ground)
@@ -61,6 +61,7 @@
 (defn set-down-collision [world]
   (let [point (get-in world [:avatar :position])
         point (vector-subtract point [0 0.19 0])
+        avatar (:avatar world)
         collision (->> (map (fn [block-name]
                               (let [block (get-solid-block world block-name)]
                                 (if-let [collision (get-mesh-collision
@@ -68,7 +69,7 @@
                                                     (:scale block) [point [0 -1 0]])]
                                   (conj collision block-name)
                                   nil)))
-                            (:close-block-names world))
+                            (:close-block-names avatar))
                        (filter not-nil?)
                        (sort-by second <)
                        (first))]
@@ -141,7 +142,8 @@
         mesh (assoc-in mesh [:transform] transform)]
     (draw-mesh! world mesh)
     (draw-shadow! world)
-    (draw-rope! world)))
+    (draw-rope! world)
+    ))
 
 (defn normalize-cameraman [world]
   (let [avatar (:avatar world)
@@ -177,15 +179,18 @@
         update-fn (get-state-function state :update)]
     (update-fn world)))
 
+(defn set-cameraman-from-camera [world]
+  (let [position (assoc-in (get-in world [:camera :eye]) [1] 0)]
+    (-> world
+      (assoc-in [:avatar :cameraman :position] position))))
+
 (defn avatar-mode-entered [world]
   (let [parts (:parts world)
         blocks (vec (map first (filter is-solid-part? parts)))]
     (-> world
-        (assoc-in [:block-names] (conj blocks :ground))
-        (change-state :running))))
-
-(defn avatar-mode-exited [world]
-  (rotate-camera world 0 0))
+      ;; (set-cameraman-from-camera)
+      (assoc-in [:block-names] (conj blocks :ground))
+      (change-state :running))))
 
 (defn avatar-press-part [world]
   (let [avatar (:avatar world)
@@ -295,15 +300,16 @@
   (let [avatar (:avatar world)
         avatar-position (:position avatar)
         avatar-radius (* 2 (:radius avatar))]
-    (filter (fn [block-name]
-           (let [block (get-solid-block world block-name)
-                 transform (:transform block)
-                 position (get-transform-position transform)
-                 scale (:scale block)
-                 d (distance position avatar-position)
-                 block-radius (vector-length (map * [0.5 0.5 0.5] scale))]
-             (< d (+ block-radius avatar-radius))))
-         (:block-names world))))
+    (assoc-in world [:avatar :close-block-names]
+      (filter (fn [block-name]
+                (let [block (get-solid-block world block-name)
+                      transform (:transform block)
+                      position (get-transform-position transform)
+                      scale (:scale block)
+                      d (distance position avatar-position)
+                      block-radius (vector-length (map * [0.5 0.5 0.5] scale))]
+                  (< d (+ block-radius avatar-radius))))
+        (:block-names world)))))
 
 (defn point-block-projection [point block]
   (let [transform (:transform block)
@@ -331,18 +337,15 @@
                       w))
                   w)))
             world
-            (:close-block-names world))))
+            (:close-block-names avatar))))
 
 (defn avatar-mode-released [world event]
-  (let [position (assoc-in (get-in world [:camera :eye]) [1] 0)]
-    (-> world
-        (assoc-in [:avatar :cameraman :position] position))))
+  (set-cameraman-from-camera world))
 
 (defn set-view [world]
   (if (:last-point world)
     world
     (let [avatar (:avatar world)
-          state (:state avatar)
           cameraman (:cameraman avatar)
           pivot (:position avatar)
           cameraman-position (:position cameraman)
@@ -357,14 +360,30 @@
           (assoc-in [:camera :pivot] pivot)
           (compute-camera)))))
 
+(defn print-jump-parameters [world]
+  (let [avatar (:avatar world)
+        cameraman (:cameraman avatar)
+        camera (:camera world)]
+    (prn
+      {:address (:last-saved-machine world)
+       :block (:block avatar)
+       :relative-position (:relative-position avatar)
+       :relative-direction (:relative-direction avatar)
+       :cameraman-position (:position cameraman)
+       :x-angle (:x-angle camera)
+       :y-angle (:y-angle camera)
+       :pivot (:pivot camera)
+       })))
+
 (defn avatar-mode-update [world elapsed]
   (reactivate-avatar! world elapsed)
   (-> world
       (update-state)
-      (assoc-in [:close-block-names] (compute-close-blocks world))
+      (compute-close-blocks)
       (set-down-collision)
       (update-avatar-force)
       (update-in [:avatar :keys] update-keys)
       (normalize-cameraman)
       (set-view)
       ))
+
