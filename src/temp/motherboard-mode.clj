@@ -1,4 +1,6 @@
 
+(require '[clojure.java.shell :refer [sh]])
+
 (defn motherboard-mode-entered [world]
   (assoc-in world [:motherboard-subcommand] :move))
 
@@ -313,27 +315,56 @@
 
 (def motherboard-activation-count (atom 0))
 
+(defn get-script-filename [motherboard-name]
+  (str "res/temp/" (dekeyword motherboard-name) "-script.clj"))
+
+(declare show-message)
+
+(defn open-editor [world]
+  (let [motherboard-name (:selected-motherboard world)
+        motherboard (get-in world [:parts motherboard-name])
+        filename (get-script-filename (:selected-motherboard world))]
+    (spit filename (:script motherboard))
+    (.start
+      (new Thread
+        (proxy [Runnable] []
+          (run []
+            (sh "emacs" "-rv" filename)
+            ))))
+    (show-message world "Opening editor...")))
+
+(defn update-scripts [world]
+  (reduce (fn [w motherboard-name]
+            (if (get-in world [:parts motherboard-name :use-script])
+              (let [filename (get-script-filename motherboard-name)]
+                (if (file-exists? filename)
+                  (assoc-in world [:parts motherboard-name :script]
+                    (slurp filename))
+                  w))
+              w))
+    world
+    (get-parts-with-type (:parts world) :motherboard)))
+
 (defn run-script [world motherboard-name pin-name]
-  (let [motherboard (get-in world [:parts motherboard-name])
-        sorted-pins (get-sorted-pin-list world motherboard-name)
-        filename (:script motherboard)]
-     (.start
-     (new Thread
+  (try
+    (let [motherboard (get-in world [:parts motherboard-name])
+          sorted-pins (get-sorted-pin-list world motherboard-name)
+          text (read-string (str "(do" (:script motherboard) ")"))
+          code (process-code text sorted-pins)]
+      (.start
+        (new Thread
           (proxy [Runnable] []
             (run []
               (swap! motherboard-activation-count inc)
-              (try
-                (let [text (read-string (str "(do" (slurp filename) ")"))
-                      code (process-code text sorted-pins)]
-                  ((eval code) pin-name))
-                (catch Exception e
-                  (user-message! e)
-                  (user-message! "script failed")))
-              (swap! motherboard-activation-count dec)))))
-     world))
+              ((eval code) pin-name)
+              (swap! motherboard-activation-count dec))))))
+    (catch Exception e
+      (user-message! e)
+      (user-message! "script failed")))
+  world)
 
 (defn pin-value-changed [world motherboard-name pin-name]
-  (if (get-in world [:parts motherboard-name :script])
+  (if (get-in world [:parts motherboard-name :use-script])
     (run-script world motherboard-name pin-name)
     (run-graph world motherboard-name)))
 
@@ -471,6 +502,17 @@
         (fill-circle! :white x1 y1 3)
         (fill-circle! :white x2 y2 3)))))
 
+(defn draw-code [code buffer]
+  (let [w (get-image-width buffer)
+        h (get-image-height buffer)
+        sub-buffer (new-image (- w 40) (- h 36))
+        lines (split code #"\n")
+        offset 0]
+    (clear sub-buffer :black)
+    (dotimes [i (count lines)]
+      (draw-text-mono sub-buffer :white (nth lines i) 0 (+ 0 offset (* i 11)) 11))
+    (draw-image buffer sub-buffer (+ (/ w 2) 10) (+ (/ h 2) 10))))
+
 (defn motherboard-mode-draw [world]
   (let [motherboard-box (:motherboard-box world)
         {:keys [x y w h]} motherboard-box
@@ -484,7 +526,7 @@
     (clear buffer border-color)
     (fill-rect buffer :black hw hh (- w 14) (- h 14))
     (draw-rect buffer :dark-gray hw hh (- w 14) (- h 14))
-
+    
     (fill-rect! :black x (+ y hh 15) w 30)
 
     (let [region (get-in (:regions menu) [(:motherboard-subcommand world)])
@@ -493,10 +535,9 @@
     (draw-image! (:image menu) (:x menu) (:y menu))
 
     (if-let [motherboard-name (:selected-motherboard world)]
-      (let [motherboard (get-in world [:parts motherboard-name])
-            script-name (str "file: " (:script motherboard))]
-        (if (:script motherboard)
-          (draw-text buffer :gray script-name 100 80 20)
+      (let [motherboard (get-in world [:parts motherboard-name])]
+        (if (:use-script motherboard)
+          (draw-code (:script motherboard) buffer)
           (do
             (draw-connections motherboard motherboard-box)
             (draw-gates motherboard motherboard-box)
@@ -704,15 +745,6 @@
         chip-name (get-pin-at motherboard (:motherboard-box world) (:x event) (:y event))]
     (activate-chip world chip-name)))
 
-(defn toggle-script [world]
-  (if-let [selected-motherboard (:selected-motherboard world)]
-    (if (get-in world [:parts selected-motherboard :script])
-      (dissoc-in world [:parts selected-motherboard :script])
-      (read-input world
-                  #(assoc-in %1 [:parts selected-motherboard :script]
-                             (str "machines/" %2 ".clj"))))
-    world))
-
 (defn change-component [world value {:keys [x y]}]
   (if-let [selected-motherboard (:selected-motherboard world)]
     (let [motherboard (get-in world [:parts selected-motherboard])
@@ -727,6 +759,10 @@
           )))
     world))
 
+(defn toggle-script [world]
+  (update-in world [:parts
+                    (:selected-motherboard world) :use-script] not))
+
 (defn motherboard-mode-pressed [world event]
   (let [{:keys [x y]} event 
         motherboard-box (:motherboard-box world)
@@ -739,68 +775,66 @@
     (cond
       (inside-box? button x y)
       (-> world
-          (update-in [:show-submenu] not)
-          (place-elements))
-
+        (update-in [:show-submenu] not)
+        (place-elements))
+      
       (inside-box? motherboard-box x y)
-      (if-let [selected-motherboard (:selected-motherboard world)]
+      (let [selected-motherboard (:selected-motherboard world)]
         (if (> cx 646)
           (assoc-in world [:parts selected-motherboard :tab] 
-                    (within (int (/ (- cy 17) 25)) 0 4))
-          (let [motherboard-name (:selected-motherboard world)]
+            (within (int (/ (- cy 17) 25)) 0 4))
+
+          (let [motherboard-name (:selected-motherboard world)
+                motherboard (get-in world [:parts motherboard-name])]
             (case (:motherboard-subcommand world)
-              :move (motherboard-move-pressed world event)
+              :move (if (:use-script motherboard)
+                      (open-editor world)
+                      (motherboard-move-pressed world event))
+              
               :and (-> world
-                       (update-in [:parts motherboard-name] #(add-gate % motherboard-box :and event))
-                       (assoc-in [:motherboard-subcommand] :move))
+                     (update-in [:parts motherboard-name] #(add-gate % motherboard-box :and event))
+                     (assoc-in [:motherboard-subcommand] :move))
               :or (-> world
-                      (update-in [:parts motherboard-name] #(add-gate % motherboard-box :or event))
-                      (assoc-in [:motherboard-subcommand] :move))
+                    (update-in [:parts motherboard-name] #(add-gate % motherboard-box :or event))
+                    (assoc-in [:motherboard-subcommand] :move))
               :not (-> world
-                       (update-in [:parts motherboard-name] #(add-gate % motherboard-box :not event))
-                       (assoc-in [:motherboard-subcommand] :move))
+                     (update-in [:parts motherboard-name] #(add-gate % motherboard-box :not event))
+                     (assoc-in [:motherboard-subcommand] :move))
               :delete (-> world
-                          (update-in [:parts motherboard-name] #(delete-element % motherboard-box event))
-                          (assoc-in [:motherboard-subcommand] :move))
+                        (update-in [:parts motherboard-name] #(delete-element % motherboard-box event))
+                        (assoc-in [:motherboard-subcommand] :move))
               :connect (motherboard-connect-pressed world event)
               :toggle (-> world
-                          (update-in [:parts motherboard-name] #(toggle-trigger-pin % motherboard-box event))
-                          (assoc-in [:motherboard-subcommand] :move))
+                        (update-in [:parts motherboard-name] #(toggle-trigger-pin % motherboard-box event))
+                        (assoc-in [:motherboard-subcommand] :move))
 
               :run (-> world
-                       (run-chip-at event)
-                       (assoc-in [:motherboard-subcommand] :move))
-
-              :on (-> world
-                      (change-component 1 event)
-                      (assoc-in [:motherboard-subcommand] :move))
-
-              :off (-> world
-                      (change-component 0 event)
-                      (assoc-in [:motherboard-subcommand] :move))
-              
-              world)))
-        world)
+                     (run-chip-at event)
+                     (assoc-in [:motherboard-subcommand] :move))
+              world))))
 
       (inside-box? menu x y)
       (if-let [selected-motherboard (:selected-motherboard world)]
         (if-let [region (get-region-at menu x y)]
-          (let [world (if (= region :script)
-                        (toggle-script world)
-                        (assoc-in world [:motherboard-subcommand] region))]
+          (let [world (cond
+                        (= region :script) (toggle-script world)
+                        (= region :editor) (open-editor world)
+                        :else (assoc-in world [:motherboard-subcommand] region))]
+            (println! region)
             (show-hint world :motherboard region))
           world)
         world)
 
-      :else
-      (if-let [part-name (get-part-at world event)]
-        (let [part (get-in world [:parts part-name])]
-          (if (= (:type part) :motherboard)
-            (assoc-in world [:selected-motherboard] part-name)
-            (if (:selected-motherboard world)
-              (motherboard-change-part world event)
-              world)))
-        world))))
+      :else (do
+              (println! "outside")
+              (if-let [part-name (get-part-at world event)]
+                (let [part (get-in world [:parts part-name])]
+                  (if (= (:type part) :motherboard)
+                    (assoc-in world [:selected-motherboard] part-name)
+                    (if (:selected-motherboard world)
+                      (motherboard-change-part world event)
+                      world)))
+                world)))))
 
 (defn motherboard-mode-moved [world event]
   (case (:motherboard-subcommand world)

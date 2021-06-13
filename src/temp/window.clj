@@ -509,6 +509,12 @@
     (.setColor g (get-color color))
     (.drawString g text (int x) (int y))))
 
+(defn draw-text-mono [image color text x y size]
+  (let [g (get-image-graphics image)]
+    (.setFont g (new Font "monospaced" Font/PLAIN size))
+    (.setColor g (get-color color))
+    (.drawString g text (int x) (int y))))
+
 (defn draw-ellipse [image color rect]
   (let [g (get-image-graphics image)]
     (.setColor g (get-color color))

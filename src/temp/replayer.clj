@@ -1,3 +1,10 @@
+
+(import java.awt.Robot)
+(import java.awt.event.InputEvent)
+
+(require '[clojure.java.shell :refer [sh]])
+(require '[clojure.set :refer [difference]])
+
 ;;----------------------------------------------------------------------;;
 ;; .obj export/import
 
@@ -50,10 +57,6 @@
 ;;----------------------------------------------------------------------;;
 ;; robot
 
-(import java.awt.Robot)
-(import java.awt.event.InputEvent)
-(require '[clojure.java.shell :refer [sh]])
-
 (defn get-window-coordinates []
   (map parse-int
        (clojure.string/split (:out (sh "./window-coords.sh")) #"\n")))
@@ -84,8 +87,6 @@
 
 ;;----------------------------------------------------------------------;;
 ;; compile
-
-(require '[clojure.set :refer [difference]])
 
 (defn get-descaled-relative-transform [world part-name change]
   (let [parent-name (get-parent-part world part-name)
@@ -124,6 +125,7 @@
         (.write writer (format "scale %s by %s\n"
                                (dekeyword part-name)
                                (assoc [0 0 0] i (nth scale-change i))))))
+    
     (doseq [property properties]
       (if (not (= (get part property) (get new-part property)))
         (let [value (if (= property :color)
@@ -136,7 +138,6 @@
                                  (dekeyword property)
                                  (dekeyword part-name)
                                  value)))))
-
     (if (and (= type :chip)
              (not (empty? (:functions part))))
       (.write writer (format "set-functions of %s to %s\n"
@@ -146,8 +147,8 @@
     (if (and (= type :motherboard)
              (not (empty? (:pins part))))
       (.write writer (format "set-graph of %s to %s\n"
-                             (dekeyword part-name)
-                             (select-keys part [:pins :gates :connections]))))
+                       (dekeyword part-name)
+                       (select-keys part [:pins :gates :connections]))))
     ))
 
 (defn get-part-number [part-name]
@@ -170,63 +171,66 @@
         (create-part-instructions writer world part-name)))
     (println! "created instructions")))
 
-;;----------------------------------------------------------------------;;
-;; mouse events
+;; ;;----------------------------------------------------------------------;;
+;; ;; mouse events
 
-(defn insert-instruction! [filename index instruction]
-  (let [lines (with-open [rdr (clojure.java.io/reader filename)]
-                (vec (line-seq rdr)))
-        new-lines (vector-insert lines instruction index)]
-    (spit filename (apply str (interpose "\n" new-lines)))))
+;; (defn insert-instruction! [filename index instruction]
+;;   (let [lines (with-open [rdr (clojure.java.io/reader filename)]
+;;                 (vec (line-seq rdr)))
+;;         new-lines (vector-insert lines instruction index)]
+;;     (spit filename (apply str (interpose "\n" new-lines)))))
 
-(defn change-event [event start-time]
-  [(int (:x event)) (int (:y event)) (- (get-current-time) start-time)])
+;; (defn change-event [event start-time]
+;;   [(int (:x event)) (int (:y event)) (- (get-current-time) start-time)])
 
-(defn replay-pressed [world event]
-  (if (:replay-filename world)
-    ;; (if (:active @robot)
-    ;;   world
-    ;;   (-> world
-    ;;       (assoc-in [:replay-button] (dekeyword (:button event)))
-    ;;       (assoc-in [:replay-events]
-    ;;                 [(change-event event (:press-time world))])))
-    (do
-      ;; (println! "pressed" event)
-      world)
-    world))
+;; (defn replay-pressed [world event]
+;;   (if (:replay-filename world)
+;;     ;; (if (:active @robot)
+;;     ;;   world
+;;     ;;   (-> world
+;;     ;;       (assoc-in [:replay-button] (dekeyword (:button event)))
+;;     ;;       (assoc-in [:replay-events]
+;;     ;;                 [(change-event event (:press-time world))])))
+;;     (do
+;;       ;; (println! "pressed" event)
+;;       world)
+;;     world))
 
-(defn replay-moved [world event]
-  (if (:replay-filename world)
-    ;; (if (not-nil? (:replay-events world))
-    ;;   (update-in world [:replay-events]
-    ;;              #(conj % (change-event event (:press-time world))))
-    ;;   world)
-    (do
-      ;; (println! "moved" event)
-      world)
-    world))
+;; (defn replay-moved [world event]
+;;   (if (:replay-filename world)
+;;     ;; (if (not-nil? (:replay-events world))
+;;     ;;   (update-in world [:replay-events]
+;;     ;;              #(conj % (change-event event (:press-time world))))
+;;     ;;   world)
+;;     (do
+;;       ;; (println! "moved" event)
+;;       world)
+;;     world))
 
-(defn replay-released [world event]
-  (if (:replay-filename world)
-    ;; (if (:active @robot)
-    ;;   world
-    ;;   (let [points (conj (:replay-events world)
-    ;;                      (change-event event (:press-time world)))
-    ;;         button (:replay-button world)
-    ;;         instruction (str "mouse " button " " (join " " points))]
-    ;;     (insert-instruction! (str "res/" (:replay-filename world) ".txt")
-    ;;                          (:instruction-index world)
-    ;;                          instruction)
-    ;;     (-> world
-    ;;         (dissoc-in [:replay-events])
-    ;;         (update-in [:instruction-index] inc))))
-    (do
-      ;; (println! "released" event)
-      world)
-    world))
+;; (defn replay-released [world event]
+;;   (if (:replay-filename world)
+;;     ;; (if (:active @robot)
+;;     ;;   world
+;;     ;;   (let [points (conj (:replay-events world)
+;;     ;;                      (change-event event (:press-time world)))
+;;     ;;         button (:replay-button world)
+;;     ;;         instruction (str "mouse " button " " (join " " points))]
+;;     ;;     (insert-instruction! (str "res/" (:replay-filename world) ".txt")
+;;     ;;                          (:instruction-index world)
+;;     ;;                          instruction)
+;;     ;;     (-> world
+;;     ;;         (dissoc-in [:replay-events])
+;;     ;;         (update-in [:instruction-index] inc))))
+;;     (do
+;;       ;; (println! "released" event)
+;;       world)
+;;     world))
 
 ;;----------------------------------------------------------------------;;
 ;; run
+
+(do
+1
 
 (defn run-add-instruction [world instruction]
   (let [[_ part-name
@@ -247,16 +251,16 @@
         (compute-transforms :parts)
         (tree-changed))))
 
-(defn run-set-instruction [world instruction]
-  (let [[_ property-name
-         _ part-name
-         _ value] (read-string (str "[" instruction "]"))
-        property-name (keyword property-name)
-        part-name (keyword part-name)
-        value (if (symbol? value) (keyword value) value)]
-    (-> world
-        (set-part-value part-name property-name (str value))
-        (tree-changed))))
+;; (defn run-set-instruction [world instruction]
+;;   (let [[_ property-name
+;;          _ part-name
+;;          _ value] (read-string (str "[" instruction "]"))
+;;         property-name (keyword property-name)
+;;         part-name (keyword part-name)
+;;         value (if (symbol? value) (keyword value) value)]
+;;     (-> world
+;;         (set-part-value part-name property-name (str value))
+;;         (tree-changed))))
 
 (defn scale-animation [world animation]
   (let [{:keys [t start-scale final-scale
@@ -309,72 +313,83 @@
                    :start-transform transform
                    :final-transform final-transform}))))
 
-(defn run-set-functions-instruction [world instruction]
-  ;; (let [[_ property-name
-  ;;        _ part-name
-  ;;        _ value] (read-string (str "[" instruction "]"))
-  ;;       property-name (keyword property-name)
-  ;;       part-name (keyword part-name)
-  ;;       value (if (symbol? value) (keyword value) value)]
-  ;;   (-> world
-  ;;       (set-part-value part-name property-name (str value))
-  ;;       (tree-changed)))
-  (println! "set functions")
-  world
-  )
+(defn run-set-color-instruction [world instruction]
+  (let [[_ _ _ part-name _ color] (read-string (str "[" instruction "]"))
+        color (keyword color)
+        part-name (keyword part-name)]
+    (println! part-name color)
+    (-> world
+      (assoc-in [:mode] :color)
+      (assoc-in [:current-color] color)
+      (assoc-in [:parts part-name :color] color)
+      (tree-changed))))
 
-(defn run-set-graph-instruction [world instruction]
-  ;; (let [[_ property-name
-  ;;        _ part-name
-  ;;        _ value] (read-string (str "[" instruction "]"))
-  ;;       property-name (keyword property-name)
-  ;;       part-name (keyword part-name)
-  ;;       value (if (symbol? value) (keyword value) value)]
-  ;;   (-> world
-  ;;       (set-part-value part-name property-name (str value))
-  ;;       (tree-changed)))
-  (println! "set graph")
-  world
-  )
+;; (defn run-set-functions-instruction [world instruction]
+;;   ;; (let [[_ property-name
+;;   ;;        _ part-name
+;;   ;;        _ value] (read-string (str "[" instruction "]"))
+;;   ;;       property-name (keyword property-name)
+;;   ;;       part-name (keyword part-name)
+;;   ;;       value (if (symbol? value) (keyword value) value)]
+;;   ;;   (-> world
+;;   ;;       (set-part-value part-name property-name (str value))
+;;   ;;       (tree-changed)))
+;;   (println! "set functions")
+;;   world
+;;   )
 
-(defn interpolate-mouse [start end]
-  (let [ts (last start)
-        te (last end)
-        start (take 2 start)
-        end (take 2 end)
-        d (distance start end)
-        v (vector-subtract end start)
-        interval (- te ts)
-        dt 20.0
-        num-steps (int (/ interval dt))
-        extra-time (int (mod interval dt))]
-    (robot-move start)
-    (dotimes [i (dec num-steps)]
-      (sleep dt)
-      (robot-move (vector-add start (vector-multiply v (/ i num-steps)))))
-    (sleep extra-time)
-    (robot-move end)))
+;; (defn run-set-graph-instruction [world instruction]
+;;   ;; (let [[_ property-name
+;;   ;;        _ part-name
+;;   ;;        _ value] (read-string (str "[" instruction "]"))
+;;   ;;       property-name (keyword property-name)
+;;   ;;       part-name (keyword part-name)
+;;   ;;       value (if (symbol? value) (keyword value) value)]
+;;   ;;   (-> world
+;;   ;;       (set-part-value part-name property-name (str value))
+;;   ;;       (tree-changed)))
+;;   (println! "set graph")
+;;   world
+;;   )
 
-(defn run-mouse-instruction [world instruction]
-  (let [[_ button & points] (read-string (str "(" instruction ")"))
-        button (keyword button)]
+;; (defn interpolate-mouse [start end]
+;;   (let [ts (last start)
+;;         te (last end)
+;;         start (take 2 start)
+;;         end (take 2 end)
+;;         d (distance start end)
+;;         v (vector-subtract end start)
+;;         interval (- te ts)
+;;         dt 20.0
+;;         num-steps (int (/ interval dt))
+;;         extra-time (int (mod interval dt))]
+;;     (robot-move start)
+;;     (dotimes [i (dec num-steps)]
+;;       (sleep dt)
+;;       (robot-move (vector-add start (vector-multiply v (/ i num-steps)))))
+;;     (sleep extra-time)
+;;     (robot-move end)))
 
-    (.start
-     (new Thread
-          (proxy [Runnable] []
-            (run []
-              (robot-set-active! true)
-              (robot-move (take 2 (first points)))
-              (robot-mouse-press button)
-              (dotimes [i (dec (count points))]
-                (interpolate-mouse (nth points i)
-                                   (nth points (inc i))))
-              (sleep 16)
-              (robot-mouse-release button)
-              (sleep 100) ;;##########################
-              (robot-set-active! false)
-              ))))
-    world))
+;; (defn run-mouse-instruction [world instruction]
+;;   (let [[_ button & points] (read-string (str "(" instruction ")"))
+;;         button (keyword button)]
+
+;;     (.start
+;;      (new Thread
+;;           (proxy [Runnable] []
+;;             (run []
+;;               (robot-set-active! true)
+;;               (robot-move (take 2 (first points)))
+;;               (robot-mouse-press button)
+;;               (dotimes [i (dec (count points))]
+;;                 (interpolate-mouse (nth points i)
+;;                                    (nth points (inc i))))
+;;               (sleep 16)
+;;               (robot-mouse-release button)
+;;               (sleep 100) ;;##########################
+;;               (robot-set-active! false)
+;;               ))))
+;;     world))
 
 (defn update-history [world]
   (update-in world [:replay-history]
@@ -382,7 +397,10 @@
                        :camera (:camera world)})))
 
 (defn run-instruction [world instruction]
-  (let [instruction-name (subs instruction 0 (.indexOf instruction " "))]
+  (let [words (split instruction #" ")
+        instruction-name (if (= (first words) "set")
+                           (str (first words) "-" (second words))
+                           (first words))]
     (if-let [function (-> (str "temp.core/run-"
                                instruction-name
                                "-instruction")
@@ -397,22 +415,6 @@
         (println! "invalid instruction")
         world))))
 
-(defn toggle-replay [world]
-  (if (:replay-filename world)
-    (dissoc-in world [:replay-filename])
-    (do
-      (when (nil? @robot)
-        (reset! robot {:robot (new Robot)
-                       :origin (get-window-coordinates)
-                       :active false}))
-      (read-input world
-                  (fn [w text]
-                    (-> w
-                        (assoc-in [:replay-filename] text)
-                        (assoc-in [:instruction-index] 0)
-                        (assoc-in [:replay-history] [])
-                        (update-history)))))))
-
 (defn replay-draw [world]
   (let [width 40
         height 40        
@@ -425,6 +427,22 @@
     (fill-rect! :black (- x 50) y 150 height)
     (draw-text! :white (:replay-filename world) (- x 100) (+ y 5) 15)
     (draw-text! :white count  (- x 8) (+ y 5) 15)))
+
+(defn toggle-replay [world]
+  (if (:replay-filename world)
+    (dissoc-in world [:replay-filename])
+    (do
+      (when (nil? @robot)
+        (reset! robot {:robot (new Robot)
+                       :origin (get-window-coordinates)
+                       :active false}))
+      (read-input world
+        (fn [w text]
+          (-> w
+            (assoc-in [:replay-filename] text)
+            (assoc-in [:instruction-index] 0)
+            (assoc-in [:replay-history] [])
+            (update-history)))))))
 
 (defn remove-mark [instruction]
   (if (.startsWith instruction "*")
@@ -468,3 +486,8 @@
           (update-in [:instruction-index] dec)
           (tree-changed)))
     world))
+
+;; (clear-output!)
+;; nil
+)
+

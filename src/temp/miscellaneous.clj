@@ -8,6 +8,8 @@
 (declare show-hint)
 (declare change-mode)
 
+(require '[clojure.java.io :as io])
+
 (defn get-function-value [function t interpolator]
   (let [final-time (first (last function))]
     (cond
@@ -72,9 +74,16 @@
 (declare create-layer-info)
 (declare reset-avatar)
 
+(defn delete-temp-files! []
+  (let [files (filter #(.isFile %)
+                (file-seq (io/file "res/temp")))]
+    (doseq [file files]
+      (io/delete-file file))))
+
 (defn new-file [world]
   (set-title! "-")
   (reset! motherboard-activation-count 0)
+  (delete-temp-files!)
   (-> world
       (dissoc-in [:last-saved-machine])
       (delete-all-parts)
@@ -159,3 +168,6 @@
             (dissoc-in [:animation]))
         world))
     world))
+
+
+

@@ -62,6 +62,7 @@
                                :toggle "T, Toggle Trigger"
                                :run "R,Run"
                                :script "S,Toggle Script"
+                               :editor "E,Open editor"
                                }
                  }
           world (assoc-in world [:hint]
@@ -72,17 +73,27 @@
       (redraw world))
     world))
 
+(defn show-message [world message]
+  (let [world (assoc-in world [:hint]
+                {:text message
+                 :time (get-current-time)})]
+    (do-later redraw! 1000)
+    (redraw world)))
+
 (defn draw-hint! [world]
   (when (:show-hints world)
     (if-let [hint (:hint world)]
-      (let [elapsed (- (get-current-time) (:time hint))
-            [command description] (split (:text hint) #",")]
+      (let [elapsed (- (get-current-time) (:time hint))]
         (if (< elapsed 800)
           (let [x (/ (:window-width world) 2)
-                y (- (/ (:window-height world) 2) 50)
-                left-box {:x (- x 125) :y y :w 250 :h 150}
-                right-box {:x (+ x 125) :y y :w 250 :h 150}]
+                y (- (/ (:window-height world) 2) 50)]
             (fill-rect! :black x y 500 150)
-            (draw-line! :white x (- y 50) x (+ y 50))
-            (draw-text-in-box! command :white  20 left-box)
-            (draw-text-in-box! description :red  20 right-box)))))))
+            (if (= (.indexOf (:text hint) ",") -1)
+              (let [box {:x x :y y :w 500 :h 150}]
+                (draw-text-in-box! (:text hint) :white 20 box))
+              (let [[command description] (split (:text hint) #",")
+                    left-box {:x (- x 125) :y y :w 250 :h 150}
+                    right-box {:x (+ x 125) :y y :w 250 :h 150}]
+                (draw-line! :white x (- y 50) x (+ y 50))
+                (draw-text-in-box! command :white  20 left-box)
+                (draw-text-in-box! description :red  20 right-box)))))))))

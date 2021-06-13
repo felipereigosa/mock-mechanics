@@ -35,6 +35,8 @@
 1
 
 (defn create-world []
+  (delete-temp-files!)
+  
   (-> (create-base-world)
       (merge (read-string (str "{" (slurp "settings.clj") "}")))
       (assoc-in [:num-lines] 6)
@@ -239,7 +241,8 @@
                   (assoc-in [:press-point] [x y])
                   (input-indicator-mouse-pressed event)
                   (redraw))
-        world (replay-pressed world event)]
+        ;; world (replay-pressed world event)
+        ]
     (cond
       (and
        (show-buttons? world)
@@ -261,7 +264,8 @@
       (mode-mouse-pressed world event))))
 
 (defn mouse-moved [world event]
-  (let [world (replay-moved world event)]
+  (let [;; world (replay-moved world event)
+        ]
     (cond
       (not-nil? (:last-point world))
       (cond
@@ -288,7 +292,8 @@
         world (if (= (:mode world) :avatar)
                 (mode-mouse-released world event)
                 world)
-        world (replay-released world event)]
+        ;; world (replay-released world event)
+        ]
     (if (not-nil? (:last-point world))
       (dissoc-in world [:last-point])
       (mode-mouse-released world event))))
@@ -299,5 +304,11 @@
         (recompute-viewport width height)
         (place-elements))))
 
-;;----------------------------------------------------------------------;;
+(defn window-focused [world focused]
+  (if focused
+    (-> world
+      (update-scripts)
+      (redraw))
+    world))
 
+;;----------------------------------------------------------------------;;

@@ -198,19 +198,6 @@
 (defn open-machine-version [world]
   (read-input world #(open-machine %1 %2)))
 
-;; (open-machine @world "https://felipereigosa.com/remote.mch")
-;; (redraw!))
-
-;; (require '[clojure.java.io :as io])
-
-;; (let [uri "https://felipereigosa.com/remote.mch"]
-;;   (with-open [in (io/input-stream uri)]
-;;     (println! (slurp in))))
-
-
-;;----------------------------------------------------------------------;;
-
-
 (defn import-machine [world text]
   (try
     (let [filename (get-last-version-filename text)
@@ -236,6 +223,3 @@
 
 (defn import-machine-version [world]
   (read-input world #(import-machine %1 %2)))
-
-
-

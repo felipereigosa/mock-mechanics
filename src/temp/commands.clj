@@ -5,11 +5,11 @@
 (defn get-bindings []
   {"A-d" #(change-mode % :debug)
    "A-q" #(update-in % [:draw-update-cube] not)
-   "A-r o" #(toggle-replay %)
-   "A-r s" #(read-input %
-                        (fn [w text]
-                          (create-instructions! w text)
-                          w))
+
+   "A-r s" #(read-input % (fn [w text]
+                            (create-instructions! w text)
+                            w))
+   "A-r o" #(toggle-replay %)   
    "left" #(replay-back %)
    "right" #(replay-forward %)
 
@@ -61,6 +61,7 @@
    ":motherboard c" #(assoc-in % [:motherboard-subcommand] :connect)
    ":motherboard t" #(assoc-in % [:motherboard-subcommand] :toggle)
    ":motherboard r" #(assoc-in % [:motherboard-subcommand] :run)
+   ":motherboard e" #(open-editor %)
 
    "A-c" #(change-mode % :color)
    ":color 0" #(assoc-in % [:current-color] :black)

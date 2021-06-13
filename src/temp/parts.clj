@@ -258,7 +258,9 @@
                part)
 
         part (if (= type :motherboard)
-               (assoc-in part [:tab] 0)
+               (-> part
+                 (assoc-in [:script] (slurp "res/default-script.clj"))
+                 (assoc-in [:tab] 0))
                part)
 
         part (if (= type :display)
