@@ -154,7 +154,7 @@
 (defn get-part-number [part-name]
   (parse-int (second (re-find #":[a-z]*([0-9]*)" (str part-name)))))
 
-(defn create-instructions! [world filename]
+(defn create-instructions [world filename]
   (let [sorted-names (>> (:parts world)
                          (keys .)
                          (into #{} .)
@@ -169,7 +169,8 @@
     (with-open [writer (clojure.java.io/writer filename)]
       (doseq [part-name sorted-names]
         (create-part-instructions writer world part-name)))
-    (println! "created instructions")))
+    (println! "created instructions")
+    world))
 
 ;; ;;----------------------------------------------------------------------;;
 ;; ;; mouse events
@@ -229,6 +230,11 @@
 ;;----------------------------------------------------------------------;;
 ;; run
 
+(defn update-history [world]
+  (update-in world [:replay-history]
+             #(conj % {:parts (:parts world)
+                       :camera (:camera world)})))
+
 (do
 1
 
@@ -249,6 +255,7 @@
         (assoc-in [:parts parent-name :children part-name] transform)
         (assoc-in [:parts part-name] part)    
         (compute-transforms :parts)
+        (update-history)
         (tree-changed))))
 
 ;; (defn run-set-instruction [world instruction]
@@ -260,6 +267,7 @@
 ;;         value (if (symbol? value) (keyword value) value)]
 ;;     (-> world
 ;;         (set-part-value part-name property-name (str value))
+;;         (update-history)
 ;;         (tree-changed))))
 
 (defn scale-animation [world animation]
@@ -275,6 +283,7 @@
           (assoc-in [:parts part-name :scale] final-scale)
           (assoc-in [:parts part-name :transform] final-transform)
           (create-relative-transform part-name parent-name)
+          (update-history)
           (tree-changed))
 
       :else
@@ -322,6 +331,7 @@
       (assoc-in [:mode] :color)
       (assoc-in [:current-color] color)
       (assoc-in [:parts part-name :color] color)
+      (update-history)
       (tree-changed))))
 
 ;; (defn run-set-functions-instruction [world instruction]
@@ -333,6 +343,7 @@
 ;;   ;;       value (if (symbol? value) (keyword value) value)]
 ;;   ;;   (-> world
 ;;   ;;       (set-part-value part-name property-name (str value))
+;;   ;;       (update-history)
 ;;   ;;       (tree-changed)))
 ;;   (println! "set functions")
 ;;   world
@@ -347,6 +358,7 @@
 ;;   ;;       value (if (symbol? value) (keyword value) value)]
 ;;   ;;   (-> world
 ;;   ;;       (set-part-value part-name property-name (str value))
+;;   ;;       (update-history)
 ;;   ;;       (tree-changed)))
 ;;   (println! "set graph")
 ;;   world
@@ -391,10 +403,45 @@
 ;;               ))))
 ;;     world))
 
-(defn update-history [world]
-  (update-in world [:replay-history]
-             #(conj % {:parts (:parts world)
-                       :camera (:camera world)})))
+;; (defn test-animation [world animation] ;;##########################
+;;   (let [{:keys [t]} animation]
+;;     (cond
+;;       (float= t 0.0)
+;;       (do
+;;         (println! "start")
+;;         (assoc-in world [:mode] :add))
+
+;;       (< 0.48 t 0.5)
+;;       (let [part (create-part :block :white 0 (:info world))
+;;             transform (make-transform [0.25 0.35 0.25] [1 0 0 0])]
+;;         (println! "middle")
+;;         (-> world
+;;           (assoc-in [:parts :ground-part :children :block0] transform)
+;;           (assoc-in [:parts :block0] part)    
+;;           (compute-transforms :parts)
+;;           (tree-changed)))
+
+;;       (float= t 1.0)
+;;       (let [part (create-part :block :red 0 (:info world))
+;;             transform (make-transform [0 0.5 0] [1 0 0 0])]
+;;         (println! "done")
+;;         (-> world
+;;           (assoc-in [:parts :block0 :children :block1] transform)
+;;           (assoc-in [:parts :block1] part)    
+;;           (compute-transforms :parts)
+;;           (tree-changed)))
+
+;;       :else
+;;       (do
+;;         (println! t)
+;;         world
+;;         ))))
+
+;; set mode
+;; wait x
+;; do animation
+;; wait y
+;; do second animation
 
 (defn run-instruction [world instruction]
   (let [words (split instruction #" ")
@@ -408,12 +455,17 @@
                           (resolve))]
       (do
         (println! (subs instruction 0 (min 100 (count instruction))))
-        (-> world
-            (function instruction)
-            (update-history)))
+        (function world instruction))
       (do
         (println! "invalid instruction")
-        world))))
+        world)))
+
+  ;; (assoc-in world [:animation]
+  ;;   {:t 0.0
+  ;;    :time 3
+  ;;    :fn test-animation
+  ;;    })
+  )
 
 (defn replay-draw [world]
   (let [width 40
@@ -450,7 +502,9 @@
     instruction))
 
 (defn replay-forward [world]
-  (if (:replay-filename world)
+  (if (and
+        (:replay-filename world)
+        (nil? (:animation world)))
     (let [filename (str "res/" (:replay-filename world) ".txt")
           lines (with-open [rdr (clojure.java.io/reader filename)]
                   (vec (line-seq rdr)))
@@ -470,8 +524,9 @@
     world))
 
 (defn replay-back [world]
-  (if (and (:replay-filename world)
-           (> (:instruction-index world) 0))
+  (if (and
+        (:replay-filename world)
+        (> (:instruction-index world) 0))
     (let [new-history (pop (:replay-history world))
           filename (str "res/" (:replay-filename world) ".txt")
           lines (with-open [rdr (clojure.java.io/reader filename)]
@@ -490,4 +545,3 @@
 ;; (clear-output!)
 ;; nil
 )
-

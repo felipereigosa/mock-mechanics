@@ -169,5 +169,16 @@
         world))
     world))
 
-
+(defn read-and-execute-command [world]
+  (read-input world (fn [w text]
+                      (let [atoms (split text #" ")
+                            function (->> (first atoms)
+                                       (str "temp.core/")
+                                       (symbol)
+                                       (resolve))]
+                        (try
+                          (apply function w (rest atoms))
+                          (catch Exception e
+                            (println! "Error with command:" text)
+                            w))))))
 

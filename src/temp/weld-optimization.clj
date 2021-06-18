@@ -141,14 +141,13 @@
   (let [part-names
         (map first (filter (fn [[name part]]
                              (or
-                              (in? (:type part) [:probe :lamp :button :display])
-                              (and (= (:type part) :block)
-                                   (:solid part))
+                               (in? (:type part) [:probe :lamp :button
+                                                  :display :block])
                               (get-in part [:model :texture-coordinates])
                               ))
-                           parts))
+                     parts))
         rrt (apply merge (map #(get-relative-transform % parts groups)
-                            part-names))]
+                           part-names))]
     (assoc-in world [:root-relative-transforms] rrt)))
 
 (defn use-root-relative-transform [world part-name]

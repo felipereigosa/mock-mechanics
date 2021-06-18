@@ -5,14 +5,11 @@
 (defn get-bindings []
   {"A-d" #(change-mode % :debug)
    "A-q" #(update-in % [:draw-update-cube] not)
-
-   "A-r s" #(read-input % (fn [w text]
-                            (create-instructions! w text)
-                            w))
    "A-r o" #(toggle-replay %)   
    "left" #(replay-back %)
    "right" #(replay-forward %)
-
+   "A-x" read-and-execute-command
+   
    "A-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)
    ":add c" #(assoc-in % [:add-type] :cylinder)
@@ -142,7 +139,8 @@
     world))
 
 (defn text-input-key-pressed [world event]
-  (let [key (get-in keymap [(:code event)])]
+  (let [km (if (:shift-pressed world) shift-keymap keymap)
+        key (get-in km [(:code event)])]
     (case key
       :enter
       (let [callback (:input-callback world)

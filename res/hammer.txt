@@ -1,0 +1,2 @@
+add block12040 to ground-part at [0.25 0.35 0.75] [0.0 1.0 0.0 0.0]
+add track12041 to block12040 at [0.0 1.25 0.0] [0.0 1.0 0.0 0.0]

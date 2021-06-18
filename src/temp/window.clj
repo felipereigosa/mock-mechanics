@@ -223,10 +223,11 @@
   
   (if (or (< @time-since-update 200)
           (< @avatar-active-time 2000)
-          ;; (not (empty? (:spheres @world)))
+          (not (empty? (:spheres @world)))
           ;; (:forces-active? @world)
           (spheres-moving? @world)
-          (not (nil? (:mouse-force @world))))
+          (not (nil? (:mouse-force @world)))
+          )
     (let [current-time (get-current-time)
           elapsed (within (- current-time @last-time) 0 40)]
       (reset! last-time current-time)

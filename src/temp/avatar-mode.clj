@@ -186,11 +186,19 @@
 
 (defn avatar-mode-entered [world]
   (let [parts (:parts world)
-        blocks (vec (map first (filter is-solid-part? parts)))]
+        blocks (-> (:parts world)
+                 (get-parts-with-type :block)
+                 (vec)
+                 (conj :ground))]
     (-> world
-      ;; (set-cameraman-from-camera)
-      (assoc-in [:block-names] (conj blocks :ground))
+      (assoc-in [:camera :distance] 35)
+      (compute-camera)
+      (assoc-in [:block-names] blocks)
       (change-state :running))))
+
+(defn avatar-mode-exited [world]
+  (reset! avatar-active-time 10000)
+  world)
 
 (defn avatar-press-part [world]
   (let [avatar (:avatar world)
