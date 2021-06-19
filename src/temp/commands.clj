@@ -5,11 +5,14 @@
 (defn get-bindings []
   {"A-d" #(change-mode % :debug)
    "A-q" #(update-in % [:draw-update-cube] not)
+   "A-x" read-and-execute-command
+   
    "A-r o" #(toggle-replay %)   
    "left" #(replay-back %)
    "right" #(replay-forward %)
-   "A-x" read-and-execute-command
-   
+   "C-p" #(toggle-run-instructions %)
+   "C-left" #(replayer-restart %)
+      
    "A-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)
    ":add c" #(assoc-in % [:add-type] :cylinder)
