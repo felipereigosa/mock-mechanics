@@ -98,19 +98,20 @@
         offset-transform (make-transform offset [1 0 0 0])
         relative-transform (get-in world [:parts parent-name
                                           :children part-name])]
-    (combine-transforms relative-transform offset-transform)))
+    (combine-transforms offset-transform relative-transform)))
 
 (defn create-part-instructions [writer world part-name]
   (let [parent-name (get-parent-part world part-name)
         part (get-in world [:parts part-name])
+        type (:type part)
         properties (concat
                     (keys (get-in world [:info type :properties]))
                     (filter #(not= % :.) (:properties world))
                     '(:color))
-        type (:type part)
         color (get-in world [:info type :color])
         new-part (create-part type color 0 (:info world))
         scale-change (vector-subtract (:scale part) (:scale new-part))]
+
     (let [relative-transform (get-descaled-relative-transform
                               world part-name scale-change)
           position (get-transform-position relative-transform)
@@ -133,6 +134,9 @@
                       (get part property))
               value (if (keyword value)
                       (dekeyword value)
+                      value)
+              value (if (= type :wagon)
+                      (* value (reduce + (:track-lengths part)))
                       value)]
           (.write writer (format "set %s of %s to %s\n"
                                  (dekeyword property)
@@ -154,6 +158,21 @@
 (defn get-part-number [part-name]
   (parse-int (second (re-find #":[a-z]*([0-9]*)" (str part-name)))))
 
+(defn build-parents-map [mp parts part-name]
+  (reduce (fn [m child-name]
+            (-> m
+              (assoc-in [child-name] part-name)
+              (build-parents-map parts child-name)))
+    mp
+    (keys (:children (get-in parts [part-name])))))
+
+(defn ancestor? [mp parent child]
+  (->> child
+    (iterate #(get mp %))
+    (take-while not-nil?)
+    (get-index parent)
+    (boolean)))
+
 (defn create-instructions [world filename]
   (let [sorted-names (>> (:parts world)
                          (keys .)
@@ -161,6 +180,9 @@
                          (clojure.set/difference . #{:ground-part})
                          (vec .)
                          (sort-by get-part-number .))
+        parent-map (build-parents-map {} (:parts world) :ground-part)
+        sorted-names (sort-by identity (partial ancestor? parent-map)
+                       sorted-names)
         world (reduce (fn [w part-name]
                         (set-value-0-transform w part-name))
                       world
@@ -169,8 +191,8 @@
     (with-open [writer (clojure.java.io/writer filename)]
       (doseq [part-name sorted-names]
         (create-part-instructions writer world part-name)))
-    (println! "created instructions")
     world))
+
 
 ;; ;;----------------------------------------------------------------------;;
 ;; ;; mouse events
@@ -235,23 +257,31 @@
              #(conj % {:parts (:parts world)
                        :camera (:camera world)})))
 
+(defn get-part-type [part-name]
+  (keyword (second (re-find #":([a-z]*)" (str part-name)))))
+
 (defn run-add-instruction [world instruction]
   (let [[_ part-name
          _ parent-name
          _ position rotation] (read-string (str "[" instruction "]"))
         part-name (keyword part-name)
         parent-name (keyword parent-name)
-        type (keyword (second (re-find #":([a-z]*)" (str part-name))))
+        type (get-part-type part-name)
         layer (apply min (:visible-layers world))
         color (get-in world [:info type :color])
         part (create-part type color layer (:info world))
-        transform (make-transform position rotation)]
-    (-> world
-        (assoc-in [:parts parent-name :children part-name] transform)
-        (assoc-in [:parts part-name] part)    
-        (compute-transforms :parts)
-        (update-history)
-        (tree-changed))))
+        transform (make-transform position rotation)
+        prepare-wagon (fn [w]
+                        (if (= type :wagon)
+                          (set-wagon-loop w part-name parent-name)
+                          w))]
+    (-> world                           
+      (assoc-in [:parts part-name] part)
+      (assoc-in [:parts parent-name :children part-name] transform)
+      (prepare-wagon)
+      (compute-transforms :parts)
+      (update-history)
+      (tree-changed))))
 
 ;; (defn run-set-instruction [world instruction]
 ;;   (let [[_ property-name
@@ -322,6 +352,40 @@
       (assoc-in [:parts part-name :color] color)
       (update-history)
       (tree-changed))))
+
+(defn value-animation [world animation]
+  (let [{:keys [t part-name final-value]} animation]
+    (cond
+      (float= t 0.0)
+      (tree-will-change world)
+
+      (float= t 1.0)
+      (-> world
+        (assoc-in [:parts part-name :value] final-value)
+        (update-history)
+        (tree-changed))
+
+      :else
+      (-> world
+        (assoc-in [:parts part-name :value] (* t final-value))
+        (redraw)))))
+
+(defn run-set-value-instruction [world instruction]
+  (let [[_ _ _ part-name _ value] (read-string (str "[" instruction "]"))
+        part-name (keyword part-name)
+        part (get-in world [:parts part-name])
+        value (if (= (:type part) :wagon)
+                (/ value (reduce + (:track-lengths part)))
+                value)
+        time (if (= (:type part) :wagon)
+               (abs value)
+               (* 2 (abs value)))]
+    (assoc-in world [:animation]
+      {:t 0.0
+       :time time
+       :fn value-animation
+       :part-name part-name
+       :final-value value})))
 
 ;; (defn run-set-functions-instruction [world instruction]
 ;;   ;; (let [[_ property-name
@@ -396,6 +460,16 @@
   (sleep (parse-int (subs instruction 6)))
   world)
 
+(defn run-set-variable-instruction [world instruction]
+  (let [[_ _ key _ value] (read-string (str "(" instruction ")"))
+        key (keyword key)
+        value (if (symbol value)
+                (keyword value)
+                value)]
+    (-> world
+      (assoc-in [key] value)
+      (update-history))))
+
 (defn run-instruction [world instruction]
   (let [words (split instruction #" ")
         instruction-name (if (= (first words) "set")
@@ -416,50 +490,53 @@
 ;;----------------------------------------------------------------------;;
 ;; playback
 
-(defn set-correct-mode! [instruction delay]
-  (let [atoms (split instruction #" ")]
-    (cond
-      (= (first atoms) "add")
-      (let [add-type (->> atoms
-                       (second)
-                       (re-seq #"[a-zA-Z]")
-                       (apply str)
-                       (keyword))]
-        (when (not= (:mode @world) :add)
-          (set-thing! [:mode] :add)
-          (redraw!)
-          (sleep delay))
+(defn update-variable [key value result variables]
+  (if (= (get-in variables [key]) value)
+    [result variables]
+    [(conj result (str "set variable " (dekeyword key)
+                    " to " (dekeyword value)))
+     (assoc-in variables [key] value)]))
 
-        (when (not= (:add-type @world) add-type)
-          (set-thing! [:add-type] add-type)
-          (redraw!)
-          (sleep delay)))
+(defmacro change-mode-submode [mode submode-name submode]
+  (let [r (gensym 'results)
+        v (gensym 'variables)]
+    `(let [[~r ~v] (update-variable :mode ~mode ~'result ~'variables)
+           [~r ~v] (update-variable ~submode-name ~submode ~r ~v)
+           ~r (conj ~r ~'instruction)]
+       (~'extend-instructions-helper ~r (rest ~'instructions) ~v))))
 
-      (= (first atoms) "scale")
-      (do
-        (when (not= (:mode @world) :edit)
-          (set-thing! [:mode] :edit)
-          (redraw!)
-          (sleep delay))
+(defn extend-instructions-helper [result instructions variables]
+  (if (empty? instructions)
+    result
+    (let [instruction (first instructions)
+          atoms (split instruction #" ")]
+      (cond
+        (.startsWith instruction "add")
+        (let [type (get-part-type (keyword (second atoms)))]
+          (change-mode-submode :add :add-type type))
 
-        (when (not= (:edit-subcommand @world) :scale)
-          (set-thing! [:edit-subcommand] :scale)
-          (redraw!)
-          (sleep delay)))
+        (.startsWith instruction "scale")
+        (let [subcommand (keyword (first atoms))]
+          (change-mode-submode :edit :edit-subcommand subcommand))
 
-      (.startsWith instruction "set color")
-      (let [color (keyword (last atoms))]
-        (when (not= (:mode @world) :color)
-          (set-thing! [:mode] :color)
-          (redraw!)
-          (sleep delay))
+        (.startsWith instruction "set color")
+        (let [color (keyword (last atoms))]
+          (change-mode-submode :color :current-color color))
 
-        (when (not= (:current-color @world) color)
-          (set-thing! [:current-color] color)
-          (redraw!)
-          (sleep delay))
-        )
-      )))
+        (.startsWith instruction "set value")
+        (let [selected (keyword (nth atoms 3))]
+          (change-mode-submode :property :selected-part selected))
+
+        :else
+        (recur (conj result instruction)
+          (rest instructions) variables)))))
+
+(defn extend-instructions [instructions]
+  (let [variables {:mode :simulation
+                   :add-type :block
+                   :edit-subcommand :move
+                   :current-color :red}]
+    (extend-instructions-helper [] instructions variables)))
 
 (def replaying (atom false))
 
@@ -469,17 +546,18 @@
     (let [filename (str "res/" (get-thing! [:replay-filename]) ".txt")
           instructions (with-open [rdr (clojure.java.io/reader filename)]
                          (vec (line-seq rdr)))
+          instructions (extend-instructions instructions)
           delay 500]
       (reset! replaying true)
       (while (and @replaying
                (< (:instruction-index @world) (count instructions)))
         (let [instruction (nth instructions (:instruction-index @world))]
           (update-thing! [:instruction-index] inc)
-          (set-correct-mode! instruction delay)
-          (update-thing! [] #(run-instruction % instruction))
-          (while (get-thing! [:animation]))
-          (redraw!)
-          (sleep delay)))
+          (when (not (empty? instruction))
+            (update-thing! [] #(run-instruction % instruction))
+            (while (get-thing! [:animation]))
+            (redraw!)
+            (sleep delay))))
       (reset! replaying false))))
 
 (defn toggle-run-instructions [world]
@@ -493,17 +571,10 @@
 ;;----------------------------------------------------------------------;;
 
 (defn replay-draw [world]
-  (let [width 40
-        height 40        
-        y-offset (+ (* (:num-lines world) 16) 10 (* height 0.5))
-        y (- (:window-height world) y-offset)
-        x-offset (* width 0.5)
-        x (- (:window-width world) x-offset)
-        count (str (:instruction-index world))]
-    (fill-rect! :black x y width height)
-    (fill-rect! :black (- x 50) y 150 height)
-    (draw-text! :white (:replay-filename world) (- x 100) (+ y 5) 15)
-    (draw-text! :white count  (- x 8) (+ y 5) 15)))
+  (let [x (- (:window-width world) 10)
+        y (- (:window-height world) 10 105)]
+    (fill-rect! :black x y 20 20)
+    (draw-text! :white "R" (- x 4) (+ y 5) 15)))
 
 (defn toggle-replay [world]
   (if (:replay-filename world)
@@ -521,14 +592,19 @@
             (assoc-in [:replay-history] [])
             (update-history)))))))
 
-(defn remove-mark [instruction]
-  (if (.startsWith instruction "*")
-    (subs instruction 2)
-    instruction))
+;; (defn remove-mark [instruction]
+;;   (if (.startsWith instruction "*")
+;;     (subs instruction 2)
+;;     instruction))
 
 (defn replayer-restart [world]
   (let [new-history (vec (take 1 (:replay-history world)))]
     (-> world
+      (assoc-in [:mode] :simulation)
+      (assoc-in [:add-type] :block)
+      (assoc-in [:edit-subcommand] :move)
+      (assoc-in [:selected-part] nil)
+      (assoc-in [:current-color] :red)
       (assoc-in [:parts] (:parts (last new-history)))
       (assoc-in [:camera] (:camera (last new-history)))
       (compute-camera)
@@ -541,20 +617,14 @@
         (:replay-filename world)
         (nil? (:animation world)))
     (let [filename (str "res/" (:replay-filename world) ".txt")
-          lines (with-open [rdr (clojure.java.io/reader filename)]
-                  (vec (line-seq rdr)))
+          instructions (with-open [rdr (clojure.java.io/reader filename)]
+                         (vec (line-seq rdr)))
+          instructions (extend-instructions instructions)
           index (:instruction-index world)]
-      (if (< index (count lines))
-        (let [instructions (cons (nth lines index)
-                                 (take-while #(.startsWith % "*")
-                                             (nthrest lines (inc index))))
-              instructions (map remove-mark instructions)
-              world (reduce (fn [w instruction]
-                              (run-instruction w instruction))
-                            world
-                            instructions)]
-          (assoc-in world [:instruction-index]
-                    (+ (:instruction-index world) (count instructions))))
+      (if (< index (count instructions))
+        (-> world
+          (run-instruction (nth instructions index))
+          (update-in [:instruction-index] inc))
         world))
     world))
 
@@ -564,9 +634,10 @@
         (> (:instruction-index world) 0))
     (let [new-history (pop (:replay-history world))
           filename (str "res/" (:replay-filename world) ".txt")
-          lines (with-open [rdr (clojure.java.io/reader filename)]
-                  (vec (line-seq rdr)))
-          instruction (nth lines (dec (:instruction-index world)))]
+          instructions (with-open [rdr (clojure.java.io/reader filename)]
+                         (vec (line-seq rdr)))
+          instructions (extend-instructions instructions)
+          instruction (nth instructions (dec (:instruction-index world)))]       
       (println! "<<" (subs instruction 0 (min 100 (count instruction))))
       (-> world
           (assoc-in [:parts] (:parts (last new-history)))
@@ -577,3 +648,4 @@
           (tree-changed)))
     world))
 
+;;----------------------------------------------------------------------;;
