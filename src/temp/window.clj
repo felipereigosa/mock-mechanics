@@ -1045,18 +1045,17 @@
                       (str directory "/" (subs texture-line 7)))}}))
 
 (defn parse-materials [filename]
-  (with-open [reader (clojure.java.io/reader filename)]
-    (let [lines (doall (line-seq reader))
-          lines (filter (fn [line]
-                          (or (.startsWith line "newmtl")
-                              (.startsWith line "Kd")
-                              (.startsWith line "map_Kd")))
-                        lines)
-          directory (subs filename 0 (.lastIndexOf filename "/"))
-          materials (create-groups [] #(.startsWith % "newmtl") lines)]
-      (apply merge (cons {"white" {:diffuse [1 1 1]
-                                   :texture nil}}
-                         (map #(parse-material directory %) materials))))))
+  (let [lines (read-lines filename)
+        lines (filter (fn [line]
+                        (or (.startsWith line "newmtl")
+                          (.startsWith line "Kd")
+                          (.startsWith line "map_Kd")))
+                lines)
+        directory (subs filename 0 (.lastIndexOf filename "/"))
+        materials (create-groups [] #(.startsWith % "newmtl") lines)]
+    (apply merge (cons {"white" {:diffuse [1 1 1]
+                                 :texture nil}}
+                   (map #(parse-material directory %) materials)))))
 
 (defn parse-line-with-slashes [line]
   (map (fn [item]
@@ -1084,38 +1083,37 @@
                   [(count lines) nil]))))
 
 (defn create-model-mesh [filename position rotation scale color]
-  (with-open [reader (clojure.java.io/reader filename)]
-    (let [materials-filename (-> filename
-                                 (subs 0 (.lastIndexOf filename "."))
-                                 (str ".mtl"))
-          materials (parse-materials materials-filename)
-          lines (filter (fn [line]
-                          (or (.startsWith line "o")
-                              (.startsWith line "v")
-                              (.startsWith line "vn")
-                              (.startsWith line "vt")
-                              (.startsWith line "f")
-                              (.startsWith line "usemtl")))
-                        (line-seq reader))
-          v (map parse-line (filter #(.startsWith % "v") lines))
-          n (map parse-line (filter #(.startsWith % "vn") lines))
-          t (map parse-line (filter #(.startsWith % "vt") lines))
-          faces (mapcat parse-line-with-slashes
-                        (filter #(.startsWith % "f") lines))
-          vertices (use-indices v (map first faces))
-          normals (use-indices n (map last faces))
-          texture-name (some :texture (vals materials))
-          texture-coords (if texture-name
-                           (use-indices t (map #(nth % 1) faces))
-                           [])
-          texture-coords (map (fn [[u v]]
-                                [u (- 1.0 v)])
-                              texture-coords)
-          skin (or color
-                   texture-name
-                   (create-colors lines materials))]
-      (create-mesh vertices position rotation scale
-                   skin texture-coords normals))))
+  (let [materials-filename (-> filename
+                             (subs 0 (.lastIndexOf filename "."))
+                             (str ".mtl"))
+        materials (parse-materials materials-filename)
+        lines (filter (fn [line]
+                        (or (.startsWith line "o")
+                          (.startsWith line "v")
+                          (.startsWith line "vn")
+                          (.startsWith line "vt")
+                          (.startsWith line "f")
+                          (.startsWith line "usemtl")))
+                (read-lines filename))
+        v (map parse-line (filter #(.startsWith % "v") lines))
+        n (map parse-line (filter #(.startsWith % "vn") lines))
+        t (map parse-line (filter #(.startsWith % "vt") lines))
+        faces (mapcat parse-line-with-slashes
+                (filter #(.startsWith % "f") lines))
+        vertices (use-indices v (map first faces))
+        normals (use-indices n (map last faces))
+        texture-name (some :texture (vals materials))
+        texture-coords (if texture-name
+                         (use-indices t (map #(nth % 1) faces))
+                         [])
+        texture-coords (map (fn [[u v]]
+                              [u (- 1.0 v)])
+                         texture-coords)
+        skin (or color
+               texture-name
+               (create-colors lines materials))]
+    (create-mesh vertices position rotation scale
+      skin texture-coords normals)))
 
 (defn draw-lines! [world mesh transform]
   (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)

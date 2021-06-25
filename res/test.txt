@@ -4,11 +4,12 @@ add track28501 to block28500 at [-0.25 1.25 0.0] [0.0 1.0 0.0 0.0]
 scale track28501 by [0 0.5 0]
 add wagon9809 to track28501 at [0.0 0.0 0.0] [0.0 1.0 0.0 0.0]
 set value of wagon9809 to 0.75
-add block9810 to wagon9809 at [-6.585917E-8 0.0 0.325] [1.0 -3.127225E-8 3.5527137E-13 90.00000250447816]
+add block9810 to wagon9809 at [0 0.0 0.325] [1.0 0.0 0.0 90]
 scale block9810 by [0 -0.4 0]
 set color of block9810 to purple
-add block28502 to track28501 at [0.0 0.24999996 0.0] [0.0 1.0 0.0 0.0]
-scale block28502 by [0.8999999999999999 0 0]
+add chip9928 to block28500 at [-0.25 0.0 0.285] [1.0 0.0 0.0 90]
+set chip9928 function track28501 [[0 0] [0.8 0.5] [1.2 0.5] [2.0 0.0]] false
+add block28502 to track28501 at [0.0 0.25 0.0] [0.0 1.0 0.0 0.0]
+scale block28502 by [0.9 0 0]
 scale block28502 by [0 -0.4 0]
 set color of block28502 to dark-yellow
-set value of track28501 to -0.5

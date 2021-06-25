@@ -349,3 +349,7 @@
 
 (defn dekeyword [k]
   (subs (str k) 1))
+
+(defn read-lines [filename]
+  (with-open [rdr (clojure.java.io/reader filename)]
+    (vec (line-seq rdr))))
