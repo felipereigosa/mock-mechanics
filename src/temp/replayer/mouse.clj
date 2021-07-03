@@ -1,3 +1,7 @@
+
+;; (require '[clojure.java.shell :refer [sh]])
+;; (require '[clojure.set :refer [difference]])
+
 ;; (defn insert-instruction! [filename index instruction]
 ;;   (let [lines (with-open [rdr (clojure.java.io/reader filename)]
 ;;                 (vec (line-seq rdr)))

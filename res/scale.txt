@@ -1,0 +1,4 @@
+add block10032 to ground-part at [-1.25 0.35 0.25] [0.0 1.0 0.0 0.0]
+scale block10032 by [0 0 0.5]
+add sphere10033 to ground-part at [-0.25 0.1 0.25] [0.0 1.0 0.0 0.0]
+scale sphere10033 by [0.7000000000000002 0.7000000000000002 0.7000000000000002]

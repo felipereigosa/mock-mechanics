@@ -72,9 +72,21 @@
         part-name (keyword part-name)
         parent-name (get-parent-part world part-name)
         part (get-in world [:parts part-name])
-        offset (if (= (:type part) :track)
+        offset (cond
+                 (= (:type part) :track)
                  change
+
+                 (and
+                   (in? (:type part) [:cylinder :cone])
+                   (float= (second change) 0.0))
+                 [0 0 0]
+
+                 (= (:type part) :sphere)
+                 [0 0 0]
+
+                 :else
                  (vector-multiply change 0.5))
+
         rotation (get-rotation-component (:transform part))
         offset (apply-transform rotation offset)
         offset-transform (make-transform offset [1 0 0 0])
@@ -94,14 +106,19 @@
 (defn run-set-color-instruction [world instruction]
   (let [[_ _ _ part-name _ color] (read-string (str "[" instruction "]"))
         color (keyword color)
-        part-name (keyword part-name)]
+        part-name (keyword part-name)
+        world (assoc-in world [:parts part-name :color] color)
+        part (get-in world [:parts part-name])
+        world (if (= (:type part) :lamp)
+                (assoc-in world [:parts part-name :dark-color]
+                  (get-dark-color color))
+                world)]
     (-> world
-      (assoc-in [:parts part-name :color] color)
       (update-history)
       (tree-changed))))
 
 (defn value-animation [world animation]
-  (let [{:keys [t part-name final-value]} animation]
+  (let [{:keys [t part-name start-value final-value]} animation]
     (cond
       (float= t 0.0)
       (tree-will-change world)
@@ -115,25 +132,32 @@
 
       :else
       (-> world
-        (assoc-in [:parts part-name :value] (* t final-value))
+        (assoc-in [:parts part-name :value]
+          (interpolate-values start-value final-value t))
         (redraw)))))
 
 (defn run-set-value-instruction [world instruction]
   (let [[_ _ _ part-name _ value] (read-string (str "[" instruction "]"))
         part-name (keyword part-name)
         part (get-in world [:parts part-name])
-        value (if (= (:type part) :wagon)
-                (/ value (reduce + (:track-lengths part)))
-                value)
+        start-value (:value part)
+        length (if (= (:type part) :wagon)
+                 (reduce + (:track-lengths part))
+                 1)
+        final-value (/ value length)
+        s-value (* (:value part) length)
+        time (abs (- s-value value))
+
         time (if (= (:type part) :wagon)
-               (abs value)
-               (* 2 (abs value)))]
+               time
+               (* time 3))]
     (assoc-in world [:animation]
       {:t 0.0
        :time time
        :fn value-animation
        :part-name part-name
-       :final-value value})))
+       :start-value start-value
+       :final-value final-value})))
 
 ;; (defn interpolate-mouse [start end]
 ;;   (let [ts (last start)
@@ -183,10 +207,17 @@
         key (keyword key)
         value (if (symbol value)
                 (keyword value)
-                value)]
+                value)
+        world (if (in? key [:selected-part
+                            :selected-chip
+                            :selected-motherboard])
+                (select-part world value)
+                world)]
     (-> world
       (assoc-in [key] value)
       (update-history))))
+
+(declare replaying)
 
 (defn run-put-instruction [world instruction]
   (let [[_ part-name _ chip-name] (read-string (str "[" instruction "]"))
@@ -194,13 +225,19 @@
         chip-name (keyword chip-name)
         chip (get-in world [:parts chip-name])
         part (get-in world [:parts part-name])]
-    (-> world
-      (assoc-in [:parts chip-name :functions part-name]
-        {:points [[0 0] [1 1]]
-         :relative false
-         :z (inc (get-max-z chip))})
-      (update-history)
-      (tree-changed))))
+    (if (nil? part)
+      (do
+        (println! "part" part-name "doesn't exist")
+        (reset! replaying false)
+        world)
+      (-> world
+        (select-part part-name)
+        (assoc-in [:parts chip-name :functions part-name]
+          {:points [[0 0] [1 1]]
+           :relative false
+           :z (inc (get-max-z chip))})
+        (update-history)
+        (tree-changed)))))
 
 (defn run-add-point-instruction [world instruction]
   (let [[_ _ point _ _ part-name _ chip-name] (read-string (str "[" instruction "]"))
@@ -226,33 +263,16 @@
             (normalize-function))))
       (update-history))))
 
-(defn get-bounding-viewbox [points box]
-  (let [xs (map first points)
-        ys (map second points)
-        x1 (first xs)
-        x2 (last xs)
-        y1 (reduce min ys)
-        y2 (reduce max ys)
-        zoom-x (/ 1.0 (- x2 x1))
-        zoom-y (/ 1.0 (- y2 y1))
-        x (* x1 zoom-x -1)
-        y (* y1 zoom-y -1)]
-    {:offset [x y]
-     :zoom-x zoom-x
-     :zoom-y zoom-y}))
-
 (defn function-zoom-animation [world animation]
   (let [{:keys [t chip-name start-view end-view]} animation]
     (cond
-      (float= t 0.0)
-      (do
-        (println! "started")
-        world)
+      (float= t 0.0) world
 
       (float= t 1.0)
       (-> world
-          (assoc-in [:parts chip-name :view] end-view)
-          (redraw))
+        (assoc-in [:parts chip-name :view] end-view)
+        (update-history)
+        (redraw))
 
       :else
       (let [start-zoom [(:zoom-x start-view)
@@ -269,14 +289,15 @@
              :offset offset})
           (redraw))))))
 
-(defn run-zoom-instruction [world instruction]
-  (let [[_ _ chip-name _ part-name] (read-string (str "[" instruction "]"))
+(defn run-set-view-instruction [world instruction]
+  (let [[_ _ _ chip-name _ view] (read-string (str "[" instruction "]"))
+        [ox oy zx zy] view
         chip-name (keyword chip-name)
-        part-name (keyword part-name)
         chip (get-in world [:parts chip-name])
-        points (get-in chip [:functions part-name :points])
         start-view (:view chip)
-        end-view (get-bounding-viewbox points (:graph-box world))]
+        end-view  {:zoom-x zx
+                   :zoom-y zy
+                   :offset [ox oy]}]
     (assoc-in world [:animation]
       {:t 0.0
        :time 1
@@ -285,14 +306,112 @@
        :start-view start-view
        :end-view end-view})))
 
+(defn run-activate-instruction [world instruction]
+  (let [chip-name (keyword (second (split instruction #" ")))]
+    (activate-chip world chip-name)))
+
+(defn run-select-instruction [world instruction]
+  (let [[_ motherboard-name _ tab-num] (read-string (str "[" instruction "]"))
+        motherboard-name (keyword motherboard-name)]
+    (-> world
+      (assoc-in [:parts motherboard-name :tab] tab-num)
+      (redraw)
+      (update-history))))
+
+(defn run-set-pin-instruction [world instruction]
+  (let [[_ motherboard-name _ pin] (read-string (str "[" instruction "]"))
+        motherboard-name (keyword motherboard-name)
+        [part-name x] pin
+        part-name (keyword part-name)
+        part (get-in world [:parts part-name])]
+    (if (nil? part)
+      (do
+        (println! "part" part-name "doesn't exist")
+        (reset! replaying false)
+        world)
+      (-> world
+        (assoc-in [:parts motherboard-name :pins part-name]
+          {:x x
+           :trigger false
+           :value (:value part)})
+        (redraw)
+        (update-history)))))
+
+(defn run-toggle-instruction [world instruction]
+  (let [[_ motherboard-name _ part-name] (read-string (str "[" instruction "]"))
+        motherboard-name (keyword motherboard-name)
+        part-name (keyword part-name)]
+    (-> world
+      (assoc-in [:parts motherboard-name :pins part-name :trigger] true)
+      (redraw)
+      (update-history))))
+
+(defn run-set-gate-instruction [world instruction]
+  (let [[_ motherboard-name _ gate] (read-string (str "[" instruction "]"))
+        motherboard-name (keyword motherboard-name)
+        tab (get-in world [:parts motherboard-name :tab])
+        [gate-name x y] gate
+        type (->> gate-name
+               (str)
+               (re-find #"([a-z]*)[0-9]*")
+               (second)
+               (keyword))
+        gate-name (keyword (str "gate-" gate-name))]
+    (-> world
+      (assoc-in [:parts motherboard-name :gates gate-name]
+        {:type type
+         :x x
+         :y y
+         :tab tab})
+      (redraw)
+      (update-history))))
+
+(defn run-set-connection-instruction [world instruction]
+  (let [[_ motherboard-name _ connection-name points] (read-string (str "[" instruction "]"))
+        motherboard-name (keyword motherboard-name)
+        connection-name (keyword connection-name)
+        points (vec (map #(if (symbol? %)
+                            (keyword %)
+                            %)
+                      points))
+        tab (get-in world [:parts motherboard-name :tab])]
+    (-> world
+      (assoc-in [:parts motherboard-name :connections connection-name]
+        {:points points
+         :tab tab})
+      (redraw)
+      (update-history))))
+
+(defn run-add-connection-point-instruction [world instruction]
+  (let [[_ motherboard-name connection-name _ point] (read-string (str "[" instruction "]"))
+        motherboard-name (keyword motherboard-name)
+        connection-name (keyword connection-name)
+        point (if (symbol? point)
+                (keyword point)
+                point)]
+    (-> world
+      (update-in [:parts motherboard-name
+                  :connections connection-name :points]
+        #(conj % point))
+      (redraw)
+      (update-history))))
+
 (defn run-instruction [world instruction]
   (let [words (split instruction #" ")
         instruction-name (cond
                            (= (second words) "point")
                            (str (first words) "-point")
+
+                           (.startsWith instruction "set motherboard")
+                           (str (first words) "-" (third words))
                            
                            (= (first words) "set")
                            (str (first words) "-" (second words))
+
+                           (and
+                             (= (first words) "add")
+                             (= (fourth words) "point"))
+                           "add-connection-point"
 
                            :else
                            (first words))]
@@ -303,8 +422,9 @@
                           (resolve))]
       (do
         (println! (subs instruction 0 (min 100 (count instruction))))
-        (function world instruction)
-        (redraw))
+        (-> world
+          (function instruction)
+          (redraw)))
       (do
         (println! "invalid instruction")
         world))))

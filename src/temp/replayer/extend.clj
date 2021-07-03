@@ -1,7 +1,4 @@
 
-;; (do
-;; 1
-
 (defn update-variable [key value result variables]
   (if (= (get-in variables [key]) value)
     [result variables]
@@ -16,6 +13,19 @@
            [~r ~v] (update-variable ~submode-name ~submode ~r ~v)
            ~r (conj ~r ~'instruction)]
        (~'extend-instructions-helper ~r (rest ~'instructions) ~v))))
+
+(defn get-bounding-viewbox [points]
+  (let [xs (map first points)
+        ys (map second points)
+        x1 (first xs)
+        x2 (last xs)
+        y1 (reduce min ys)
+        y2 (reduce max ys)
+        zoom-x (/ 1.0 (- x2 x1))
+        zoom-y (/ 1.0 (- y2 y1))
+        x (* x1 zoom-x -1)
+        y (* y1 zoom-y -1)]
+    [x y zoom-x zoom-y]))
 
 (defn extend-instructions-helper [result instructions variables]
   (if (empty? instructions)
@@ -50,55 +60,83 @@
               r (conj r (format "put %s in %s"
                           part-name chip-name))
 
+              r (conj r (format "set view of %s to %s"
+                          chip-name (get-bounding-viewbox points)))
+
               r (if (not (vector= (first points) [0 0]))
-                  (conj r "move [0 0] point")
+                  (conj r (format "move point 0 of function %s of %s to %s"
+                            part-name chip-name (first points)))
                   r)
 
               r (if (not (vector= (last points) [1 1]))
                   (conj r (format "move point 1 of function %s of %s to %s"
                             part-name chip-name (last points)))
-                            
+
                   r)
-              
+
               r (reduce (fn [rt point]
                           (conj rt (format "add point %s to function %s of %s"
                                      point part-name chip-name)))
                   r
-                  (butlast (rest points)))              
-              
-              ;; r (conj r "~~~~~~~~~~~~~~~~~~")
-              ]
+                  (butlast (rest points)))
+
+              r (conj r (str "activate " chip-name))]
+          (extend-instructions-helper r (rest instructions) v))
+
+        (.startsWith instruction "set motherboard")
+        (let [[_ motherboard _ tab-num & elements] (read-string (str "[" instruction "]"))
+              [r v] (update-variable :mode :motherboard result variables)
+              [r v] (update-variable :selected-motherboard (keyword motherboard) r v)
+              get-element-type (fn [element]
+                                 (let [[a b] (take-last 2 element)]
+                                   (cond
+                                     (and (number? a) (number? b)) :gate
+                                     (or (number? b) (= b 'true)) :pin
+                                     :else :connection)))
+
+              r (conj r (format "select %s tab %s"
+                          motherboard tab-num))
+
+              r (reduce (fn [rt element]
+                          (if (= (get-element-type element) :connection)
+                            (let [[connection-name & element] element
+                                  rt (conj rt (format "set %s connection %s %s"
+                                                motherboard
+                                                connection-name
+                                                (vec (take 2 element))))]
+                              (reduce (fn [rtt point]
+                                        (conj rtt (format "add %s %s point %s"
+                                                    motherboard
+                                                    connection-name
+                                                    point)))
+                                rt
+                                (nthrest element 2)))
+                            (let [rt (conj rt (format "set %s %s %s"
+                                                motherboard
+                                                (dekeyword (get-element-type element))
+                                                element))]
+                              (if (= (last element) 'true)
+                                (conj rt (format "toggle %s pin %s"
+                                           motherboard (first element)))
+                                rt))))
+                  r
+                  elements)]
           (extend-instructions-helper r (rest instructions) v))
 
         :else
         (recur (conj result instruction)
           (rest instructions) variables)))))
 
+(def start-variables {:mode :simulation
+                      :add-type :block
+                      :edit-subcommand :move
+                      :selected-part nil
+                      :selected-chip nil
+                      :current-color :red
+                      })
+
 (defn extend-instructions [instructions]
-  (let [variables {:mode :simulation
-                   :add-type :block
-                   :edit-subcommand :move
-                   :current-color :red}]
-    (extend-instructions-helper [] instructions variables)))
+  (extend-instructions-helper [] instructions start-variables))
 
 (defn reset-variables [world]
-  (-> world
-    (assoc-in [:mode] :simulation)
-    (assoc-in [:add-type] :block)
-    (assoc-in [:edit-subcommand] :move)
-    (assoc-in [:selected-part] nil)
-    (assoc-in [:selected-chip] nil)
-    (assoc-in [:current-color] :red)))
-
-;; (clear-output!)
-;; (let [world @world
-;;       instructions (read-lines "res/test.txt")
-;;       instructions (extend-instructions instructions)
-;;       ]
-
-;;   (println! "----")
-;;   (doseq [instruction instructions]
-;;     (println! instruction)
-;;   nil
-;;   )))
-
+  (merge world start-variables))

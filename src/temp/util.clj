@@ -353,3 +353,14 @@
 (defn read-lines [filename]
   (with-open [rdr (clojure.java.io/reader filename)]
     (vec (line-seq rdr))))
+
+(defn interpolate-values [a b t]
+  (+ (* a (- 1.0 t)) (* b t)))
+
+(def third #(nth % 2))
+(def fourth #(nth % 3))
+(def fifth #(nth % 4))
+
+(defn predicate-split [predicate coll]
+  (let [m (group-by predicate coll)]
+    [(get m true) (get m false)]))

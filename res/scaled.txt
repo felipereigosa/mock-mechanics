@@ -1,18 +1,20 @@
 add block11899-copy55162 to ground-part at [1.25 0.35 0.75] [0.0 1.0 0.0 0.0]
 add track11900-copy55162 to block11899-copy55162 at [0.0 1.25 0.0] [0.0 1.0 0.0 0.0]
+set value of track11900-copy55162 to 0.5
+set snap of track11900-copy55162 to 0
 add block11901-copy55162 to track11900-copy55162 at [-5.9604645E-8 0.24999996 0.0] [0.0 1.0 0.0 0.0]
 scale block11901-copy55162 by [1.1 0 0]
 scale block11901-copy55162 by [0 -0.4 0]
 set color of block11901-copy55162 to yellow
-add block11906 to ground-part at [-0.35 0.35000008 0.75] [0.0 1.0 0.0 0.0]
+add block11906 to ground-part at [-0.35 0.35000002 0.75] [0.0 1.0 0.0 0.0]
 scale block11906 by [0 1.1 0]
 add chip11902 to block11906 at [0.0 -0.55 0.2850001] [1.0 0.0 0.0 90.00000250447816]
-set chip11902 function track11900-copy55162 [[0.0 0.5] [1 1]] false
+set chip11902 function track11900-copy55162 [[0.0 0.5] [1.0 1.0]] false
 add chip11903 to block11906 at [0.0 -0.19999999 0.2850001] [1.0 0.0 0.0 90.00000250447816]
 set chip11903 function track11900-copy55162 [[0 0] [1.0 0.5]] false
 add button11904 to ground-part at [2.25 0.2 0.75] [0.0 1.0 0.0 0.0]
-add probe11907-copy55162 to block11901-copy55162 at [0.74999994 -0.10000014 -5.9604645E-8] [1.0 -4.371139E-8 0.0 180.00000500895632]
-add probe11908 to block11906 at [0.3 0.55 0.0] [0.0 0.0 -1.0 90.00000250447816]
 add motherboard11905 to block11906 at [0.0 0.14999998 0.2850001] [1.0 0.0 0.0 90.00000250447816]
-set motherboard11905 tab 0 [button11904 90 true] [probe11907-copy55162 160] [chip11902 370] [and18130 160 100] [connection18131 button11904 [90 100] gate-and18130] [connection9254 probe11907-copy55162 gate-and18130] [connection9258 gate-and18130 [370 100] chip11902]
-set motherboard11905 tab 1 [chip11903 290] [and18135 160 100] [not18134 160 50] [connection18136 button11904 [90 100] gate-and18135] [connection18138 gate-not18134 gate-and18135] [connection9255 probe11907-copy55162 gate-not18134] [connection9257 gate-and18135 [290 100] chip11903]
+add probe11907-copy55162 to block11901-copy55162 at [0.74999994 -0.10000014 -5.9604645E-8] [1.0 -4.371139E-8 0.0 180.00000500895632]
+set value of probe11907-copy55162 to 1
+add probe11908 to block11906 at [0.3 0.55 0.0] [0.0 0.0 -1.0 90.00000250447816]
+set value of probe11908 to 1

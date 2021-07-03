@@ -202,7 +202,7 @@
         chip (get-in world [:parts chip-name])]
     (and
      (not (empty? (:functions chip)))
-     (not (>= (:time chip) (+ (:final-time chip)) dt)))))
+     (not (>= (:time chip) (+ (:final-time chip) dt))))))
 
 (declare get-parts-with-type)
 

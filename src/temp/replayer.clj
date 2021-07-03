@@ -1,16 +1,10 @@
 
-;; (import java.awt.Robot)
-;; (import java.awt.event.InputEvent)
-
-;; (require '[clojure.java.shell :refer [sh]])
-;; (require '[clojure.set :refer [difference]])
-
-;; (load "compiler")
-;; (load "interpreter")
-;; (load "mouse")
-;; (load "path")
-;; (load "robot")
-;; (load "extend")
+(load "replayer/compiler")
+(load "replayer/interpreter")
+(load "replayer/robot")
+(load "replayer/extend")
+;; (load "replayer/mouse")
+;; (load "replayer/path")
 
 (defn replay-draw [world]
   (let [x (- (:window-width world) 10)
@@ -34,11 +28,6 @@
             (assoc-in [:replay-history] [])
             (update-history)))))))
 
-;; (defn remove-mark [instruction]
-;;   (if (.startsWith instruction "*")
-;;     (subs instruction 2)
-;;     instruction))
-
 (defn replayer-restart [world]
   (let [new-history (vec (take 1 (:replay-history world)))]
     (-> world
@@ -53,7 +42,8 @@
 (defn replay-forward [world]
   (if (and
         (:replay-filename world)
-        (nil? (:animation world)))
+        (nil? (:animation world))
+        (not (any-chip-active? world)))
     (let [filename (str "res/" (:replay-filename world) ".txt")
           instructions (read-lines filename)
           instructions (extend-instructions instructions)
@@ -92,7 +82,7 @@
     (let [filename (str "res/" (get-thing! [:replay-filename]) ".txt")
           instructions (read-lines filename)
           instructions (extend-instructions instructions)
-          delay 500]
+          delay 50]
       (reset! replaying true)
       (while (and @replaying
                (< (:instruction-index @world) (count instructions)))
@@ -100,7 +90,9 @@
           (update-thing! [:instruction-index] inc)
           (when (not (empty? instruction))
             (update-thing! [] #(run-instruction % instruction))
-            (while (get-thing! [:animation]))
+            (while (or
+                     (get-thing! [:animation])
+                     (any-chip-active? @world)))
             (redraw!)
             (sleep delay))))
       (reset! replaying false))))
@@ -112,4 +104,3 @@
         (run []
           (run-instructions!)))))
   world)
-

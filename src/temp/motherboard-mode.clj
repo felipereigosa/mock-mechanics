@@ -437,7 +437,7 @@
                                   (vector-add [x1 y1]))]
                   (fill-circle buffer :yellow ax ay 5)))
               (draw-line buffer :yellow x1 y1 x2 y2)))
-          (doseq [i (range 1 (dec (count points)))]
+          (doseq [i (range 1 (count points))]
             (let [[x y] (nth points i)]
               (fill-rect buffer :black x y 10 10)
               (draw-rect buffer :yellow x y 10 10))))))))
@@ -825,16 +825,15 @@
           world)
         world)
 
-      :else (do
-              (println! "outside")
-              (if-let [part-name (get-part-at world event)]
-                (let [part (get-in world [:parts part-name])]
-                  (if (= (:type part) :motherboard)
-                    (assoc-in world [:selected-motherboard] part-name)
-                    (if (:selected-motherboard world)
-                      (motherboard-change-part world event)
-                      world)))
-                world)))))
+      :else
+      (if-let [part-name (get-part-at world event)]
+        (let [part (get-in world [:parts part-name])]
+          (if (= (:type part) :motherboard)
+            (assoc-in world [:selected-motherboard] part-name)
+            (if (:selected-motherboard world)
+              (motherboard-change-part world event)
+              world)))
+        world))))
 
 (defn motherboard-mode-moved [world event]
   (case (:motherboard-subcommand world)

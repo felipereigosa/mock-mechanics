@@ -45,7 +45,7 @@
                               [1 1 1] :white)
     :collision-model (create-model-mesh "res/sphere-collision.obj"
                                         [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :points [[0 0.5 0] [0 -0.5 0]]
+    :points []
     :scale [0.5 0.5 0.5]
     :color :blue
     :properties {:value 0 :data ""}
@@ -63,14 +63,14 @@
     :tooth (create-model-mesh "res/gear-tooth.obj"
                               [0 0 0] [1 0 0 0] [1 1 1] :gray)
 
-    :points [[0 0.5 0] [0 -0.5 0]]
+    :points []
     :scale [0.5 0.5 0.5]
     :properties {}
     }
 
    :rack
    {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :points [[0 0.5 0] [0 -0.5 0]]
+    :points []
     :scale [0.5 0.5 0.5]
     :properties {}
     }
@@ -174,9 +174,7 @@
 
    :display
    {:model (create-cube-mesh [0 0 0] [1 0 0 0] [1 1 1] :white)
-    :points [[0.5 0 0] [-0.5 0 0]
-             [0 0.5 0] [0 -0.5 0]
-             [0 0 0.5] [0 0 -0.5]]
+    :points []
     :scale [0.5 0.05 0.3]
     :color :black
     :properties {}
@@ -359,8 +357,9 @@
     (draw-mesh! world mesh)))
 
 (defn get-part-offset [part]
-  (if (= (:type part) :track)
-    (second (:scale part))
+  (case (:type part)
+    :track (second (:scale part))
+    :sphere 0
     (* 0.5 (second (:scale part)))))
 
 (defn set-value-0-transform [world part-name]

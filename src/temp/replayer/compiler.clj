@@ -2,14 +2,66 @@
 (defn get-descaled-relative-transform [world part-name change]
   (let [parent-name (get-parent-part world part-name)
         part (get-in world [:parts part-name])
-        offset (if (= (:type part) :track)
-                 change
+        offset (case (:type part)
+                 :sphere [0 0 0]
+                 :track change
+                 (:cylinder :cone) [0 (* (second change) 0.5) 0]
                  (vector-multiply change 0.5))
         offset (vector-multiply offset -1)
         offset-transform (make-transform offset [1 0 0 0])
         relative-transform (get-in world [:parts parent-name
                                           :children part-name])]
     (combine-transforms offset-transform relative-transform)))
+
+(defn create-tab-instructions [writer tab part-name part seen-pins]
+  (let [connections (filter #(= (:tab (second %)) tab)
+                      (:connections part))]
+    (when (not (empty? connections))
+      (let [elements (->> connections
+                       (map (comp :points second))
+                       (apply concat)
+                       (filter keyword?)
+                       (distinct))
+            [gate-names pin-names] (predicate-split
+                                     #(.startsWith (str %) ":gate")
+                                     elements)
+            pin-names (vec (difference (into #{} pin-names) seen-pins))
+            dekeyword (fn [k] (symbol (subs (str k) 1)))
+            pins (sort-by second <
+                   (map (fn [pin-name]
+                          (let [pin (get-in part [:pins pin-name])
+                                pin-name (dekeyword pin-name)]
+                            (if (:trigger pin)
+                              [pin-name (:x pin) true]
+                              [pin-name (:x pin)])))
+                     pin-names))
+            gates (map (fn [gate-name]
+                         (let [gate (get-in part [:gates gate-name])]
+                           [(symbol (subs (str gate-name) 6))
+                            (:x gate) (:y gate)]))
+                    gate-names)
+            connections (map (fn [[connection-name connection]]
+                               (let [connection-name (dekeyword connection-name)
+                                     points (map #(if (keyword? %)
+                                                    (dekeyword %)
+                                                    %) (:points connection))]
+                                 (vec (concat [connection-name] points))))
+                          connections)]
+        (.write writer (format "set %s tab %s %s %s %s\n"
+                         (dekeyword part-name)
+                         tab
+                         (join " " (map str pins))
+                         (join " " (map str gates))
+                         (join " " (map str connections))))
+        pin-names))))
+
+(defn create-motherboard-instructions [writer part-name part]
+  (loop [n 0
+         seen-pins []]
+    (when (< n 5)
+      (let [pins (create-tab-instructions
+                   writer n part-name part seen-pins)]
+        (recur (inc n) (concat seen-pins pins))))))
 
 (defn create-part-instructions [writer world part-name]
   (let [parent-name (get-parent-part world part-name)
@@ -25,7 +77,14 @@
         property= (fn [a b]
                     (if (number? a)
                       (float= a b)
-                      (= a b)))]
+                      (= a b)))
+        get-scales (fn [type scale]
+                     (filter #(not (vector= % [0 0 0]))
+                       (let [[x y z] scale]
+                         (case type
+                           (:sphere :track) [scale]
+                           (:cylinder :cone) [[x 0 z] [0 y 0]]
+                           [[x 0 0] [0 y 0] [0 0 z]]))))]
 
     (let [relative-transform (get-descaled-relative-transform
                               world part-name scale-change)
@@ -36,12 +95,10 @@
                              (dekeyword parent-name)
                              position
                              rotation)))
-    (doseq [i (range 3)]
-      (if (not (float= (nth scale-change i) 0.0))
-        (.write writer (format "scale %s by %s\n"
-                               (dekeyword part-name)
-                               (assoc [0 0 0] i (nth scale-change i))))))
-    
+
+    (doseq [s (get-scales type scale-change)]
+      (.write writer (format "scale %s by %s\n" (dekeyword part-name) s)))
+
     (doseq [property properties]
       (if (not (property= (get part property) (get new-part property)))
         (let [value (if (= property :color)
@@ -53,24 +110,23 @@
               value (if (= type :wagon)
                       (* value (reduce + (:track-lengths part)))
                       value)]
-          (.write writer (format "set %s of %s to %s\n"
-                                 (dekeyword property)
-                                 (dekeyword part-name)
-                                 value)))))
+          (when (not (and
+                       (= type :probe)
+                       (= property :value)))
+            (.write writer (format "set %s of %s to %s\n"
+                             (dekeyword property)
+                             (dekeyword part-name)
+                             value))))))
     (when (= type :chip)
       (doseq [[function-name function] (:functions part)]
         (let [{:keys [points relative]} function]
           (.write writer (format "set %s function %s %s %s\n"
                            (dekeyword part-name)
-                           (dekeyword function-name) 
-                           points relative))
-      )))
+                           (dekeyword function-name)
+                           points relative)))))
 
-    ;; (if (and (= type :motherboard)
-    ;;          (not (empty? (:pins part))))
-    ;;   (.write writer (format "set-graph of %s to %s\n"
-    ;;                    (dekeyword part-name)
-    ;;                    (select-keys part [:pins :gates :connections]))))
+    (when (= type :motherboard)
+      (create-motherboard-instructions writer part-name part))
     ))
 
 (defn get-part-number [part-name]
