@@ -330,6 +330,7 @@
         (reset! replaying false)
         world)
       (-> world
+        (select-part part-name)
         (assoc-in [:parts motherboard-name :pins part-name]
           {:x x
            :trigger false
@@ -338,11 +339,16 @@
         (update-history)))))
 
 (defn run-toggle-instruction [world instruction]
-  (let [[_ motherboard-name _ part-name] (read-string (str "[" instruction "]"))
-        motherboard-name (keyword motherboard-name)
-        part-name (keyword part-name)]
+  (let [[_ selected-name _ part-name] (read-string (str "[" instruction "]"))
+        selected-name (keyword selected-name)
+        part-name (keyword part-name)
+        selected (get-in world [:parts selected-name])
+        world (if (= (:type selected) :chip)
+                (assoc-in world [:parts selected-name :functions
+                                 part-name :relative] true)
+                (assoc-in world [:parts selected-name
+                                 :pins part-name :trigger] true))]
     (-> world
-      (assoc-in [:parts motherboard-name :pins part-name :trigger] true)
       (redraw)
       (update-history))))
 

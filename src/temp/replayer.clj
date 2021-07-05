@@ -6,6 +6,26 @@
 ;; (load "replayer/mouse")
 ;; (load "replayer/path")
 
+(defn print-part-names [filename]
+  (let [types ["sphere" "wagon" "block" "button" "gear" "chip"
+               "motherboard" "cylinder" "probe" "cone" "lamp"
+               "display" "rack" "speaker" "track" "gate" "connection"]
+        get-type (fn [word]
+                   (second (re-find #"([a-z]*).*?" (str word))))
+        names (>> (str "res/" filename ".txt")
+                (slurp)
+                (str "[" . "]")
+                (read-string)
+                (flatten)
+                (filter #(in? (get-type %) types) .)
+                (distinct))]
+    (println! "{")
+    (doseq [name names]
+      (if (.startsWith (str name) "gate")
+        (println! (keyword name) "foobar")
+        (println! (keyword name) (keyword (get-type name)))))
+    (println! "}")))
+
 (defn replay-draw [world]
   (let [x (- (:window-width world) 10)
         y (- (:window-height world) 10 105)]
@@ -26,75 +46,96 @@
             (assoc-in [:replay-filename] text)
             (assoc-in [:instruction-index] 0)
             (assoc-in [:replay-history] [])
+            (assoc-in [:instructions]
+              (-> (str "res/" text ".txt")
+                (read-lines)
+                (extend-instructions)))
             (update-history)))))))
 
 (defn replayer-restart [world]
   (let [new-history (vec (take 1 (:replay-history world)))]
     (-> world
-      (reset-variables)
+      (assoc-in [:mode] :simulation)
+      (assoc-in [:add-type] :block)
+      (assoc-in [:edit-subcommand] :move)
+      (assoc-in [:selected-part] nil)
+      (assoc-in [:selected-chip] nil)
+      (assoc-in [:current-color] :red)
       (assoc-in [:parts] (:parts (last new-history)))
       (assoc-in [:camera] (:camera (last new-history)))
       (compute-camera)
-      (assoc-in [:replay-history] new-history)
+      (assoc-in [:replay-history] [])
       (assoc-in [:instruction-index] 0)
+      (redraw)
       (tree-changed))))
+
+(defn skip-instruction? [world instruction]
+  (cond
+    (.startsWith instruction "set variable")
+    (let [[_ _ key _ value] (read-string (str "[" instruction "]"))
+          key (keyword key)
+          value (keyword value)]
+      (= (get-in world [key]) value))
+
+    (.startsWith instruction "select motherboard")
+    (let [[_ part-name _ tab-num] (read-string (str "[" instruction "]"))
+          part-name (keyword part-name)]
+      (= (get-in world [:parts part-name :tab]) tab-num))
+
+    :else false))
+
+(defn run-next-instruction [world]
+  (let [instructions (:instructions world)
+        index (:instruction-index world)]
+    (if (< index (count instructions))
+      (let [instruction (nth instructions index)
+            world (update-in world [:instruction-index] inc)]
+        (if (skip-instruction? world instruction)
+          (do
+            ;; (println! "#### skipped" instruction)
+            (recur world))
+          (run-instruction world instruction)))
+      world)))
 
 (defn replay-forward [world]
   (if (and
         (:replay-filename world)
         (nil? (:animation world))
         (not (any-chip-active? world)))
-    (let [filename (str "res/" (:replay-filename world) ".txt")
-          instructions (read-lines filename)
-          instructions (extend-instructions instructions)
-          index (:instruction-index world)]
-      (if (< index (count instructions))
-        (-> world
-          (run-instruction (nth instructions index))
-          (update-in [:instruction-index] inc))
-        world))
+    (run-next-instruction world)
     world))
 
 (defn replay-back [world]
-  (if (and
-        (:replay-filename world)
-        (> (:instruction-index world) 0))
-    (let [new-history (pop (:replay-history world))
-          filename (str "res/" (:replay-filename world) ".txt")
-          instructions (read-lines filename)
-          instructions (extend-instructions instructions)
-          instruction (nth instructions (dec (:instruction-index world)))]       
-      (println! "<<" (subs instruction 0 (min 100 (count instruction))))
-      (-> world
-          (assoc-in [:parts] (:parts (last new-history)))
-          (assoc-in [:camera] (:camera (last new-history)))
-          (compute-camera)
-          (assoc-in [:replay-history] new-history)
-          (update-in [:instruction-index] dec)
-          (tree-changed)))
-    world))
+  ;; (if (> (count (:replay-history world)) 1)
+  (let [new-history (pop (:replay-history world))]
+    ;; (println! "<<" (subs instruction 0 (min 100 (count instruction))))
+    (-> world
+      (assoc-in [:parts] (:parts (last new-history)))
+      (assoc-in [:camera] (:camera (last new-history)))
+      (compute-camera)
+      (assoc-in [:replay-history] new-history)
+      ;; (update-in [:instruction-index] dec)
+      (tree-changed))))
 
 (def replaying (atom false))
 
 (defn run-instructions! []
   (if @replaying
     (reset! replaying false)
-    (let [filename (str "res/" (get-thing! [:replay-filename]) ".txt")
-          instructions (read-lines filename)
-          instructions (extend-instructions instructions)
+    (let [instructions (:instructions @world)
           delay 50]
       (reset! replaying true)
-      (while (and @replaying
+
+      (while (and
+               @replaying
                (< (:instruction-index @world) (count instructions)))
-        (let [instruction (nth instructions (:instruction-index @world))]
-          (update-thing! [:instruction-index] inc)
-          (when (not (empty? instruction))
-            (update-thing! [] #(run-instruction % instruction))
-            (while (or
-                     (get-thing! [:animation])
-                     (any-chip-active? @world)))
-            (redraw!)
-            (sleep delay))))
+        (update-thing! [] run-next-instruction)
+        (while (or
+                 (get-thing! [:animation])
+                 (any-chip-active? @world)))
+        (redraw!)
+        (sleep delay))
+      
       (reset! replaying false))))
 
 (defn toggle-run-instructions [world]

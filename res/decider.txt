@@ -6,10 +6,10 @@ scale block11901-copy55162 by [0 -0.4 0]
 set color of block11901-copy55162 to yellow
 add block11906 to ground-part at [-0.35 0.35000008 0.75] [0.0 1.0 0.0 0.0]
 scale block11906 by [0 1.1 0]
-add chip11902 to block11906 at [0.0 -0.55 0.2850001] [1.0 0.0 0.0 90.00000250447816]
-set chip11902 function track11900-copy55162 [[0.0 0.5] [1 1]] false
-add chip11903 to block11906 at [0.0 -0.19999999 0.2850001] [1.0 0.0 0.0 90.00000250447816]
+add chip11903 to block11906 at [0.0 -0.55 0.2850001] [1.0 0.0 0.0 90.00000250447816]
 set chip11903 function track11900-copy55162 [[0 0] [1.0 0.5]] false
+add chip11902 to block11906 at [0.0 -0.2 0.2850001] [1.0 0.0 0.0 90.00000250447816]
+set chip11902 function track11900-copy55162 [[0.0 0.5] [1 1]] false
 add button11904 to ground-part at [2.25 0.2 0.75] [0.0 1.0 0.0 0.0]
 add probe11907-copy55162 to block11901-copy55162 at [0.74999994 -0.10000014 -5.9604645E-8] [1.0 -4.371139E-8 0.0 180.00000500895632]
 add probe11908 to block11906 at [0.3 0.55 0.0] [0.0 0.0 -1.0 90.00000250447816]

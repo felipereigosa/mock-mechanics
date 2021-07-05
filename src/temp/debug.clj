@@ -1,6 +1,7 @@
 
 (declare get-part-at)
 (declare create-line-mesh)
+(declare clear-output!)
 
 (defn debug-mode-draw [world]
   (let [w (:window-width world)
@@ -9,15 +10,14 @@
         hh (* h 0.5)]
     (draw-rect! :red hw hh (- w 100) (- h 100))))
 
-(do
-1  
 
 (defn debug-mode-pressed [world event]
   (let [{:keys [x y]} event
         ;; collision (get-part-collision world event)
         part-name (get-part-at world event)
         part (get-in world [:parts part-name])
-        ]        
+        ]
+    (clear-output!)
     (println! part-name x y)
     (print-transform (:transform part))
     (println! "scale: " (:scale part))
@@ -28,7 +28,6 @@
 
 (defn debug-mode-released [world event]
   world)
-)
 
 (def debug-meshes (atom nil))
 

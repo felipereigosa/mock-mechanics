@@ -1,9 +1,6 @@
 
 (require '[clojure.java.shell :refer [sh]])
 
-(defn motherboard-mode-entered [world]
-  (assoc-in world [:motherboard-subcommand] :move))
-
 (declare get-element-value)
 
 (defn get-input-names [world motherboard element-name]
@@ -471,7 +468,7 @@
         y (* (:h motherboard-box) 0.5)
         active-tabs (distinct (map (fn [[name value]]
                                      (:tab value))
-                                   (:connections motherboard)))]
+                                   (:gates motherboard)))]
     (fill-rect buffer :dark-gray tab-x y 30 130)
     (doseq [i (range 0 5)]
       (let [tab-y (+ 25 (* i 25))]

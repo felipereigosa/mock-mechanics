@@ -84,10 +84,13 @@
       (assoc-in [:graph-snap-value] 0.05)
 
       (assoc-in [:graph-menu]
-                (create-picture "graph-menu" 210 575 -1 30))
+        (create-picture "graph-menu" 210 575 -1 30))
+      (assoc-in [:graph-subcommand] :move)
 
       (assoc-in [:motherboard-menu]
-                (create-picture "motherboard-menu" 210 575 -1 30))
+        (create-picture "motherboard-menu" 210 575 -1 30))
+      (assoc-in [:motherboard-subcommand] :move)
+
       (assoc-in [:selected-property] 0)
       (assoc-in [:properties] [:free :solid :.])
 

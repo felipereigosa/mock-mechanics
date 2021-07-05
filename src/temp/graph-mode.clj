@@ -145,9 +145,6 @@
         (assoc-in [:parts chip-name :time] 0.0)
         (assoc-in [:parts chip-name :final-time] final-time))))
 
-(defn graph-mode-entered [world]
-  (assoc-in world [:graph-subcommand] :move))
-
 (defn run-selected-chip [world]
   (if-let [selected-chip (:selected-chip world)]
     (activate-chip world selected-chip)
