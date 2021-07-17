@@ -1,10 +1,8 @@
 
 (load "replayer/compiler")
-(load "replayer/interpreter")
 (load "replayer/robot")
+(load "replayer/interpreter")
 (load "replayer/extend")
-;; (load "replayer/mouse")
-;; (load "replayer/path")
 
 (defn print-part-names [filename]
   (let [types ["sphere" "wagon" "block" "button" "gear" "chip"
@@ -27,62 +25,66 @@
     (println! "}")))
 
 (defn replay-draw [world]
-  (let [x (- (:window-width world) 10)
-        y (- (:window-height world) 10 105)]
-    (fill-rect! :black x y 20 20)
-    (draw-text! :white "R" (- x 4) (+ y 5) 15)))
+  (when (:replay-filename world)
+    (let [x (- (:window-width world) 10)
+          y (- (:window-height world) 10 105)]
+      (fill-rect! :black x y 20 20)
+      (draw-text! :white "R" (- x 4) (+ y 5) 15))))
 
-(defn toggle-replay [world]
-  (if (:replay-filename world)
-    (dissoc-in world [:replay-filename])
-    (do
-      (when (nil? @robot)
-        (reset! robot {:robot (new Robot)
-                       :origin (get-window-coordinates)
-                       :active false}))
-      (read-input world
-        (fn [w text]
-          (-> w
-            (assoc-in [:replay-filename] text)
-            (assoc-in [:instruction-index] 0)
-            (assoc-in [:replay-history] [])
-            (assoc-in [:instructions]
-              (-> (str "res/" text ".txt")
-                (read-lines)
-                (extend-instructions)))
-            (update-history)))))))
+(defn load-instructions [world]
+  (assoc-in world [:instructions]
+    (-> (str "res/" (:replay-filename world) ".txt")
+      (read-lines)
+      (extend-instructions))))
 
-(defn replayer-restart [world]
-  (let [new-history (vec (take 1 (:replay-history world)))]
-    (-> world
-      (assoc-in [:mode] :simulation)
-      (assoc-in [:add-type] :block)
-      (assoc-in [:edit-subcommand] :move)
-      (assoc-in [:selected-part] nil)
-      (assoc-in [:selected-chip] nil)
-      (assoc-in [:current-color] :red)
-      (assoc-in [:parts] (:parts (last new-history)))
-      (assoc-in [:camera] (:camera (last new-history)))
-      (compute-camera)
-      (assoc-in [:replay-history] [])
-      (assoc-in [:instruction-index] 0)
-      (redraw)
-      (tree-changed))))
+(def checkpoint (atom nil))
+
+(defn start-replay [world filename]
+  (reset-robot!)
+  (println! "-----")
+  (reset! checkpoint nil)
+  (reset! replaying false)
+  (-> world
+    (assoc-in [:replay-filename] filename)
+    (assoc-in [:instruction-index] 0)
+    (load-instructions)))
+
+(defn get-camera-view [world]
+  (let [camera (:camera world)]
+    [(:eye camera) (:pivot camera)]))
 
 (defn skip-instruction? [world instruction]
-  (cond
-    (.startsWith instruction "set variable")
-    (let [[_ _ key _ value] (read-string (str "[" instruction "]"))
-          key (keyword key)
-          value (keyword value)]
-      (= (get-in world [key]) value))
+  (if (.startsWith instruction ";;") true
+      (empty? (.trim instruction)) true
+      (let [elements (read-string (str "[" instruction "]"))]
+        (cond
+          (.startsWith instruction "set camera")
+          (let [[_ _ [eye pivot]] elements
+                [eye2 pivot2] (get-camera-view world)]
+            (and
+              (vector= eye eye2)
+              (vector= pivot pivot2)))
 
-    (.startsWith instruction "select motherboard")
-    (let [[_ part-name _ tab-num] (read-string (str "[" instruction "]"))
-          part-name (keyword part-name)]
-      (= (get-in world [:parts part-name :tab]) tab-num))
+          (.startsWith instruction "set variable")
+          (let [[_ _ key _ value] elements
+                key (keyword key)
+                value (keyword value)]
+            (= (get-in world [key]) value))
 
-    :else false))
+          (.startsWith instruction "select motherboard")
+          (let [[_ part-name _ tab-num] elements
+                part-name (keyword part-name)]
+            (= (get-in world [:parts part-name :tab]) tab-num))
+
+          (.startsWith instruction "set view")
+          (let [[_ _ _ chip-name _ end-view] elements
+                chip-name (keyword chip-name)
+                chip (get-in world [:parts chip-name])
+                {:keys [zoom-x zoom-y offset]} (:view chip)
+                [x y] offset]
+            (vector= end-view [x y zoom-x zoom-y]))
+
+          :else false))))
 
 (defn run-next-instruction [world]
   (let [instructions (:instructions world)
@@ -90,32 +92,44 @@
     (if (< index (count instructions))
       (let [instruction (nth instructions index)
             world (update-in world [:instruction-index] inc)]
-        (if (skip-instruction? world instruction)
+        (cond
+          (= instruction ">")
           (do
-            ;; (println! "#### skipped" instruction)
-            (recur world))
+            (println! "checkpoint reached")
+            (reset! replaying false)
+            (reset! checkpoint world)
+            world)
+
+          (skip-instruction? world instruction)
+          (recur world)
+
+          :else
           (run-instruction world instruction)))
       world)))
 
 (defn replay-forward [world]
   (if (and
         (:replay-filename world)
-        (nil? (:animation world))
-        (not (any-chip-active? world)))
-    (run-next-instruction world)
+        (not (any-chip-active? world))
+        (not (:active @robot)))
+    (if (nil? (:animation world))
+      (run-next-instruction world)
+      (-> world
+        (assoc-in [:animation :t] 1.0)
+        (run-animation 16)
+        (run-next-instruction)))
     world))
 
 (defn replay-back [world]
-  ;; (if (> (count (:replay-history world)) 1)
-  (let [new-history (pop (:replay-history world))]
-    ;; (println! "<<" (subs instruction 0 (min 100 (count instruction))))
-    (-> world
-      (assoc-in [:parts] (:parts (last new-history)))
-      (assoc-in [:camera] (:camera (last new-history)))
-      (compute-camera)
-      (assoc-in [:replay-history] new-history)
-      ;; (update-in [:instruction-index] dec)
-      (tree-changed))))
+  (if (:replay-filename world)
+    (if (nil? @checkpoint)
+      (do
+        (println! "no checkpoint")
+        world)
+      (do
+        (println! "restored checkpoint")
+        (load-instructions @checkpoint)))
+    world))
 
 (def replaying (atom false))
 
@@ -130,18 +144,74 @@
                @replaying
                (< (:instruction-index @world) (count instructions)))
         (update-thing! [] run-next-instruction)
+        (redraw!)
+        (sleep delay)
         (while (or
                  (get-thing! [:animation])
-                 (any-chip-active? @world)))
-        (redraw!)
-        (sleep delay))
+                 (any-chip-active? @world)
+                 (:active @robot))
+          nil))
       
       (reset! replaying false))))
 
 (defn toggle-run-instructions [world]
-  (.start
-    (new Thread
-      (proxy [Runnable] []
-        (run []
-          (run-instructions!)))))
+  (when (:replay-filename world)
+    (.start
+      (new Thread
+        (proxy [Runnable] []
+          (run []
+            (run-instructions!))))))
   world)
+
+(defn change-event [event start-time]
+  [(int (:x event)) (int (:y event)) (- (get-current-time) start-time)])
+
+(def zoom-amount (atom 0))
+(def zoom-time (atom 0))
+
+(defn replay-zoomed [world event]
+  (if (:replay-filename world)
+    (if (:active @robot)
+      world
+      (let [current-time (get-current-time)
+            zoom-elapsed (- current-time @zoom-time)]
+        (when (> zoom-elapsed 2000)
+          (reset! zoom-amount 0))
+        (swap! zoom-amount #(+ % (:amount event)))
+        (reset! zoom-time current-time)
+        (println! "zoom" (:x event) (:y event) @zoom-amount)
+        world))
+    world))
+
+(defn replay-pressed [world event]
+  (if (:replay-filename world)
+    (if (:active @robot)
+      world
+      (-> world
+          (assoc-in [:replay-button] (dekeyword (:button event)))
+          (assoc-in [:replay-events]
+            [(change-event event (:press-time world))])
+          (assoc-in [:start-camera] (get-camera-view world))))
+    world))
+
+(defn replay-moved [world event]
+  (if (:replay-filename world)
+    (if (not-nil? (:replay-events world))
+      (update-in world [:replay-events]
+                 #(conj % (change-event event (:press-time world))))
+      world)
+    world))
+
+(defn replay-released [world event]
+  (if (:replay-filename world)
+    (if (:active @robot)
+      world
+      (let [points (conj (:replay-events world)
+                         (change-event event (:press-time world)))
+            button (:replay-button world)
+            view (:start-camera world)
+            instruction (str "mouse " view " "
+                          button " " (join " " points))]
+        (println! instruction)
+        (dissoc-in world [:replay-events])))
+    world))

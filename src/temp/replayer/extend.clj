@@ -2,10 +2,11 @@
 (defn get-bounding-viewbox [points]
   (let [xs (map first points)
         ys (map second points)
-        x1 (first xs)
-        x2 (last xs)
-        y1 (reduce min ys)
-        y2 (reduce max ys)
+        padding 0.1
+        x1 (- (reduce min xs) padding)
+        x2 (+ (reduce max xs) padding)
+        y1 (- (reduce min ys) padding)
+        y2 (+ (reduce max ys) padding)
         zoom-x (/ 1.0 (- x2 x1))
         zoom-y (/ 1.0 (- y2 y1))
         x (* x1 zoom-x -1)
@@ -17,9 +18,12 @@
          points relative] (read-string (str "[" instruction "]"))
         r ["set variable mode to graph"
            (str "set variable selected-chip to " chip-name)]
-        r (conj r (format "put %s in %s" part-name chip-name))
+
         r (conj r (format "set view of %s to %s"
-                    chip-name (get-bounding-viewbox points)))
+                    chip-name (get-bounding-viewbox
+                                (concat points [[0 0] [1 1]]))))
+
+        r (conj r (format "put %s in %s" part-name chip-name))
         r (if (not (vector= (first points) [0 0]))
             (conj r (format "move point 0 of function %s of %s to %s"
                       part-name chip-name (first points)))
@@ -28,6 +32,7 @@
             (conj r (format "move point 1 of function %s of %s to %s"
                       part-name chip-name (last points)))
             r)
+
         r (reduce (fn [rt point]
                     (conj rt (format "add point %s to function %s of %s"
                                point part-name chip-name)))
@@ -85,12 +90,16 @@
                                (format "set variable %s to %s"
                                  submode-name submode)])]
     (cond
-      (.startsWith instruction "add")
-      (let [type (get-part-type (keyword (second atoms)))]
+      (.startsWith instruction "add part")
+      (let [type (get-part-type (keyword (third atoms)))]
         (conj (change-mode-submode "add" "add-type" (dekeyword type))
           instruction))
 
-      (.startsWith instruction "scale")
+      (or
+        (.startsWith instruction "move")
+        (.startsWith instruction "scale")
+        (.startsWith instruction "sink")
+        (.startsWith instruction "rotate"))
       (conj (change-mode-submode "edit" "edit-subcommand" (first atoms))
         instruction)
 
@@ -107,6 +116,11 @@
 
       (.startsWith instruction "set motherboard")
       (extend-motherboard-instruction instruction)
+
+      (.startsWith instruction "mouse")
+      (let [elements (read-string (str "[" instruction "]"))]
+        [(str "set camera " (second elements))
+         (join " " (vector-remove elements 1))])
 
       :else [instruction])))
 

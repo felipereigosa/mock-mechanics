@@ -1,0 +1,14 @@
+add track15471 to ground-part at [0.75 1.1 0.75] [0.0 1.0 0.0 0.0]
+add block15472 to track15471 at [0.0 0.25 0.0] [0.0 1.0 0.0 0.0]
+set value of track15471 to 0.16319110662565134
+add track15473 to block15472 at [1.25 1.0728837E-7 3.576279E-8] [1.4901161E-8 1.7381988E-7 -1.0 90.00002299504568]
+scale track15473 by + [0.0 -0.7000000000000002 0.0]
+add block15474 to track15473 at [0.0 0.25 0.0] [0.0 1.0 0.0 0.0]
+set value of track15473 to -0.08852893708504424
+add track15475 to block15474 at [-1.2500005 2.9802322E-8 -7.4505806E-9] [3.7252903E-9 -2.9802322E-8 1.0 90.00000250447816]
+scale track15475 by + [0.0 1.0 0.0]
+>
+add block15476 to track15475 at [0 0.25 0] [0.0 1.0 0.0 0.0]
+scale block15476 by + [-0.2 0 0]
+scale block15476 by - [-0.2 0 0]
+scale block15476 by + [0 1.0 0]

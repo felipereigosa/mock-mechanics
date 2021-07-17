@@ -8,6 +8,11 @@
 
 (def robot (atom nil))
 
+(defn reset-robot! []
+  (reset! robot {:robot (new Robot)
+                 :origin (get-window-coordinates)
+                 :active false}))
+
 (defn robot-move [[x y]]
   (let [{:keys [robot origin]} @robot
         [ox oy] origin]
@@ -30,3 +35,5 @@
 (defn robot-mouse-release [button]
   (.mouseRelease (:robot @robot) (get-button-mask button)))
 
+(defn robot-scroll [amount]
+  (.mouseWheel (:robot @robot) (- amount)))

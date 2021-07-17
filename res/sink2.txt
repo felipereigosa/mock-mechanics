@@ -1,0 +1,28 @@
+
+add block15863 to ground-part at [0.25 0.35 0.25] [0.0 1.0 0.0 0.0]
+move block15863 to [-0.25 0.35 0.75]
+add track16190 to block15863 at [0.0 1.25 0.0] [0.0 1.0 0.0 0.0]
+add track16191 to track16190 at [1.0 0.0 0.0] [0.0 0.0 -1.0 90.00000250447816]
+add track16192 to track16191 at [0.0 0.0 1.0] [1.0 0.0 -1.1920929E-7 90.00000250447816]
+set value of track16190 to -0.05650170335553083
+add block16193 to track16192 at [0 0.25000027 0] [0.0 1.0 0.0 0.0]
+set value of track16191 to 0.050509624065708296
+scale block16193 by - [0 0 0.9]
+scale block16193 by + [-0.1 0 0]
+scale block16193 by + [0 0.7 0]
+>
+add wagon10102 to track16192 at [0.0 0.0 0.0] [0.0 1.0 0.0 0.0] 2.43
+add block10103 to wagon10102 at [0.0 0.0 -0.325] [-1 0 0 90]
+scale block10103 by - [-0.2 0 0]
+scale block10103 by + [0 1.4000000000000001 0]
+scale block10103 by - [0 0 0.8]
+
+add block16194 to block16193 at [-0.45 0.35 0.45] [0 0 1 90]
+move block16194 to [-0.45 0 0]
+sink block16194 by -0.2
+rotate block16194 by 45
+set color of block16194 to dark-yellow
+set value of track16192 to -0.1348741586636277
+
+
+

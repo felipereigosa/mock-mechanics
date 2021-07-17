@@ -101,10 +101,12 @@
 (defn get-last-version-filename [root-name]
   (let [all-filenames (get-files-at "machines/")
         filenames (filter #(.startsWith % (str root-name "_"))
-                          all-filenames)
-        number (->> (map extract-number filenames)
-                    (apply max))]
-    (str "machines/" root-name "_" (format "%03d" number) ".mch")))
+                    all-filenames)]
+    (if (empty? filenames)
+      nil
+      (let [number (->> (map extract-number filenames)
+                        (apply max))]
+        (str "machines/" root-name "_" (format "%03d" number) ".mch")))))
 
 (defn increment-filename [filename]
   (let [number (extract-number filename)
@@ -112,8 +114,8 @@
     (str prefix "_" (format "%03d" (inc number)) ".mch")))
 
 (defn save-machine [world text]
-  (let [filename (if (:last-saved-machine world)
-                   (increment-filename (get-last-version-filename text))
+  (let [filename (if-let [last-filename (get-last-version-filename text)]
+                   (increment-filename last-filename)
                    (str "machines/" text "_000.mch"))
         parts (map-map (fn [[name part]]
                          {name (get-simple-part part)})

@@ -109,6 +109,8 @@
       (place-elements)
       (create-weld-groups)
       (create-update-cube)
+
+      (start-replay "decider")
       ))
 (reset-world!)
 )
@@ -167,15 +169,15 @@
     (draw-update-cube! world))
   )
 
-(do
-1
-
 (defn show-buttons? [world]
   (or
    (= (:show-buttons world) :always)
    (and
     (= (:show-buttons world) :no-sim)
     (not (= (:mode world) :simulation)))))
+
+(do
+1
 
 (defn draw-2d! [world]
   (clear!)
@@ -196,15 +198,15 @@
   (draw-hint! world)
   (draw-input-indicator! world)
 
-  (if (:replay-filename world)
-    (replay-draw world))
+  (replay-draw world)
   )
 (redraw!))
 
 (defn mouse-scrolled [world event]
   (let [world (-> world
                   (input-indicator-mouse-scrolled event)
-                  (redraw))]
+                  (redraw))
+        world (replay-zoomed world event)]
     (cond
       (and (= (:mode world) :graph)
            (inside-box? (:graph-box world) (:x event) (:y event)))
@@ -244,8 +246,7 @@
                   (assoc-in [:press-point] [x y])
                   (input-indicator-mouse-pressed event)
                   (redraw))
-        ;; world (replay-pressed world event)
-        ]
+        world (replay-pressed world event)]
     (cond
       (and
        (show-buttons? world)
@@ -267,8 +268,7 @@
       (mode-mouse-pressed world event))))
 
 (defn mouse-moved [world event]
-  (let [;; world (replay-moved world event)
-        ]
+  (let [world (replay-moved world event)]
     (cond
       (not-nil? (:last-point world))
       (cond
@@ -295,8 +295,7 @@
         world (if (= (:mode world) :avatar)
                 (mode-mouse-released world event)
                 world)
-        ;; world (replay-released world event)
-        ]
+        world (replay-released world event)]
     (if (not-nil? (:last-point world))
       (dissoc-in world [:last-point])
       (mode-mouse-released world event))))

@@ -1,16 +1,9 @@
 
-(defn update-history [world]
-  (update-in world [:replay-history]
-             #(conj % {:parts (:parts world)
-                       :camera (:camera world)})))
-
 (defn get-part-type [part-name]
   (keyword (second (re-find #":([a-z]*)" (str part-name)))))
 
 (defn run-add-instruction [world instruction]
-  (let [[_ part-name
-         _ parent-name
-         _ position rotation] (read-string (str "[" instruction "]"))
+  (let [[_ _ part-name _ parent-name _ position rotation] instruction
         part-name (keyword part-name)
         parent-name (keyword parent-name)
         type (get-part-type part-name)
@@ -20,26 +13,26 @@
         transform (make-transform position rotation)
         prepare-wagon (fn [w]
                         (if (= type :wagon)
-                          (set-wagon-loop w part-name parent-name)
+                          (let [w (set-wagon-loop w part-name parent-name)
+                                value (->> (get-in w [:parts part-name :track-lengths])
+                                        (reduce +)
+                                        (/ (last instruction)))]
+                            (assoc-in w [:parts part-name :value] value))
                           w))]
-    (-> world                           
+    (-> world
       (assoc-in [:parts part-name] part)
       (assoc-in [:parts parent-name :children part-name] transform)
       (prepare-wagon)
       (compute-transforms :parts)
-      (update-history)
       (tree-changed))))
 
 ;; (defn run-set-instruction [world instruction]
-;;   (let [[_ property-name
-;;          _ part-name
-;;          _ value] (read-string (str "[" instruction "]"))
+;;   (let [[_ property-name _ part-name _ value] instruction
 ;;         property-name (keyword property-name)
 ;;         part-name (keyword part-name)
 ;;         value (if (symbol? value) (keyword value) value)]
 ;;     (-> world
 ;;         (set-part-value part-name property-name (str value))
-;;         (update-history)
 ;;         (tree-changed))))
 
 (defn scale-animation [world animation]
@@ -55,7 +48,6 @@
           (assoc-in [:parts part-name :scale] final-scale)
           (assoc-in [:parts part-name :transform] final-transform)
           (create-relative-transform part-name parent-name)
-          (update-history)
           (tree-changed))
 
       :else
@@ -67,8 +59,7 @@
             (assoc-in [:parts part-name :transform] transform))))))
 
 (defn run-scale-instruction [world instruction]
-  (let [[_ part-name
-         _ change] (read-string (str "[" instruction "]"))
+  (let [[_  part-name _ direction change] instruction
         part-name (keyword part-name)
         parent-name (get-parent-part world part-name)
         part (get-in world [:parts part-name])
@@ -87,6 +78,9 @@
                  :else
                  (vector-multiply change 0.5))
 
+        offset (if (= direction '-)
+                 (vector-multiply offset -1)
+                 offset)
         rotation (get-rotation-component (:transform part))
         offset (apply-transform rotation offset)
         offset-transform (make-transform offset [1 0 0 0])
@@ -94,7 +88,7 @@
         final-transform (combine-transforms transform offset-transform)]
     (assoc-in world [:animation]
       {:t 0.0
-       :time 0.3
+       :time 0.3;;(/ (reduce + (map abs change)) 2)
        :fn scale-animation
        :part-name part-name
        :parent-name parent-name
@@ -103,8 +97,106 @@
        :start-transform transform
        :final-transform final-transform})))
 
+(defn sink-animation [world animation]
+  (let [{:keys [t part-name parent-name
+                start-transform final-transform]} animation]
+    (cond
+      (float= t 0.0)
+      (tree-will-change world)
+
+      (float= t 1.0)
+      (-> world
+          (assoc-in [:parts part-name :transform] final-transform)
+          (create-relative-transform part-name parent-name)
+          (tree-changed))
+
+      :else
+      (let [transform (interpolate-transforms start-transform
+                        final-transform t)]
+        (assoc-in world [:parts part-name :transform] transform)))))
+
+(defn run-sink-instruction [world instruction]
+  (let [[_  part-name _ amount] instruction
+        part-name (keyword part-name)
+        parent-name (get-parent-part world part-name)
+        part (get-in world [:parts part-name])
+        rotation (get-rotation-component (:transform part))
+        offset (apply-transform rotation [0 amount 0])
+        offset-transform (make-transform offset [1 0 0 0])
+        transform (:transform part)
+        final-transform (combine-transforms transform offset-transform)]
+    (assoc-in world [:animation]
+      {:t 0.0
+       :time (abs amount)
+       :fn sink-animation
+       :part-name part-name
+       :parent-name parent-name
+       :start-transform transform
+       :final-transform final-transform})))
+
+(defn rotate-animation [world animation]
+  (let [{:keys [t part-name parent-name
+                start-transform angle]} animation]
+    (cond
+      (float= t 0.0)
+      (tree-will-change world)
+
+      (float= t 1.0)
+      (let [rotation-transform (make-transform [0 0 0] [0 1 0 angle])
+            transform (combine-transforms rotation-transform start-transform)]
+        (-> world
+          (assoc-in [:parts part-name :transform] transform)
+          (create-relative-transform part-name parent-name)
+          (tree-changed)))
+
+      :else
+      (let [rotation-transform (make-transform [0 0 0] [0 1 0 (* t angle)])
+            transform (combine-transforms rotation-transform start-transform)]
+        (assoc-in world [:parts part-name :transform] transform)))))
+
+(defn run-rotate-instruction [world instruction]
+  (let [[_  part-name _ amount] instruction
+        part-name (keyword part-name)
+        parent-name (get-parent-part world part-name)
+        parent (get-in world [:parts parent-name])
+        part (get-in world [:parts part-name])
+        transform (:transform part)]
+    (assoc-in world [:animation]
+      {:t 0.0
+       :time (/ amount 100)
+       :fn rotate-animation
+       :part-name part-name
+       :parent-name parent-name
+       :start-transform transform
+       :angle amount})))
+
+(defn run-move-instruction [world instruction]
+  (let [[_  part-name _ location] instruction
+        part-name (keyword part-name)
+        parent-name (get-parent-part world part-name)
+        parent (get-in world [:parts parent-name])
+        relative-transform (get-in parent [:children part-name])
+        relative-rotation (get-transform-rotation relative-transform)
+        new-transform (make-transform location relative-rotation)
+        w2 (-> world
+             (assoc-in [:parts parent-name
+                        :children part-name] new-transform)
+             (compute-transforms :parts))
+        start-transform (get-in world [:parts part-name :transform])
+        final-transform (get-in w2 [:parts part-name :transform])
+        p1 (get-transform-position start-transform)
+        p2 (get-transform-position final-transform)]
+    (assoc-in world [:animation]
+      {:t 0.0
+       :time (/ (distance p1 p2) 1.2)
+       :fn sink-animation
+       :part-name part-name
+       :parent-name parent-name
+       :start-transform start-transform
+       :final-transform final-transform})))
+
 (defn run-set-color-instruction [world instruction]
-  (let [[_ _ _ part-name _ color] (read-string (str "[" instruction "]"))
+  (let [[_ _ _ part-name _ color] instruction
         color (keyword color)
         part-name (keyword part-name)
         world (assoc-in world [:parts part-name :color] color)
@@ -113,9 +205,7 @@
                 (assoc-in world [:parts part-name :dark-color]
                   (get-dark-color color))
                 world)]
-    (-> world
-      (update-history)
-      (tree-changed))))
+    (tree-changed world)))
 
 (defn value-animation [world animation]
   (let [{:keys [t part-name start-value final-value]} animation]
@@ -126,7 +216,6 @@
       (float= t 1.0)
       (-> world
         (assoc-in [:parts part-name :value] final-value)
-        (update-history)
         (tree-changed)
         (redraw))
 
@@ -137,7 +226,7 @@
         (redraw)))))
 
 (defn run-set-value-instruction [world instruction]
-  (let [[_ _ _ part-name _ value] (read-string (str "[" instruction "]"))
+  (let [[_ _ _ part-name _ value] instruction
         part-name (keyword part-name)
         part (get-in world [:parts part-name])
         start-value (:value part)
@@ -159,51 +248,63 @@
        :start-value start-value
        :final-value final-value})))
 
-;; (defn interpolate-mouse [start end]
-;;   (let [ts (last start)
-;;         te (last end)
-;;         start (take 2 start)
-;;         end (take 2 end)
-;;         d (distance start end)
-;;         v (vector-subtract end start)
-;;         interval (- te ts)
-;;         dt 20.0
-;;         num-steps (int (/ interval dt))
-;;         extra-time (int (mod interval dt))]
-;;     (robot-move start)
-;;     (dotimes [i (dec num-steps)]
-;;       (sleep dt)
-;;       (robot-move (vector-add start (vector-multiply v (/ i num-steps)))))
-;;     (sleep extra-time)
-;;     (robot-move end)))
+(defn interpolate-mouse [start end]
+  (let [ts (last start)
+        te (last end)
+        start (take 2 start)
+        end (take 2 end)
+        d (distance start end)
+        v (vector-subtract end start)
+        interval (- te ts)
+        dt 20.0
+        num-steps (int (/ interval dt))
+        extra-time (int (mod interval dt))]
+    (robot-move start)
+    (dotimes [i (dec num-steps)]
+      (sleep dt)
+      (robot-move (vector-add start (vector-multiply v (/ i num-steps)))))
+    (sleep extra-time)
+    (robot-move end)))
 
-;; (defn run-mouse-instruction [world instruction]
-;;   (let [[_ button & points] (read-string (str "(" instruction ")"))
-;;         button (keyword button)]
+(defn run-mouse-instruction [world instruction]
+  (robot-set-active! true)
+  (let [[_ button & points] instruction
+        button (keyword button)]
+    (.start
+     (new Thread
+          (proxy [Runnable] []
+            (run []
+              (robot-move (take 2 (first points)))
+              (robot-mouse-press button)
+              (dotimes [i (dec (count points))]
+                (interpolate-mouse (nth points i)
+                                   (nth points (inc i))))
+              (sleep 16)
+              (robot-mouse-release button)
+              (sleep 16)
+              (robot-set-active! false)))))
+    world))
 
-;;     (.start
-;;      (new Thread
-;;           (proxy [Runnable] []
-;;             (run []
-;;               (robot-set-active! true)
-;;               (robot-move (take 2 (first points)))
-;;               (robot-mouse-press button)
-;;               (dotimes [i (dec (count points))]
-;;                 (interpolate-mouse (nth points i)
-;;                                    (nth points (inc i))))
-;;               (sleep 16)
-;;               (robot-mouse-release button)
-;;               (sleep 100) ;;##########################
-;;               (robot-set-active! false)
-;;               ))))
-;;     world))
+(defn run-zoom-instruction [world instruction]
+  (robot-set-active! true)
+  (let [[_ x y amount] instruction]
+    (.start
+     (new Thread
+          (proxy [Runnable] []
+            (run []
+              (robot-move [x y])
 
-(defn run-sleep-instruction [world instruction]
-  (sleep (parse-int (subs instruction 6)))
-  world)
+              (dotimes [i (abs amount)]
+                (if (pos? amount)
+                  (robot-scroll 1)
+                  (robot-scroll -1))
+                (sleep 30))
+
+              (robot-set-active! false)))))
+    world))
 
 (defn run-set-variable-instruction [world instruction]
-  (let [[_ _ key _ value] (read-string (str "(" instruction ")"))
+  (let [[_ _ key _ value] instruction
         key (keyword key)
         value (if (symbol value)
                 (keyword value)
@@ -213,14 +314,12 @@
                             :selected-motherboard])
                 (select-part world value)
                 world)]
-    (-> world
-      (assoc-in [key] value)
-      (update-history))))
+    (assoc-in world [key] value)))
 
 (declare replaying)
 
 (defn run-put-instruction [world instruction]
-  (let [[_ part-name _ chip-name] (read-string (str "[" instruction "]"))
+  (let [[_ part-name _ chip-name] instruction
         part-name (keyword part-name)
         chip-name (keyword chip-name)
         chip (get-in world [:parts chip-name])
@@ -236,32 +335,27 @@
           {:points [[0 0] [1 1]]
            :relative false
            :z (inc (get-max-z chip))})
-        (update-history)
         (tree-changed)))))
 
 (defn run-add-point-instruction [world instruction]
-  (let [[_ _ point _ _ part-name _ chip-name] (read-string (str "[" instruction "]"))
+  (let [[_ _ point _ _ part-name _ chip-name] instruction
         part-name (keyword part-name)
         chip-name (keyword chip-name)]
-    (-> world
-      (update-in [:parts chip-name :functions part-name]
-        (fn [function]
-          (-> function
-            (update-in [:points] #(conj % point))
-            (normalize-function))))
-      (update-history))))
+    (update-in world [:parts chip-name :functions part-name]
+      (fn [function]
+        (-> function
+          (update-in [:points] #(conj % point))
+          (normalize-function))))))
 
 (defn run-move-point-instruction [world instruction]
-  (let [[_ _ n _ _ part-name _ chip-name _ point] (read-string (str "[" instruction "]"))
+  (let [[_ _ n _ _ part-name _ chip-name _ point] instruction
         part-name (keyword part-name)
         chip-name (keyword chip-name)]
-    (-> world
-      (update-in [:parts chip-name :functions part-name]
-        (fn [function]
-          (-> function
-            (assoc-in [:points n] point)
-            (normalize-function))))
-      (update-history))))
+    (update-in world [:parts chip-name :functions part-name]
+      (fn [function]
+        (-> function
+          (assoc-in [:points n] point)
+          (normalize-function))))))
 
 (defn function-zoom-animation [world animation]
   (let [{:keys [t chip-name start-view end-view]} animation]
@@ -271,7 +365,6 @@
       (float= t 1.0)
       (-> world
         (assoc-in [:parts chip-name :view] end-view)
-        (update-history)
         (redraw))
 
       :else
@@ -290,7 +383,7 @@
           (redraw))))))
 
 (defn run-set-view-instruction [world instruction]
-  (let [[_ _ _ chip-name _ view] (read-string (str "[" instruction "]"))
+  (let [[_ _ _ chip-name _ view] instruction
         [ox oy zx zy] view
         chip-name (keyword chip-name)
         chip (get-in world [:parts chip-name])
@@ -300,26 +393,23 @@
                    :offset [ox oy]}]
     (assoc-in world [:animation]
       {:t 0.0
-       :time 1
+       :time 0.5
        :fn function-zoom-animation
        :chip-name chip-name
        :start-view start-view
        :end-view end-view})))
 
 (defn run-activate-instruction [world instruction]
-  (let [chip-name (keyword (second (split instruction #" ")))]
+  (let [chip-name (keyword (second instruction))]
     (activate-chip world chip-name)))
 
 (defn run-select-instruction [world instruction]
-  (let [[_ motherboard-name _ tab-num] (read-string (str "[" instruction "]"))
+  (let [[_ motherboard-name _ tab-num] instruction
         motherboard-name (keyword motherboard-name)]
-    (-> world
-      (assoc-in [:parts motherboard-name :tab] tab-num)
-      (redraw)
-      (update-history))))
+    (assoc-in world [:parts motherboard-name :tab] tab-num)))
 
 (defn run-set-pin-instruction [world instruction]
-  (let [[_ motherboard-name _ pin] (read-string (str "[" instruction "]"))
+  (let [[_ motherboard-name _ pin] instruction
         motherboard-name (keyword motherboard-name)
         [part-name x] pin
         part-name (keyword part-name)
@@ -334,26 +424,21 @@
         (assoc-in [:parts motherboard-name :pins part-name]
           {:x x
            :trigger false
-           :value (:value part)})
-        (redraw)
-        (update-history)))))
+           :value (:value part)})))))
 
 (defn run-toggle-instruction [world instruction]
-  (let [[_ selected-name _ part-name] (read-string (str "[" instruction "]"))
+  (let [[_ selected-name _ part-name] instruction
         selected-name (keyword selected-name)
         part-name (keyword part-name)
-        selected (get-in world [:parts selected-name])
-        world (if (= (:type selected) :chip)
-                (assoc-in world [:parts selected-name :functions
-                                 part-name :relative] true)
-                (assoc-in world [:parts selected-name
-                                 :pins part-name :trigger] true))]
-    (-> world
-      (redraw)
-      (update-history))))
+        selected (get-in world [:parts selected-name])]
+    (if (= (:type selected) :chip)
+      (assoc-in world [:parts selected-name :functions
+                       part-name :relative] true)
+      (assoc-in world [:parts selected-name
+                       :pins part-name :trigger] true))))
 
 (defn run-set-gate-instruction [world instruction]
-  (let [[_ motherboard-name _ gate] (read-string (str "[" instruction "]"))
+  (let [[_ motherboard-name _ gate] instruction
         motherboard-name (keyword motherboard-name)
         tab (get-in world [:parts motherboard-name :tab])
         [gate-name x y] gate
@@ -363,17 +448,14 @@
                (second)
                (keyword))
         gate-name (keyword (str "gate-" gate-name))]
-    (-> world
-      (assoc-in [:parts motherboard-name :gates gate-name]
-        {:type type
-         :x x
-         :y y
-         :tab tab})
-      (redraw)
-      (update-history))))
+    (assoc-in world [:parts motherboard-name :gates gate-name]
+      {:type type
+       :x x
+       :y y
+       :tab tab})))
 
 (defn run-set-connection-instruction [world instruction]
-  (let [[_ motherboard-name _ connection-name points] (read-string (str "[" instruction "]"))
+  (let [[_ motherboard-name _ connection-name points] instruction
         motherboard-name (keyword motherboard-name)
         connection-name (keyword connection-name)
         points (vec (map #(if (symbol? %)
@@ -381,26 +463,27 @@
                             %)
                       points))
         tab (get-in world [:parts motherboard-name :tab])]
-    (-> world
-      (assoc-in [:parts motherboard-name :connections connection-name]
-        {:points points
-         :tab tab})
-      (redraw)
-      (update-history))))
+    (assoc-in world [:parts motherboard-name :connections connection-name]
+      {:points points
+       :tab tab})))
 
 (defn run-add-connection-point-instruction [world instruction]
-  (let [[_ motherboard-name connection-name _ point] (read-string (str "[" instruction "]"))
+  (let [[_ motherboard-name connection-name _ point] instruction
         motherboard-name (keyword motherboard-name)
         connection-name (keyword connection-name)
         point (if (symbol? point)
                 (keyword point)
                 point)]
+    (update-in world [:parts motherboard-name
+                      :connections connection-name :points]
+      #(conj % point))))
+
+(defn run-set-camera-instruction [world instruction]
+  (let [[_ _ [eye pivot]] instruction]
     (-> world
-      (update-in [:parts motherboard-name
-                  :connections connection-name :points]
-        #(conj % point))
-      (redraw)
-      (update-history))))
+      (assoc-in [:view-matrix] (get-look-at-matrix eye pivot [0 1 0]))
+      (assoc-in [:camera :eye] eye)
+      (reverse-compute-camera))))
 
 (defn run-instruction [world instruction]
   (let [words (split instruction #" ")
@@ -410,7 +493,7 @@
 
                            (.startsWith instruction "set motherboard")
                            (str (first words) "-" (third words))
-                           
+
                            (= (first words) "set")
                            (str (first words) "-" (second words))
 
@@ -426,10 +509,13 @@
                                "-instruction")
                           (symbol)
                           (resolve))]
-      (do
-        (println! (subs instruction 0 (min 100 (count instruction))))
+      (let [short-instruction (apply str (take 80 instruction))]
+        (if (= (count short-instruction)
+              (count instruction))
+          (println! instruction)
+          (println! short-instruction "..."))
         (-> world
-          (function instruction)
+          (function (read-string (str "[" instruction "]")))
           (redraw)))
       (do
         (println! "invalid instruction")

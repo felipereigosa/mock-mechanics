@@ -1,0 +1,18 @@
+>
+add part block10446 to ground-part at [0.25 0.35 1.25] [0.0 1.0 0.0 0.0]
+add part track10448 to block10446 at [0.0 1.25 0.0] [0.0 1.0 0.0 0.0]
+add part block10449 to track10448 at [0.0 0.24999996 0.0] [0.0 1.0 0.0 0.0]
+scale block10449 by + [0.9 0 0]
+scale block10449 by + [0 -0.4 0]
+add part chip10450 to block10446 at [0.0 0.0 0.285] [1.0 0.0 0.0 90]
+set chip10450 function track10448 [[0 0] [0.5 0.5] [1.0 0.5] [1.5 0.0]] false
+add part track10451 to block10449 at [0.5 1.05 0.0] [0.0 1.0 0.0 0.0]
+add part wagon10452 to track10451 at [0 0 0] [1 0 0 0] 0.0
+>
+set chip10450 function wagon10452 [[0.5 0.0] [0.75 1.0] [3.5 0.0]] false
+set color of track10451 to blue
+set variable mode to graph
+set variable selected-chip to chip10450
+set view of chip10450 to [0.028 0.2315 0.48 0.48]
+add point [2 1] to function track10448 of chip10450
+

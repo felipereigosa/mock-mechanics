@@ -11,6 +11,20 @@
         (assoc-in [:view-matrix] (get-look-at-matrix eye pivot [0 1 0]))
         (assoc-in [:camera :eye] eye))))
 
+(defn reverse-compute-camera [world]
+  (let [camera (:camera world)
+        eye (:eye camera)
+        pivot (:pivot camera)
+        to-eye (vector-subtract eye pivot)
+        distance (vector-length to-eye)
+        x-angle (- 90 (vector-angle to-eye [0 1 0]))
+        y-angle (vector-angle (assoc to-eye 1 0) [0 0 1] [0 1 0])
+        new-camera (-> camera
+                     (assoc-in [:x-angle] x-angle)
+                     (assoc-in [:y-angle] y-angle)
+                     (assoc-in [:distance] distance))]
+    (assoc-in world [:camera] new-camera)))
+
 (defn rotate-camera [world dx dy]
   (let [x-speed 0.4
         y-speed 0.4

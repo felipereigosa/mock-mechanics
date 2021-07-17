@@ -2,6 +2,7 @@
 (declare get-part-at)
 (declare create-line-mesh)
 (declare clear-output!)
+(declare get-parent-part)
 
 (defn debug-mode-draw [world]
   (let [w (:window-width world)
@@ -16,9 +17,12 @@
         ;; collision (get-part-collision world event)
         part-name (get-part-at world event)
         part (get-in world [:parts part-name])
+        parent-name (get-parent-part world part-name)
+        relative-transform (get-in world [:parts parent-name :children part-name])
         ]
     (clear-output!)
-    (println! part-name x y)
+    (println! part-name parent-name x y)
+    (print-transform relative-transform)
     (print-transform (:transform part))
     (println! "scale: " (:scale part))
     world))

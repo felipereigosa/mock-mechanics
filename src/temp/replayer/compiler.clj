@@ -85,19 +85,25 @@
                            (:sphere :track) [scale]
                            (:cylinder :cone) [[x 0 z] [0 y 0]]
                            [[x 0 0] [0 y 0] [0 0 z]]))))]
-
-    (let [relative-transform (get-descaled-relative-transform
-                              world part-name scale-change)
-          position (get-transform-position relative-transform)
-          rotation (get-transform-rotation relative-transform)]
-      (.write writer (format "add %s to %s at %s %s\n"
+    (if (= type :wagon)
+      (.write writer (format "add %s to %s at [0 0 0] [1 0 0 0] %s\n"
                              (dekeyword part-name)
                              (dekeyword parent-name)
-                             position
-                             rotation)))
+                             (* (:value part)
+                               (reduce + (:track-lengths part)))))
+      (let [relative-transform (get-descaled-relative-transform
+                                 world part-name scale-change)
+            position (get-transform-position relative-transform)
+            rotation (get-transform-rotation relative-transform)]
+        (.write writer (format "add %s to %s at %s %s\n"
+                         (dekeyword part-name)
+                         (dekeyword parent-name)
+                         position
+                         rotation))))
 
     (doseq [s (get-scales type scale-change)]
-      (.write writer (format "scale %s by %s\n" (dekeyword part-name) s)))
+      (.write writer (format "scale %s by + %s\n"
+                       (dekeyword part-name) s)))
 
     (doseq [property properties]
       (if (not (property= (get part property) (get new-part property)))
@@ -106,12 +112,9 @@
                       (get part property))
               value (if (keyword value)
                       (dekeyword value)
-                      value)
-              value (if (= type :wagon)
-                      (* value (reduce + (:track-lengths part)))
                       value)]
           (when (not (and
-                       (= type :probe)
+                       (in? type [:probe :wagon])
                        (= property :value)))
             (.write writer (format "set %s of %s to %s\n"
                              (dekeyword property)
