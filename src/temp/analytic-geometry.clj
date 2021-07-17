@@ -185,6 +185,22 @@
         p2 (vector-add point v2)]
     [point p1 p2]))
 
+(defn point-triangle-projection [point triangle]
+  (let [[a b c] triangle
+        v1 (vector-subtract c a)
+        v2 (vector-subtract b a)
+        normal (vector-cross-product v1 v2)
+        line [point normal]
+        projected-point (line-plane-intersection line triangle)
+        to-point (vector-subtract point projected-point)]
+    (if (neg? (vector-dot-product normal to-point))
+      nil
+      (let [d (vector-add (vector-add a v1) v2)]
+        (if (or (point-inside-triangle projected-point [a b c])
+                (point-inside-triangle projected-point [b c d]))
+          projected-point
+          nil)))))
+
 (defn point-plane-projection [point plane]
   (let [[a b c] plane
         v1 (vector-subtract c a)
@@ -195,8 +211,4 @@
         to-point (vector-subtract point projected-point)]
     (if (neg? (vector-dot-product normal to-point))
       nil
-      (let [d (vector-add (vector-add a v1) v2)]
-        (if (or (point-inside-triangle projected-point [a b c])
-                (point-inside-triangle projected-point [b c d]))
-          projected-point
-          nil)))))
+      projected-point)))

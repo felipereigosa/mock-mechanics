@@ -110,7 +110,7 @@
       (create-weld-groups)
       (create-update-cube)
 
-      (start-replay "decider")
+      (start-replay "sink")
       ))
 (reset-world!)
 )

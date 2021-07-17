@@ -1,15 +1,4 @@
-add block28500 to ground-part at [0.25 0.35 0.25] [0.0 1.0 0.0 0.0]
-scale block28500 by [0.5 0 0]
-add track28501 to block28500 at [-0.25 1.25 0.0] [0.0 1.0 0.0 0.0]
-scale track28501 by [0 0.5 0]
-add wagon9809 to track28501 at [0.0 0.0 0.0] [0.0 1.0 0.0 0.0]
-set value of wagon9809 to 0.75
-add block9810 to wagon9809 at [0 0.0 0.325] [1.0 0.0 0.0 90]
-scale block9810 by [0 -0.4 0]
-set color of block9810 to purple
-add chip9928 to block28500 at [-0.25 0.0 0.285] [1.0 0.0 0.0 90]
-set chip9928 function track28501 [[0 0] [0.8 0.5] [1.2 0.5] [2.0 0.0]] false
-add block28502 to track28501 at [0.0 0.25 0.0] [0.0 1.0 0.0 0.0]
-scale block28502 by [0.9 0 0]
-scale block28502 by [0 -0.4 0]
-set color of block28502 to dark-yellow
+add part block10174 to ground-part at [0.75 0.35 1.25] [0.0 1.0 0.0 0.0]
+add part cylinder10175 to block10174 at [0.0 0.5 0.0] [0.0 1.0 0.0 0.0]
+scale cylinder10175 by + [-0.2 0 -0.2]
+scale cylinder10175 by + [0 0.7 0]

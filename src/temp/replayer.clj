@@ -41,50 +41,52 @@
 
 (defn start-replay [world filename]
   (reset-robot!)
-  (println! "-----")
-  (reset! checkpoint nil)
-  (reset! replaying false)
-  (-> world
-    (assoc-in [:replay-filename] filename)
-    (assoc-in [:instruction-index] 0)
-    (load-instructions)))
+  (let [w (-> world
+              (assoc-in [:replay-filename] filename)
+              (assoc-in [:instruction-index] 0)
+              (load-instructions))]
+    (println! "-----")
+    (reset! checkpoint w)
+    (reset! replaying false)
+    w))
 
 (defn get-camera-view [world]
   (let [camera (:camera world)]
     [(:eye camera) (:pivot camera)]))
 
 (defn skip-instruction? [world instruction]
-  (if (.startsWith instruction ";;") true
-      (empty? (.trim instruction)) true
-      (let [elements (read-string (str "[" instruction "]"))]
-        (cond
-          (.startsWith instruction "set camera")
-          (let [[_ _ [eye pivot]] elements
-                [eye2 pivot2] (get-camera-view world)]
-            (and
-              (vector= eye eye2)
-              (vector= pivot pivot2)))
+  (if (or (.startsWith instruction ";;")
+          (empty? (.trim instruction)))
+    true
+    (let [elements (read-string (str "[" instruction "]"))]
+      (cond
+        (.startsWith instruction "set camera")
+        (let [[_ _ [eye pivot]] elements
+              [eye2 pivot2] (get-camera-view world)]
+          (and
+            (vector= eye eye2)
+            (vector= pivot pivot2)))
 
-          (.startsWith instruction "set variable")
-          (let [[_ _ key _ value] elements
-                key (keyword key)
-                value (keyword value)]
-            (= (get-in world [key]) value))
+        (.startsWith instruction "set variable")
+        (let [[_ _ key _ value] elements
+              key (keyword key)
+              value (keyword value)]
+          (= (get-in world [key]) value))
 
-          (.startsWith instruction "select motherboard")
-          (let [[_ part-name _ tab-num] elements
-                part-name (keyword part-name)]
-            (= (get-in world [:parts part-name :tab]) tab-num))
+        (.startsWith instruction "select motherboard")
+        (let [[_ part-name _ tab-num] elements
+              part-name (keyword part-name)]
+          (= (get-in world [:parts part-name :tab]) tab-num))
 
-          (.startsWith instruction "set view")
-          (let [[_ _ _ chip-name _ end-view] elements
-                chip-name (keyword chip-name)
-                chip (get-in world [:parts chip-name])
-                {:keys [zoom-x zoom-y offset]} (:view chip)
-                [x y] offset]
-            (vector= end-view [x y zoom-x zoom-y]))
+        (.startsWith instruction "set view")
+        (let [[_ _ _ chip-name _ end-view] elements
+              chip-name (keyword chip-name)
+              chip (get-in world [:parts chip-name])
+              {:keys [zoom-x zoom-y offset]} (:view chip)
+              [x y] offset]
+          (vector= end-view [x y zoom-x zoom-y]))
 
-          :else false))))
+        :else false))))
 
 (defn run-next-instruction [world]
   (let [instructions (:instructions world)
@@ -122,13 +124,9 @@
 
 (defn replay-back [world]
   (if (:replay-filename world)
-    (if (nil? @checkpoint)
-      (do
-        (println! "no checkpoint")
-        world)
-      (do
-        (println! "restored checkpoint")
-        (load-instructions @checkpoint)))
+    (do
+      (println! "restored checkpoint")
+      (load-instructions @checkpoint))
     world))
 
 (def replaying (atom false))
@@ -179,7 +177,6 @@
           (reset! zoom-amount 0))
         (swap! zoom-amount #(+ % (:amount event)))
         (reset! zoom-time current-time)
-        (println! "zoom" (:x event) (:y event) @zoom-amount)
         world))
     world))
 
@@ -212,6 +209,5 @@
             view (:start-camera world)
             instruction (str "mouse " view " "
                           button " " (join " " points))]
-        (println! instruction)
         (dissoc-in world [:replay-events])))
     world))

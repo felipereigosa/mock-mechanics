@@ -42,9 +42,18 @@
 
     (draw-mode-text! world)))
 
+(defn transform-output [arg]
+  (cond
+    (instance? com.bulletphysics.linearmath.Transform arg)
+    [(get-transform-position arg)
+     (get-transform-rotation arg)]
+
+    :else arg))
+
 (defn println! [& args]
   (apply gl-println args)
-  (let [line (apply print-str (conj (into [] args) "\n"))
+  (let [args (map transform-output args)
+        line (apply print-str (conj (into [] args) "\n"))
         truncated-output (apply str (take-last 1024 @output))]
     (swap! output (fn [output]
                     (str truncated-output line))))

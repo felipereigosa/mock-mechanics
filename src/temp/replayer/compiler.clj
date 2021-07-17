@@ -86,7 +86,7 @@
                            (:cylinder :cone) [[x 0 z] [0 y 0]]
                            [[x 0 0] [0 y 0] [0 0 z]]))))]
     (if (= type :wagon)
-      (.write writer (format "add %s to %s at [0 0 0] [1 0 0 0] %s\n"
+      (.write writer (format "add part %s to %s at [0 0 0] [1 0 0 0] %s\n"
                              (dekeyword part-name)
                              (dekeyword parent-name)
                              (* (:value part)
@@ -95,7 +95,7 @@
                                  world part-name scale-change)
             position (get-transform-position relative-transform)
             rotation (get-transform-rotation relative-transform)]
-        (.write writer (format "add %s to %s at %s %s\n"
+        (.write writer (format "add part %s to %s at %s %s\n"
                          (dekeyword part-name)
                          (dekeyword parent-name)
                          position
@@ -168,4 +168,6 @@
     (with-open [writer (clojure.java.io/writer filename)]
       (doseq [part-name sorted-names]
         (create-part-instructions writer world part-name)))
+
+    (println! "created instructions:" filename)
     world))

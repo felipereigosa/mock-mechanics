@@ -85,7 +85,7 @@
 
 (defn print-transform [transform]
   (println! [(get-transform-position transform)
-            (get-transform-rotation transform)]))
+             (get-transform-rotation transform)]))
 
 (defn get-rotation-component [transform]
   (let [rotation (get-transform-rotation transform)]

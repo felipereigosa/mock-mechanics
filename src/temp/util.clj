@@ -278,9 +278,6 @@
                 (recur (concat prefix [a] suffix) fs))))]
     (helper argument functions)))
 
-(defn third [coll]
-  (nth coll 2))
-
 (defn create-groups [acc header? lines]
   (if (empty? lines)
     acc
