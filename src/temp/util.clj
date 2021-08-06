@@ -6,6 +6,7 @@
 (require '[clojure.string :refer [split join]])
 
 (def pi Math/PI)
+(def e Math/E)
 
 (defn to-radians [angle]
   (Math/toRadians angle))
@@ -324,7 +325,7 @@
   (second (find-if #(= elm (first %))
                    (map vector coll (range (count coll))))))
 
-(defn reverse-get-color [color]
+(defn get-reverse-color [color]
   (first (find-if #(color= color (second %)) colors)))
 
 (declare get-part-collision)
@@ -342,7 +343,7 @@
                       [r g b _] (map #(int (* 255 %)) c)]
                   (new Color r g b))
                 (:color part))]
-    (reverse-get-color color)))
+    (get-reverse-color color)))
 
 (defn dekeyword [k]
   (subs (str k) 1))
@@ -361,3 +362,16 @@
 (defn predicate-split [predicate coll]
   (let [m (group-by predicate coll)]
     [(get m true) (get m false)]))
+
+(defn sigmoid [t]
+  (/ 1 (+ 1 (pow e (- (* (- t 0.5) 12))))))
+
+(declare vector-interpolate)
+
+(defn interpolate [a b t]
+  (if (vector? a)
+    (vector-interpolate a b t)
+    (interpolate-values a b t)))
+
+(defn interpolate-maps [m1 m2 t]
+  (merge-with #(interpolate %1 %2 t) m1 m2))

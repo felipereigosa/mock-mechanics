@@ -1,0 +1,10 @@
+add part block10071 to ground-part at [0.25 0.35 0.75] [0.0 1.0 0.0 0.0]
+add part track10072 to block10071 at [0.0 1.25 0.0] [0.0 1.0 0.0 0.0]
+set property value of track10072 to 0.5
+>
+set property free of track10072 to true
+set property snap of track10072 to 0.1
+set color of track10072 to yellow
+add part block10073 to track10072 at [0 0.25 0] [1 0 0 0]
+scale block10073 by + [1.4000000000000001 0 0]
+scale block10073 by + [0 -0.4 0]

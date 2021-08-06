@@ -51,7 +51,7 @@
     :else arg))
 
 (defn println! [& args]
-  (apply gl-println args)
+  (apply gl-println (map transform-output args))
   (let [args (map transform-output args)
         line (apply print-str (conj (into [] args) "\n"))
         truncated-output (apply str (take-last 1024 @output))]

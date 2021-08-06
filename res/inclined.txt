@@ -1,0 +1,15 @@
+add part track10090 to ground-part at [0.75 1.1 1.25] [0.0 1.0 0.0 0.0]
+add part track10091 to track10090 at [1.0 0.0 0.0] [0.0 0.0 -1.0 90.00000250447816]
+add part track10092 to track10091 at [0.0 0.0 1.0] [1.0 0.0 -1.1920929E-7 90.00000933466734]
+add part block10093 to track10092 at [0 0.25 0] [0 1 0 0]
+>
+scale block10093 by + [0 -0.30 0]
+scale block10093 by + [0.65 0 0]
+scale block10093 by - [0.65 0 0]
+scale block10093 by + [0 0 0.7]
+scale block10093 by - [0 0 0.7]
+;; set value of track10090 to 0.11317442103549086
+;; set value of track10091 to -0.1370432113309577
+;; set value of track10092 to 0.05686752368637999
+;; add part cone10094 to block10093 at [0 0.35 0] [0.0 1.0 0.0 0.0]
+;; move cone10094 to [-0.65 0.35 -0.7]

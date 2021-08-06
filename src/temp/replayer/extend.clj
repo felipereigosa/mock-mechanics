@@ -1,4 +1,6 @@
 
+(declare extend-instructions)
+
 (defn get-bounding-viewbox [points]
   (let [xs (map first points)
         ys (map second points)
@@ -84,45 +86,59 @@
     r))
 
 (defn extend-instruction [instruction]
-  (let [atoms (split instruction #" ")
-        change-mode-submode (fn [mode submode-name submode]
-                              [(str "set variable mode to " mode)
-                               (format "set variable %s to %s"
-                                 submode-name submode)])]
-    (cond
-      (.startsWith instruction "add part")
-      (let [type (get-part-type (keyword (third atoms)))]
-        (conj (change-mode-submode "add" "add-type" (dekeyword type))
-          instruction))
+  (if (or (empty? (.trim instruction))
+          (starts-with? instruction ";;"))
+    []
+    (let [atoms (read-string (str "[" instruction "]"))
+          change-mode-submode (fn [mode submode-name submode]
+                                [(str "set variable mode to " mode)
+                                 (format "set variable %s to %s"
+                                         submode-name submode)])]
+      (cond
+        (.startsWith instruction "add part")
+        (let [type (get-part-type (keyword (third atoms)))]
+          (conj (change-mode-submode "add" "add-type" (dekeyword type))
+                instruction))
 
-      (or
-        (.startsWith instruction "move")
-        (.startsWith instruction "scale")
-        (.startsWith instruction "sink")
-        (.startsWith instruction "rotate"))
-      (conj (change-mode-submode "edit" "edit-subcommand" (first atoms))
-        instruction)
+        (.startsWith instruction "move point")
+        [instruction]
 
-      (.startsWith instruction "set color")
-      (conj (change-mode-submode "color" "current-color" (last atoms))
-        instruction)
+        (or
+         (.startsWith instruction "move")
+         (.startsWith instruction "scale")
+         (.startsWith instruction "sink")
+         (.startsWith instruction "rotate"))
+        (conj (change-mode-submode "edit" "edit-subcommand" (first atoms))
+              instruction)
 
-      (.startsWith instruction "set value")
-      (conj (change-mode-submode "property" "selected-part" (nth atoms 3))
-        instruction)
+        (.startsWith instruction "copy")
+        (conj (change-mode-submode "edit" "edit-subcommand" (first atoms))
+              (str "select " (second atoms))
+              instruction)
 
-      (.startsWith instruction "set chip")
-      (extend-graph-instruction instruction)
+        (.startsWith instruction "set color")
+        (conj (change-mode-submode "color" "current-color" (last atoms))
+              instruction)
 
-      (.startsWith instruction "set motherboard")
-      (extend-motherboard-instruction instruction)
+        (.startsWith instruction "set property")
+        (conj (change-mode-submode "property" "selected-part" (nth atoms 4))
+              instruction)
 
-      (.startsWith instruction "mouse")
-      (let [elements (read-string (str "[" instruction "]"))]
-        [(str "set camera " (second elements))
-         (join " " (vector-remove elements 1))])
+        (.startsWith instruction "set chip")
+        (extend-graph-instruction instruction)
 
-      :else [instruction])))
+        (.startsWith instruction "set motherboard")
+        (extend-motherboard-instruction instruction)
+
+        (.startsWith instruction "mouse")
+        (let [elements (read-string (str "[" instruction "]"))]
+          [(apply format "set camera pivot %s angles %s distance %s"
+                  (second elements))
+           (join " " (vector-remove elements 1))])
+
+        :else [instruction]))))
 
 (defn extend-instructions [instructions]
-  (apply concat (map extend-instruction instructions)))
+  (if (.startsWith (first instructions) "set variable")
+    instructions
+    (apply concat (map extend-instruction instructions))))

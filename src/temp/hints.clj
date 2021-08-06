@@ -15,7 +15,6 @@
                         :motherboard "Alt + M,Motherboard Mode"
                         :color "Alt + C,Color Mode"
                         :property "Alt + P,Property Mode"
-                        :toggle "Alt + T,Toggle Mode"
                         :layer "Alt + L,Layer Mode"
                         :avatar "Alt + F,Avatar Mode"
                         :simulation "Alt + S,Simulation Mode"

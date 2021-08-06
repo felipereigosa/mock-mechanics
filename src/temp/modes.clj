@@ -1,7 +1,6 @@
 
 (load "property-mode")
 (load "simulation-mode")
-(load "toggle-mode")
 (load "add-mode")
 (load "edit-mode")
 (load "graph-mode")

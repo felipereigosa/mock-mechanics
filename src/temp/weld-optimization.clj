@@ -62,16 +62,9 @@
                            g (/ (get-green color) 255.0)
                            b (/ (get-blue color) 255.0)]
                        [r g b 1])
-          colors (if (= (:mode world) :toggle)
-                   (let [property-index (:selected-property world)
-                         property (get-in world [:properties property-index])
-                         color (if (get-in part [property])
-                                 [1 0 0 0]
-                                 [1 1 1 0])]
-                     (repeat (count vertices) color))
-                   (if (empty? (:colors model))
-                     (repeat (count vertices) part-color)
-                     (partition 4 (:colors model))))]
+          colors (if (empty? (:colors model))
+                   (repeat (count vertices) part-color)
+                   (partition 4 (:colors model)))]
       (if (not= (Thread/currentThread) @the-thread)
         (throw (new Exception)))
       {:vertices vertices
@@ -166,10 +159,6 @@
         world (compute-transforms world :parts)
         parts (:parts (compute-transforms (reset-part-values world) :parts))
         info (:info world)
-        property (if (= (:mode world) :toggle)
-                   (nth (get-in world [:properties])
-                        (:selected-property world))
-                   nil)
         weld-groups (map-map (fn [names]
                                (let [children (get-group-children parts names groups)
                                      mesh (-> (create-mesh-from-parts world names)

@@ -1,0 +1,8 @@
+add part track9993 to ground-part at [0.25 1.1 0.75] [0.0 1.0 0.0 0.0]
+move track9993 to [-1.75 1.1 -2.25]
+add part block9994 to track9993 at [0 0.25 0] [1 0 0 0]
+scale block9994 by + [1.1 0 0]
+scale block9994 by + [0 -0.4 0]
+move block9994 to [0.35000002 0.049999952 0.0]
+set color of block9994 to yellow
+

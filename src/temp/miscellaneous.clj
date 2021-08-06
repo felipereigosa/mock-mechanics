@@ -42,7 +42,7 @@
           (compute-camera))
       (-> world
           (assoc-in [:camera :pivot]
-                    (vector-interpolate start end t))
+                    (vector-interpolate start end (sigmoid t)))
           (compute-camera)))))
 
 (defn create-pivot-animation [world event]
@@ -64,7 +64,7 @@
         pivot (get-in world [:camera :pivot])]
     {:start pivot
      :end pos
-     :time (* 0.1 (distance pivot pos))
+     :time (max 0.8 (* 0.1 (distance pivot pos)))
      :t 0
      :fn pivot-animation}))
 
@@ -138,7 +138,6 @@
         (place-box :graph-menu :wx 0.5 :ry -0.5 :oy oy)
         (place-box :motherboard-box :wx 0.5 :ry -0.5 :oy (- oy menu-offset))
         (place-box :motherboard-menu :wx 0.5 :ry -0.5 :oy oy)
-        (place-box :toggle-box :wx 0.5 :ry -0.5 :oy oy)
         (place-box :property-box :wx 0.5 :ry -0.5 :oy oy)
         )))
 

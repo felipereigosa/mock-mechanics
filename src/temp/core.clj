@@ -31,6 +31,8 @@
 (load "hints")
 (load "input-indicator")
 
+(load "replayer/helpers")
+
 (do
 1
 
@@ -55,10 +57,9 @@
                                     :w 685 :h 150
                                     :buffer (new-image 685 150)})
       (assoc-in [:property-box]
-                (create-picture "property-menu" 240 340 -1 60))
+                (create-picture "property-menu" 240 340 -1 100))
       (assoc-in [:layer-box]
                 (create-picture "layer-menu" 240 340 -1 200))
-      (assoc-in [:toggle-box] {:x 343 :y 575 :w 500 :h 60})
       (create-layer-info)
       (assoc-in [:command] "")
       (assoc-in [:bindings] (get-bindings))
@@ -92,7 +93,6 @@
       (assoc-in [:motherboard-subcommand] :move)
 
       (assoc-in [:selected-property] 0)
-      (assoc-in [:properties] [:free :solid :.])
 
       (create-physics-world)
       (reset-undo! [:parts :gears])
@@ -110,7 +110,8 @@
       (create-weld-groups)
       (create-update-cube)
 
-      (start-replay "sink")
+      (assoc-in [:add-offset] 100)
+      (start-replay "clock")
       ))
 (reset-world!)
 )

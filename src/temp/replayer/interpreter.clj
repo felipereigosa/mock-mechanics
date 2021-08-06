@@ -1,4 +1,6 @@
 
+(load "replayer/sound")
+
 (defn get-part-type [part-name]
   (keyword (second (re-find #":([a-z]*)" (str part-name)))))
 
@@ -20,43 +22,42 @@
         v2 (vector-subtract c a)
         ox (vector-scalar-projection v v1)
         oy (vector-scalar-projection v v2)]
-    (user-message! "x = " (format "%.2f" ox)
-                   ", y = " (format "%.2f" oy))
-    world))
+    (user-message! "x = " (format "%.2f" (float ox))
+                   ", y = " (format "%.2f" (float oy)))))
+
+(declare replaying)
 
 (defn run-add-instruction [world instruction]
   (let [[_ _ part-name _ parent-name _ position rotation] instruction
-        part-name (keyword part-name)
         parent-name (keyword parent-name)
-        type (get-part-type part-name)
-        layer (apply min (:visible-layers world))
-        color (get-in world [:info type :color])
-        part (create-part type color layer (:info world))
-        transform (make-transform position rotation)
-        prepare-wagon (fn [w]
-                        (if (= type :wagon)
-                          (let [w (set-wagon-loop w part-name parent-name)
-                                value (->> (get-in w [:parts part-name :track-lengths])
-                                        (reduce +)
-                                        (/ (last instruction)))]
-                            (assoc-in w [:parts part-name :value] value))
-                          w))]
-    (-> world
-      (assoc-in [:parts part-name] part)
-      (assoc-in [:parts parent-name :children part-name] transform)
-      (prepare-wagon)
-      (compute-transforms :parts)
-      (tree-changed)
-      (print-part-relative-location part-name))))
-
-;; (defn run-set-instruction [world instruction]
-;;   (let [[_ property-name _ part-name _ value] instruction
-;;         property-name (keyword property-name)
-;;         part-name (keyword part-name)
-;;         value (if (symbol? value) (keyword value) value)]
-;;     (-> world
-;;         (set-part-value part-name property-name (str value))
-;;         (tree-changed))))
+        parent (get-in world [:parts parent-name])]
+    (if (nil? parent)
+      (do
+        (println! "part" parent-name "doesn't exist")
+        (reset! replaying false)
+        world)
+      (let [part-name (keyword part-name)
+            type (get-part-type part-name)
+            layer (apply min (:visible-layers world))
+            color (get-in world [:info type :color])
+            part (create-part type color layer (:info world))
+            transform (make-transform position rotation)
+            prepare-wagon (fn [w]
+                            (if (= type :wagon)
+                              (let [w (set-wagon-loop w part-name parent-name)
+                                    value (->> (get-in w [:parts part-name :track-lengths])
+                                               (reduce +)
+                                               (/ (last instruction)))]
+                                (assoc-in w [:parts part-name :value] value))
+                              w))
+            world (-> world
+                      (assoc-in [:parts part-name] part)
+                      (assoc-in [:parts parent-name :children part-name] transform)
+                      (prepare-wagon)
+                      (compute-transforms :parts)
+                      (tree-changed))]
+        (print-part-relative-location world part-name)
+        world))))
 
 (defn print-scale-change [world part-name scale change]
   (let [type (get-in world [:parts part-name :type])
@@ -76,8 +77,7 @@
       (user-message! (format "length: %.2f" value))
 
       :sphere
-      (user-message! (format "diameter: %.2f" value)))
-    world))
+      (user-message! (format "diameter: %.2f" value)))))
 
 (defn scale-animation [world animation]
   (let [{:keys [t start-scale final-scale
@@ -85,24 +85,32 @@
                 part-name parent-name change]} animation]
     (cond
       (float= t 0.0)
-      (tree-will-change world)
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (tree-will-change))
 
       (float= t 1.0)
-      (-> world
-          (assoc-in [:parts part-name :scale] final-scale)
-          (assoc-in [:parts part-name :transform] final-transform)
-          (create-relative-transform part-name parent-name)
-          (tree-changed)
-          (print-scale-change part-name final-scale change))
+      (let [world (-> world
+                      (assoc-in [:parts part-name :scale] final-scale)
+                      (assoc-in [:parts part-name :transform] final-transform)
+                      (edit-children)
+                      (dissoc-in [:edited-part])
+                      (create-relative-transform part-name parent-name)
+                      (tree-changed))]
+        (print-scale-change world part-name final-scale change)
+        world)
 
       :else
-      (let [scale (vector-interpolate start-scale final-scale t)
+      (let [t (sigmoid t)
+            scale (vector-interpolate start-scale final-scale t)
             transform (interpolate-transforms start-transform
-                                              final-transform t)]
-        (-> world
-            (assoc-in [:parts part-name :scale] scale)
-            (assoc-in [:parts part-name :transform] transform)
-            (print-scale-change part-name scale change)))
+                                              final-transform t)
+            world (-> world
+                      (assoc-in [:parts part-name :scale] scale)
+                      (assoc-in [:parts part-name :transform] transform)
+                      (edit-children))]
+        (print-scale-change world part-name scale change)
+        world))))
 
 (defn run-scale-instruction [world instruction]
   (let [[_  part-name _ direction change] instruction
@@ -132,9 +140,14 @@
         offset-transform (make-transform offset [1 0 0 0])
         transform (:transform part)
         final-transform (combine-transforms transform offset-transform)]
+
+    (if (pos? (reduce + change))
+      (play-sound! :up)
+      (play-sound! :down))
+
     (assoc-in world [:animation]
       {:t 0.0
-       :time 0.3;;(/ (reduce + (map abs change)) 2)
+       :time (/ 1 (:replay-speed world));;(* (reduce + (map abs change)) 1.5)
        :fn scale-animation
        :change change
        :part-name part-name
@@ -150,22 +163,29 @@
                 amount]} animation]
     (cond
       (float= t 0.0)
-      (tree-will-change world)
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (tree-will-change))
 
       (float= t 1.0)
       (do
-        (user-message! "height = " (format "%.2f" amount))
+        (user-message! "height = " (format "%.2f" (float amount)))
         (-> world
             (assoc-in [:parts part-name :transform] final-transform)
+            (edit-children)
+            (dissoc-in [:edited-part])
             (create-relative-transform part-name parent-name)
             (tree-changed)))
 
       :else
-      (let [transform (interpolate-transforms start-transform
+      (let [t (sigmoid t)
+            transform (interpolate-transforms start-transform
                                               final-transform t)
             h (* amount t)]
-        (user-message! "height = " (format "%.2f" h))
-        (assoc-in world [:parts part-name :transform] transform)))))
+        (user-message! "height = " (format "%.2f" (float h)))
+        (-> world
+            (assoc-in [:parts part-name :transform] transform)
+            (edit-children))))))
 
 (defn run-sink-instruction [world instruction]
   (let [[_  part-name _ amount] instruction
@@ -179,7 +199,7 @@
         final-transform (combine-transforms transform offset-transform)]
     (assoc-in world [:animation]
       {:t 0.0
-       :time (abs amount)
+       :time (/ (* (abs amount) 2) (:replay-speed world))
        :fn sink-animation
        :part-name part-name
        :parent-name parent-name
@@ -192,22 +212,29 @@
                 start-transform angle]} animation]
     (cond
       (float= t 0.0)
-      (tree-will-change world)
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (tree-will-change))
 
       (float= t 1.0)
       (let [rotation-transform (make-transform [0 0 0] [0 1 0 angle])
             transform (combine-transforms rotation-transform start-transform)]
         (user-message! "angle = " (format "%.2f" (float angle)))
         (-> world
-          (assoc-in [:parts part-name :transform] transform)
-          (create-relative-transform part-name parent-name)
-          (tree-changed)))
+            (assoc-in [:parts part-name :transform] transform)
+            (edit-children)
+            (dissoc-in [:edited-part])
+            (create-relative-transform part-name parent-name)
+            (tree-changed)))
 
       :else
-      (let [rotation-transform (make-transform [0 0 0] [0 1 0 (* t angle)])
+      (let [t (sigmoid t)
+            rotation-transform (make-transform [0 0 0] [0 1 0 (* t angle)])
             transform (combine-transforms rotation-transform start-transform)]
-        (user-message! "angle = " (format "%.2f" (* t angle)))
-        (assoc-in world [:parts part-name :transform] transform)))))
+        (user-message! "angle = " (format "%.2f" (float (* t angle))))
+        (-> world
+            (assoc-in [:parts part-name :transform] transform)
+            (edit-children))))))
 
 (defn run-rotate-instruction [world instruction]
   (let [[_  part-name _ amount] instruction
@@ -218,7 +245,7 @@
         transform (:transform part)]
     (assoc-in world [:animation]
       {:t 0.0
-       :time (/ amount 100)
+       :time (/ (/ amount 100) (:replay-speed world))
        :fn rotate-animation
        :part-name part-name
        :parent-name parent-name
@@ -230,21 +257,29 @@
                 start-transform final-transform]} animation]
     (cond
       (float= t 0.0)
-      (tree-will-change world)
+      (-> world
+          (assoc-in [:edited-part] part-name)
+          (tree-will-change))
 
       (float= t 1.0)
-      (-> world
-          (assoc-in [:parts part-name :transform] final-transform)
-          (create-relative-transform part-name parent-name)
-          (tree-changed)
-          (print-part-relative-location part-name))
+      (let [world (-> world
+                      (assoc-in [:parts part-name :transform] final-transform)
+                      (edit-children)
+                      (dissoc-in [:edited-part])
+                      (create-relative-transform part-name parent-name)
+                      (tree-changed))]
+        (print-part-relative-location world part-name)
+        world)
 
       :else
       (let [transform (interpolate-transforms start-transform
-                                              final-transform t)]
-        (-> world
-            (assoc-in [:parts part-name :transform] transform)
-            (print-part-relative-location part-name))))))
+                                              final-transform
+                                              (sigmoid t))
+            world (-> world
+                      (assoc-in [:parts part-name :transform] transform)
+                      (edit-children))]
+        (print-part-relative-location world part-name)
+        world))))
 
 (defn run-move-instruction [world instruction]
   (let [[_  part-name _ location] instruction
@@ -264,7 +299,8 @@
         p2 (get-transform-position final-transform)]
     (assoc-in world [:animation]
       {:t 0.0
-       :time (/ (distance p1 p2) 2)
+       :time (/ 0.7 ;;(* 0.3 (distance p1 p2))
+                (:replay-speed world))
        :fn move-animation
        :part-name part-name
        :parent-name parent-name
@@ -282,47 +318,6 @@
                   (get-dark-color color))
                 world)]
     (tree-changed world)))
-
-(defn value-animation [world animation]
-  (let [{:keys [t part-name start-value final-value]} animation]
-    (cond
-      (float= t 0.0)
-      (tree-will-change world)
-
-      (float= t 1.0)
-      (-> world
-        (assoc-in [:parts part-name :value] final-value)
-        (tree-changed)
-        (redraw))
-
-      :else
-      (-> world
-        (assoc-in [:parts part-name :value]
-          (interpolate-values start-value final-value t))
-        (redraw)))))
-
-(defn run-set-value-instruction [world instruction]
-  (let [[_ _ _ part-name _ value] instruction
-        part-name (keyword part-name)
-        part (get-in world [:parts part-name])
-        start-value (:value part)
-        length (if (= (:type part) :wagon)
-                 (reduce + (:track-lengths part))
-                 1)
-        final-value (/ value length)
-        s-value (* (:value part) length)
-        time (abs (- s-value value))
-
-        time (if (= (:type part) :wagon)
-               time
-               (* time 3))]
-    (assoc-in world [:animation]
-      {:t 0.0
-       :time time
-       :fn value-animation
-       :part-name part-name
-       :start-value start-value
-       :final-value final-value})))
 
 (defn interpolate-mouse [start end]
   (let [ts (last start)
@@ -375,7 +370,6 @@
                   (robot-scroll 1)
                   (robot-scroll -1))
                 (sleep 30))
-
               (robot-set-active! false)))))
     world))
 
@@ -391,8 +385,6 @@
                 (select-part world value)
                 world)]
     (assoc-in world [key] value)))
-
-(declare replaying)
 
 (defn run-put-instruction [world instruction]
   (let [[_ part-name _ chip-name] instruction
@@ -429,7 +421,7 @@
             (redraw)))
 
       :else
-      (let [point (vector-interpolate start-point end-point t)]
+      (let [point (vector-interpolate start-point end-point (sigmoid t))]
         (user-message! (apply format "node value = %.2f, %.2f" (map float point)))
         (-> world
             (update-in [:parts chip-name :functions part-name]
@@ -451,7 +443,7 @@
                    part-name :points] new-function)
         (assoc-in [:animation]
                   {:t 0.0
-                   :time 0.5
+                   :time (/ 0.5 (:replay-speed world))
                    :fn move-point-animation
                    :chip-name chip-name
                    :part-name part-name
@@ -468,7 +460,7 @@
                     [1 1])]
     (assoc-in world [:animation]
       {:t 0.0
-       :time 0.5
+       :time (/ 1 (:replay-speed world))
        :fn move-point-animation
        :chip-name chip-name
        :part-name part-name
@@ -491,6 +483,7 @@
                         (:zoom-y start-view)]
             end-zoom [(:zoom-x end-view)
                       (:zoom-y end-view)]
+            t (sigmoid t)
             zoom (vector-interpolate start-zoom end-zoom t)
             offset (vector-interpolate
                      (:offset start-view) (:offset end-view) t)]
@@ -512,20 +505,37 @@
                    :offset [ox oy]}]
     (assoc-in world [:animation]
       {:t 0.0
-       :time 0.5
+       :time (/ 1 (:replay-speed world))
        :fn function-zoom-animation
        :chip-name chip-name
        :start-view start-view
        :end-view end-view})))
 
+(defn draw-activate-highlight! [world]
+  (let [graph-box (:graph-box world)
+        cx (:x graph-box)
+        cy (:y graph-box)
+        size 20
+        points [[(- cx size) (- cy size)]
+                [(- cx size) (+ cy size)]
+                [(+ cx (* size 0.8)) cy]]]
+    (fill-polygon! :white points)))
+
+(defn flash-animation [world animation]
+  (let [{:keys [t draw-fn]} animation]
+    (draw-fn)
+    (redraw world)))
+
 (defn run-activate-instruction [world instruction]
   (let [chip-name (keyword (second instruction))]
-    (activate-chip world chip-name)))
-
-(defn run-select-instruction [world instruction]
-  (let [[_ motherboard-name _ tab-num] instruction
-        motherboard-name (keyword motherboard-name)]
-    (assoc-in world [:parts motherboard-name :tab] tab-num)))
+    (play-sound! :motor)
+    (-> world
+        (assoc-in [:animation]
+                  {:t 0.0
+                   :time 0.5
+                   :fn flash-animation
+                   :draw-fn #(draw-activate-highlight! world)})
+        (activate-chip chip-name))))
 
 (defn run-set-pin-instruction [world instruction]
   (let [[_ motherboard-name _ pin] instruction
@@ -545,14 +555,34 @@
            :trigger false
            :value (:value part)})))))
 
+(defn draw-function-toggle-highlight! [world chip-name function-name]
+  (let [chip (get-in world [:parts chip-name])
+        points (get-in chip [:functions function-name :points])
+        view (:view chip)
+        graph-box (:graph-box world)
+        points (map #(local->global graph-box view %)
+                    points)
+        x-offset (- (:x graph-box) (* 0.5 (:w graph-box)))
+        y-offset (- (:y graph-box) (* 0.5 (:h graph-box)))
+        color (get-in world [:parts function-name :color])]
+    (doseq [[x y] points]
+      (fill-rect! color (+ x x-offset) (+ y y-offset) 20 20))))
+
 (defn run-toggle-instruction [world instruction]
   (let [[_ selected-name _ part-name] instruction
         selected-name (keyword selected-name)
         part-name (keyword part-name)
         selected (get-in world [:parts selected-name])]
     (if (= (:type selected) :chip)
-      (assoc-in world [:parts selected-name :functions
-                       part-name :relative] true)
+      (-> world
+          (assoc-in [:parts selected-name :functions
+                     part-name :relative] true)
+          (assoc-in [:animation]
+                    {:t 0.0
+                     :time 0.5
+                     :fn flash-animation
+                     :draw-fn #(draw-function-toggle-highlight!
+                                world selected-name part-name)}))
       (assoc-in world [:parts selected-name
                        :pins part-name :trigger] true))))
 
@@ -597,12 +627,144 @@
                       :connections connection-name :points]
       #(conj % point))))
 
+(defn camera-animation [world animation]
+  (let [{:keys [t start-camera end-camera]} animation
+        set-camera (fn [{:keys [pivot angles distance]}]
+                     (let [[x y] angles]
+                       (-> world
+                           (assoc-in [:camera :pivot] pivot)
+                           (assoc-in [:camera :x-angle] x)
+                           (assoc-in [:camera :y-angle] y)
+                           (assoc-in [:camera :distance] distance)
+                           (compute-camera))))]
+    (cond
+      (float= t 0.0)
+      world
+
+      (float= t 1.0)
+      (set-camera end-camera)
+
+      :else
+      (->> (sigmoid t)
+           (interpolate-maps start-camera end-camera)
+           (set-camera)))))
+
 (defn run-set-camera-instruction [world instruction]
-  (let [[_ _ [eye pivot]] instruction]
-    (-> world
-      (assoc-in [:view-matrix] (get-look-at-matrix eye pivot [0 1 0]))
-      (assoc-in [:camera :eye] eye)
-      (reverse-compute-camera))))
+  (let [partial-camera (apply merge
+                              (map (fn [[k v]]
+                                     {(keyword k) v})
+                                   (partition 2 (nthrest instruction 2))))
+        camera (:camera world)
+        start-camera {:pivot (:pivot camera)
+                      :angles [(:x-angle camera) (:y-angle camera)]
+                      :distance (:distance camera)}
+        end-camera (merge start-camera partial-camera)]
+    (assoc-in world [:animation]
+              {:start-camera start-camera
+               :end-camera end-camera
+               :time 1.0 ;;############################
+               :t 0.0
+               :fn camera-animation})))
+
+(defn run-sleep-instruction [world instruction]
+  (let [[_ time] instruction]
+    (sleep time)
+    world))
+
+(defn run-copy-instruction [world instruction]
+  (let [[_ part-name _ parent-name _
+         position rotation _ _ suffix] instruction
+        part-name (keyword part-name)
+        parent-name (keyword parent-name)
+        suffix (keyword suffix)
+        part (get-in world [:parts part-name])
+        [parts copy-part-name] (copy-tree (:parts world) part-name suffix)
+        copied-parts (get-tree-with-root parts part-name)
+        parts (fix-references parts copied-parts suffix)
+        transform (make-transform position rotation)
+        world (-> world
+                  (assoc-in [:parts] parts)
+                  (assoc-in [:parts parent-name :children copy-part-name] transform)
+                  (compute-transforms :parts)
+                  (tree-changed))]
+    (print-part-relative-location world copy-part-name)
+    world))
+
+(defn value-animation [world animation]
+  (let [{:keys [t part-name start-value final-value]} animation]
+    (cond
+      (float= t 0.0)
+      (tree-will-change world)
+
+      (float= t 1.0)
+      (-> world
+        (assoc-in [:parts part-name :value] final-value)
+        (tree-changed)
+        (redraw))
+
+      :else
+      (-> world
+        (assoc-in [:parts part-name :value]
+          (interpolate-values start-value final-value (sigmoid t)))
+        (redraw)))))
+
+(defn run-set-value-instruction [world instruction]
+  (let [[_ _ _ _ part-name _ value] instruction
+        part-name (keyword part-name)
+        part (get-in world [:parts part-name])
+        start-value (:value part)
+        length (if (= (:type part) :wagon)
+                 (reduce + (:track-lengths part))
+                 1)
+        final-value (/ value length)
+        s-value (* (:value part) length)
+        time (abs (- s-value value))
+
+        time (if (= (:type part) :wagon)
+               time
+               (* time 6))]
+    (assoc-in world [:animation]
+      {:t 0.0
+       :time (/ time (:replay-speed world))
+       :fn value-animation
+       :part-name part-name
+       :start-value start-value
+       :final-value final-value})))
+
+(defn draw-property-highlight! [world property]
+  (let [selected-part (:selected-part world)
+        type (get-in world [:parts selected-part :type])
+        properties (keys (get-in world [:info type :properties]))
+        index (get-index property properties)
+        box (get-in world [:property-box])
+        cell (get-in box [:regions (keyword (str "value" index))])
+        {:keys [x y w h]} (get-absolute-region cell box)]
+    (draw-rect! :white x y w h)))
+
+(defn run-set-property-instruction [world instruction]
+  (let [[_ _ property _ part-name _ value] instruction
+        part-name (keyword part-name)
+        property (keyword property)]
+    (if (= property :value)
+      (run-set-value-instruction world instruction)
+      (-> world
+          (assoc-in [:parts part-name property] value)
+          (tree-changed)
+          (assoc-in [:animation]
+                    {:t 0.0
+                     :time 0.2
+                     :fn flash-animation
+                     :draw-fn #(draw-property-highlight!
+                                world property)})))))
+
+(defn run-select-instruction [world instruction]
+  (if (= (count instruction) 2)
+    (let [[_ part-name] instruction
+          part-name (keyword part-name)]
+      (select-part world part-name))
+    (let [[_ motherboard-name _ tab-num] instruction
+          motherboard-name (keyword motherboard-name)]
+      (assoc-in world [:parts motherboard-name :tab] tab-num))))
 
 (defn run-instruction [world instruction]
   (let [words (split instruction #" ")
@@ -637,5 +799,5 @@
           (function (read-string (str "[" instruction "]")))
           (redraw)))
       (do
-        (println! "invalid instruction")
+        (println! "invalid instruction: " instruction)
         world))))

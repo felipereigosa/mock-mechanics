@@ -87,7 +87,6 @@
 
    "A-x p" #(change-mode % :physics)
    "A-p" #(change-mode % :property)
-   "A-t" #(change-mode % :toggle)
 
    "A-f" #(change-mode % :avatar)
    

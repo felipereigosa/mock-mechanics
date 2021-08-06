@@ -1,18 +1,4 @@
 
-(defn get-descaled-relative-transform [world part-name change]
-  (let [parent-name (get-parent-part world part-name)
-        part (get-in world [:parts part-name])
-        offset (case (:type part)
-                 :sphere [0 0 0]
-                 :track change
-                 (:cylinder :cone) [0 (* (second change) 0.5) 0]
-                 (vector-multiply change 0.5))
-        offset (vector-multiply offset -1)
-        offset-transform (make-transform offset [1 0 0 0])
-        relative-transform (get-in world [:parts parent-name
-                                          :children part-name])]
-    (combine-transforms offset-transform relative-transform)))
-
 (defn create-tab-instructions [writer tab part-name part seen-pins]
   (let [connections (filter #(= (:tab (second %)) tab)
                       (:connections part))]
@@ -63,14 +49,26 @@
                    writer n part-name part seen-pins)]
         (recur (inc n) (concat seen-pins pins))))))
 
-(defn create-part-instructions [writer world part-name]
+(defn get-descaled-relative-transform [world part-name change]
   (let [parent-name (get-parent-part world part-name)
         part (get-in world [:parts part-name])
+        offset (case (:type part)
+                 :sphere [0 0 0]
+                 :track change
+                 (:cylinder :cone) [0 (* (second change) 0.5) 0]
+                 (vector-multiply change 0.5))
+        offset (vector-multiply offset -1)
+        offset-transform (make-transform offset [1 0 0 0])
+        relative-transform (get-in world [:parts parent-name
+                                          :children part-name])]
+    (combine-transforms offset-transform relative-transform)))
+
+(defn create-part-instructions [writer world part-name]
+  (let [parent-name (get-parent-part world part-name)
+        parent (get-in world [:parts parent-name])
+        part (get-in world [:parts part-name])
         type (:type part)
-        properties (concat
-                    (keys (get-in world [:info type :properties]))
-                    (filter #(not= % :.) (:properties world))
-                    '(:color))
+        properties (keys (get-in world [:info type :properties]))
         color (get-in world [:info type :color])
         new-part (create-part type color 0 (:info world))
         scale-change (vector-subtract (:scale part) (:scale new-part))
@@ -85,41 +83,58 @@
                            (:sphere :track) [scale]
                            (:cylinder :cone) [[x 0 z] [0 y 0]]
                            [[x 0 0] [0 y 0] [0 0 z]]))))]
-    (if (= type :wagon)
+    (cond
+      (= type :wagon)
       (.write writer (format "add part %s to %s at [0 0 0] [1 0 0 0] %s\n"
                              (dekeyword part-name)
                              (dekeyword parent-name)
                              (* (:value part)
-                               (reduce + (:track-lengths part)))))
+                                (reduce + (:track-lengths part)))))
+      (and
+       (in? type [:block :cylinder :cone])
+       (= (:type parent) :track))
+      (.write writer (format "add part %s to %s at [0 0.25 0] [1 0 0 0]\n"
+                             (dekeyword part-name)
+                             (dekeyword parent-name)))
+      :else
       (let [relative-transform (get-descaled-relative-transform
-                                 world part-name scale-change)
+                                world part-name scale-change)
             position (get-transform-position relative-transform)
             rotation (get-transform-rotation relative-transform)]
         (.write writer (format "add part %s to %s at %s %s\n"
-                         (dekeyword part-name)
-                         (dekeyword parent-name)
-                         position
-                         rotation))))
+                               (dekeyword part-name)
+                               (dekeyword parent-name)
+                               position
+                               rotation))))
 
     (doseq [s (get-scales type scale-change)]
       (.write writer (format "scale %s by + %s\n"
                        (dekeyword part-name) s)))
 
+    (when (and (in? type [:block :cylinder :cone])
+               (= (:type parent) :track))
+      (let [relative-transform (get-in parent [:children part-name])]
+        (.write writer (format "move %s to %s\n"
+                               (dekeyword part-name)
+                               (get-transform-position relative-transform)))))
+
     (doseq [property properties]
-      (if (not (property= (get part property) (get new-part property)))
-        (let [value (if (= property :color)
-                      (reverse-get-color (get part property))
-                      (get part property))
-              value (if (keyword value)
-                      (dekeyword value)
-                      value)]
-          (when (not (and
-                       (in? type [:probe :wagon])
-                       (= property :value)))
-            (.write writer (format "set %s of %s to %s\n"
-                             (dekeyword property)
-                             (dekeyword part-name)
-                             value))))))
+      (when (and
+             (not (property= (get part property) (get new-part property)))
+             (not (and
+                   (in? type [:probe :wagon])
+                   (= property :value))))
+        (.write writer (format "set property %s of %s to %s\n"
+                               (dekeyword property)
+                               (dekeyword part-name)
+                               (get part property)))))
+
+    (let [old-color (get-reverse-color (:color part))]
+      (when (not= color old-color)
+        (.write writer (format "set color of %s to %s\n"
+                               (dekeyword part-name)
+                               (dekeyword old-color)))))
+
     (when (= type :chip)
       (doseq [[function-name function] (:functions part)]
         (let [{:keys [points relative]} function]
@@ -133,33 +148,21 @@
     ))
 
 (defn get-part-number [part-name]
-  (parse-int (second (re-find #":[a-z]*([0-9]*)" (str part-name)))))
+  (parse-int (last (re-seq #"\d+" (str part-name)))))
 
-(defn build-parents-map [mp parts part-name]
-  (reduce (fn [m child-name]
-            (-> m
-              (assoc-in [child-name] part-name)
-              (build-parents-map parts child-name)))
-    mp
-    (keys (:children (get-in parts [part-name])))))
-
-(defn ancestor? [mp parent child]
-  (->> child
-    (iterate #(get mp %))
-    (take-while not-nil?)
-    (get-index parent)
-    (boolean)))
+(defn get-sorted-part-names [world]
+  (letfn [(helper [part-name]
+            (let [children
+                  (->> (get-in world [:parts part-name :children])
+                       (keys)
+                       (sort-by get-part-number))]
+              (if (empty? children)
+                part-name
+                [part-name (map helper children)])))]
+    (flatten (helper :ground-part))))
 
 (defn create-instructions [world filename]
-  (let [sorted-names (>> (:parts world)
-                         (keys .)
-                         (into #{} .)
-                         (clojure.set/difference . #{:ground-part})
-                         (vec .)
-                         (sort-by get-part-number .))
-        parent-map (build-parents-map {} (:parts world) :ground-part)
-        sorted-names (sort-by identity (partial ancestor? parent-map)
-                       sorted-names)
+  (let [sorted-names (rest (get-sorted-part-names world))
         world (reduce (fn [w part-name]
                         (set-value-0-transform w part-name))
                       world

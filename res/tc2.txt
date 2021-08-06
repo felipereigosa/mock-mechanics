@@ -1,0 +1,5 @@
+add part track10068 to ground-part at [0.75 1.1 1.25] [0.0 1.0 0.0 0.0]
+add part cone10069 to track10068 at [0 0.25 0] [1 0 0 0]
+scale cone10069 by + [0.5 0 0.5]
+scale cone10069 by + [0 0.30000000000000004 0]
+move cone10069 to [0.0 0.39999998 0.0]

@@ -1,8 +1,4 @@
-add part block10174 to ground-part at [0.75 0.35 1.25] [0.0 1.0 0.0 0.0]
-move block10174 to [-0.75 0.35 1.75]
-add part cylinder10175 to block10174 at [0.0 0.5 0.0] [0.0 1.0 0.0 0.0]
-scale cylinder10175 by + [0 0.7 0]
-scale cylinder10175 by + [-0.2 0 -0.2]
+add part block15863 to ground-part at [-0.25 0.35 0.75] [0 1 0 0]
+add part cylinder9795 to block15863 at [0.0 0.5 0.0] [0 1 0 0]
+sink cylinder9795 by -0.3
 
-;; rotate block10174 by 90
-;; sink cylinder10175 by -0.3

@@ -104,6 +104,7 @@
     :scale [0.1 1 0.1]
     :color :red
     :properties {:value 0
+                 :free false
                  :snap nil
                  :max-angle nil}
     }
@@ -331,27 +332,14 @@
      (make-transform [0 y-offset 0] [1 0 0 0])
      track-transform)))
 
-(defn get-toggle-color [world part]
-  (let [property-index (:selected-property world)
-        property (get-in world [:properties property-index])]
-    (if (get part property)
-      :red
-      :white)))
-
 (defn draw-part! [world part]
   (let [info (get-in world [:info (:type part)])
         transform (if (= (:type part) :track)
                     (get-tail-transform part)
                     (:transform part))
-        model (or (:model part)
-                  (:model info))
-        mesh (if (= (:mode world) :toggle)
-               (set-mesh-color (or (:white-model part)
-                                   (:white-model info)
-                                   model)
-                               (get-toggle-color world part))
-               (set-mesh-color model (:color part)))
-        mesh (-> mesh
+        mesh (-> (or (:model part)
+                     (:model info))
+                 (set-mesh-color (:color part))
                  (assoc-in [:transform] transform)
                  (assoc-in [:scale] (:scale part)))]
     (draw-mesh! world mesh)))
@@ -412,15 +400,10 @@
                 transform (combine-transforms base-transform offset)
                 property (nth (get-in world [:properties])
                               (:selected-property world))
-                color (if (not= (:mode world) :toggle)
-                        (:color button)
-                        (if (get-in button [property])
-                          :red
-                          :white))
                 button-mesh (get-in world [:info :button :cap])
                 mesh (-> button-mesh
                          (assoc-in [:transform] transform)
-                         (assoc-in [:color] (get-color-vector color)))]
+                         (assoc-in [:color] (get-color-vector (:color button))))]
             (draw-mesh! world mesh)))))))
 
 (defn draw-lamps! [world]
@@ -435,12 +418,6 @@
                                (in? (:mode world) [:simulation :motherboard :property :avatar]))
                         (:dark-color lamp)
                         (:color lamp))
-                
-                color (if (not= (:mode world) :toggle)
-                        color
-                        (if (get-in lamp [property])
-                          :red
-                          :white))
                 bulb-mesh (get-in world [:info :lamp :bulb])
                 mesh (-> bulb-mesh
                          (assoc-in [:transform] base-transform)
@@ -448,31 +425,25 @@
             (draw-mesh! world mesh)))))))
 
 (defn draw-displays! [world]
-  (if (not= (:mode world) :toggle)
-    (let [display-names (get-parts-with-type (:parts world) :display)]
-      (doseq [display-name display-names]
-        (let [display (get-in world [:parts display-name])]
-          (if (in? (:layer display) (:visible-layers world))
-            (let [base-transform (use-root-relative-transform world display-name)
-                  rotation (get-transform-rotation (:transform display))
-                  rotation-transform (make-transform [0 0 0] rotation)
-                  up (apply-transform rotation-transform [0 1 0])
-                  offset (make-transform (vector-multiply up 0.026) [1 0 0 0])
-                  transform (combine-transforms base-transform offset)
-                  mesh (-> (:texture display)
-                           (assoc-in [:transform] transform))]
-              (draw-mesh! world mesh))))))))
+  (let [display-names (get-parts-with-type (:parts world) :display)]
+    (doseq [display-name display-names]
+      (let [display (get-in world [:parts display-name])]
+        (if (in? (:layer display) (:visible-layers world))
+          (let [base-transform (use-root-relative-transform world display-name)
+                rotation (get-transform-rotation (:transform display))
+                rotation-transform (make-transform [0 0 0] rotation)
+                up (apply-transform rotation-transform [0 1 0])
+                offset (make-transform (vector-multiply up 0.026) [1 0 0 0])
+                transform (combine-transforms base-transform offset)
+                mesh (-> (:texture display)
+                         (assoc-in [:transform] transform))]
+            (draw-mesh! world mesh)))))))
 
 (defn draw-textured-parts! [world]
   (doseq [[part-name part] (:parts world)]
     (if-let [model (:model part)]
       (if (:texture-coordinates model)
         (let [transform (use-root-relative-transform world part-name)
-              model (if (= (:mode world) :toggle)
-                      (set-mesh-color
-                       (:white-model part)
-                       (get-toggle-color world part))
-                      model)
               model (-> model
                         (assoc-in [:scale] (:scale part))
                         (assoc-in [:transform] transform))]
