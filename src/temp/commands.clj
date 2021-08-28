@@ -6,7 +6,9 @@
   {"A-d" #(change-mode % :debug)
    "A-q" #(update-in % [:draw-update-cube] not)
    "A-x" read-and-execute-command
-   "A-r" (fn [w] (create-world))
+   "A-r" (fn [w]
+           (println! "reset world")
+           (create-world))
    
    "right" #(replay-forward %)
    "C-right" #(toggle-run-instructions %)

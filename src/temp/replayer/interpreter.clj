@@ -337,10 +337,16 @@
     (sleep extra-time)
     (robot-move end)))
 
+(declare wait-chip-flag)
+
 (defn run-mouse-instruction [world instruction]
   (robot-set-active! true)
-  (let [[_ button & points] instruction
+  (let [[_ wait button & points] instruction
         button (keyword button)]
+
+    (when wait
+      (reset! wait-chip-flag true))
+
     (.start
      (new Thread
           (proxy [Runnable] []
@@ -527,7 +533,11 @@
     (redraw world)))
 
 (defn run-activate-instruction [world instruction]
-  (let [chip-name (keyword (second instruction))]
+  (let [[_ wait chip-name] instruction
+        chip-name (keyword chip-name)]
+    (when wait
+      (reset! wait-chip-flag true))
+
     (play-sound! :motor)
     (-> world
         (assoc-in [:animation]
@@ -662,14 +672,9 @@
     (assoc-in world [:animation]
               {:start-camera start-camera
                :end-camera end-camera
-               :time 1.0 ;;############################
+               :time (/ 1 (:replay-speed world))
                :t 0.0
                :fn camera-animation})))
-
-(defn run-sleep-instruction [world instruction]
-  (let [[_ time] instruction]
-    (sleep time)
-    world))
 
 (defn run-copy-instruction [world instruction]
   (let [[_ part-name _ parent-name _
@@ -766,6 +771,48 @@
           motherboard-name (keyword motherboard-name)]
       (assoc-in world [:parts motherboard-name :tab] tab-num))))
 
+(declare legend)
+
+(defn run-legend-instruction [world instruction]
+  (let [[_ location time text] instruction
+        size 30
+        text-width (get-text-width! text size)
+        x (- (* @window-width 0.5) (* text-width 0.5))
+        oy (+ (* (:num-lines world) 16) 30)
+        y (- @window-height oy)]
+
+    (reset! legend {:text text
+                    :size size
+                    :x x
+                    :y (cond
+                         (= location 'bottom) y
+                         (= location 'top) 40
+                         :else location)})
+    (redraw!)
+    (do-later (fn []
+                (reset! legend nil)
+                (redraw!))
+              (* time 1000))
+    world))
+
+(defn run-delete-instruction [world instruction]
+  (if (= (second instruction) 'part)
+    (let [part-name (keyword (third instruction))]
+      (-> world
+          (delete-part part-name)
+          (compute-transforms :parts)
+          (tree-changed)))
+    (let [[_ motherboard-name _ _ _ connection-name] instruction
+          motherboard-name (keyword motherboard-name)
+          connection-name (keyword connection-name)]
+      (dissoc-in world [:parts motherboard-name
+                        :connections connection-name]))))
+
+(defn run-sleep-instruction [world instruction]
+  (let [[_ time] instruction]
+    (sleep (* time 1000))
+    world))
+
 (defn run-instruction [world instruction]
   (let [words (split instruction #" ")
         instruction-name (cond
@@ -793,8 +840,8 @@
       (let [short-instruction (apply str (take 80 instruction))]
         (if (= (count short-instruction)
               (count instruction))
-          (println instruction)
-          (println short-instruction "..."))
+          (println! instruction)
+          (println! short-instruction "..."))
         (-> world
           (function (read-string (str "[" instruction "]")))
           (redraw)))

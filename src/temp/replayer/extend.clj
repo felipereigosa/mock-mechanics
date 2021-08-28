@@ -44,7 +44,8 @@
             (conj r (format "toggle %s function %s"
                       chip-name part-name))
             r)
-        r (conj r (str "activate " chip-name))]
+        ;; r (conj r (str "activate " chip-name))
+        ]
     r))
 
 (defn extend-motherboard-instruction [instruction]
@@ -135,6 +136,19 @@
           [(apply format "set camera pivot %s angles %s distance %s"
                   (second elements))
            (join " " (vector-remove elements 1))])
+
+        (.startsWith instruction "delete part")
+        (conj (change-mode-submode "edit" "edit-subcommand" "delete")
+              instruction)
+
+        (.startsWith instruction "delete")
+        (let [elements (read-string (str "[" instruction "]"))
+              motherboard-name (second elements)
+              tab-num (fourth elements)]
+           ["set variable mode to motherboard"
+            (str "set variable selected-motherboard to " motherboard-name)
+            (format "select %s tab %s" motherboard-name tab-num)
+            instruction])
 
         :else [instruction]))))
 

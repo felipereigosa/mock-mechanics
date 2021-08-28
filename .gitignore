@@ -12,3 +12,4 @@ pom.xml.asc
 .hg/
 jre/
 res/temp/
+temp.clj

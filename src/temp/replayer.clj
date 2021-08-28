@@ -30,10 +30,16 @@
         (println! (keyword name) (keyword (get-type name)))))
     (println! "}")))
 
+(def legend (atom nil))
+
 (defn replay-draw [world]
   (when (:replay-filename world)
     (let [x (- (:window-width world) 10)
           y (- (:window-height world) 10 105)]
+
+      (if-let [{:keys [text x y size]} @legend]
+        (draw-text! :white text x y size))
+
       (fill-rect! :black x y 20 20)
       (draw-text! :white "R" (- x 4) (+ y 5) 15))))
 
@@ -52,7 +58,7 @@
               (assoc-in [:instruction-index] 0)
               (load-instructions))
         w (if (some #(starts-with? % ">") (:instructions w))
-            (assoc-in w [:replay-speed] 10.0)
+            (assoc-in w [:replay-speed] 20.0)
             (assoc-in w [:replay-speed] 1.0))]
     (println "-----")
     (reset! checkpoint w)
@@ -121,7 +127,6 @@
 (defn replay-forward [world]
   (if (and
         (:replay-filename world)
-        (not (any-chip-active? world))
         (not (:active @robot)))
     (if (nil? (:animation world))
       (run-next-instruction world)
@@ -135,7 +140,9 @@
   (if (:replay-filename world)
     (do
       (println! "restored checkpoint")
-      (load-instructions @checkpoint))
+      (-> @checkpoint
+          (load-instructions)
+          (tree-changed)))
     world))
 
 (declare run-instructions!)
@@ -196,7 +203,7 @@
                          (change-event event (:press-time world)))
             button (:replay-button world)
             camera (:start-camera world)
-            instruction (format "mouse %s %s %s"
+            instruction (format "mouse %s true %s %s"
                                 camera button (join " " points))]
         (println! instruction)
         (dissoc-in world [:replay-events])))
@@ -204,6 +211,7 @@
 
 (def replaying (atom false))
 (def last-instruction (atom ""))
+(def wait-chip-flag (atom false))
 
 (defn run-instructions! []
   (if @replaying
@@ -257,12 +265,12 @@
         ;; wait for instruction to finish
         (while (or
                 (get-thing! [:animation])
-                (any-chip-active? @world)
-                (:active @robot)
-                ;; (not (:use-weld-groups @world))
-                )
+                (and @wait-chip-flag (any-chip-active? @world))
+                (:active @robot))
           nil)
+        (reset! wait-chip-flag false)
 
+        (robot-move [-100 0])
         (do-later stop-sound! 300)
 
         (when (and
