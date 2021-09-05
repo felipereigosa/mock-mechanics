@@ -808,11 +808,6 @@
       (dissoc-in world [:parts motherboard-name
                         :connections connection-name]))))
 
-(defn run-sleep-instruction [world instruction]
-  (let [[_ time] instruction]
-    (sleep (* time 1000))
-    world))
-
 (defn run-instruction [world instruction]
   (let [words (split instruction #" ")
         instruction-name (cond

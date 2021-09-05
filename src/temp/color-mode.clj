@@ -61,7 +61,7 @@
     (let [color-box (get-in color-pallete
                             [:regions (:current-color world)])
           {:keys [x y w h]} (get-absolute-region color-box color-pallete)
-          color (if (< x 230)
+          color (if (> (- (:x color-pallete) x) 140)
                   :red
                   :black)]
       (dotimes [i 3]

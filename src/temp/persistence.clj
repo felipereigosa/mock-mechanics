@@ -167,8 +167,14 @@
 
 (defn open-machine [world text]
   (try
-    (let [filename (if (.startsWith text "http")
+    (let [filename (cond
+                     (.startsWith text "http")
                      text
+
+                     (re-find #"_\d+$" text)
+                     (str "machines/" text ".mch")
+
+                     :else
                      (get-last-version-filename text))
           {:keys [parts camera
                   visible-layers layer-names gears

@@ -111,7 +111,7 @@
       (create-update-cube)
 
       (assoc-in [:add-offset] 100)
-      (start-replay "clock")
+      ;; (start-replay "clock")
       ))
 (reset-world!)
 )
@@ -270,14 +270,11 @@
 
 (defn mouse-moved [world event]
   (let [world (replay-moved world event)]
-    (cond
-      (not-nil? (:last-point world))
-      (cond
-        (= (:button event) :right) (mouse-rotate world event)
-        (= (:button event) :middle) (mouse-pan world event)
-        :else world)
-      :else
-      (mode-mouse-moved world event))))
+    (if (nil? (:last-point world))
+      (mode-mouse-moved world event)
+      (if (:shift-pressed world)
+        (mouse-pan world event)
+        (mouse-rotate world event)))))
 
 (defn mouse-released [world event]
   (let [elapsed (- (get-current-time) (:press-time world))

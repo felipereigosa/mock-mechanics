@@ -247,7 +247,7 @@
 
                  (starts-with? next "add motherboard")
                  )
-              (sleep (int (/ 300 (:replay-speed @world))))
+              (sleep (int (/ 400 (:replay-speed @world))))
               (sleep (int (/ 800 (:replay-speed @world)))))))
 
         ;; save last instruction
@@ -255,12 +255,15 @@
                 (nth instructions (:instruction-index @world)))
 
         ;; run instruction
-        (update-thing!
-         []
-         #(run-instruction
-           % (nth instructions (:instruction-index @world))))
-        (update-thing! [:instruction-index] inc)
-        (redraw!)
+        (let [instruction (nth instructions (:instruction-index @world))]
+          (if (starts-with? instruction "sleep")
+            (->> (split instruction #" ")
+                 (second)
+                 (parse-int)
+                 (* 1000)
+                 (sleep))
+            (update-thing! [] #(run-instruction % instruction)))
+          (update-thing! [:instruction-index] inc))
 
         ;; wait for instruction to finish
         (while (or

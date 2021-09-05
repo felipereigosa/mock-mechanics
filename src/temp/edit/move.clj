@@ -73,7 +73,9 @@
                            (:shift-pressed world) 0.25
                            (:control-pressed world) 0.01
                            :else 0.05))
-          point (get-normalized-plane-point plane point grain-size)
+          point (if (not (:fake-click world))
+                  (get-normalized-plane-point plane point grain-size)
+                  point)
           v (vector-subtract point (first plane))
           point (vector-add point offset)
           [a b c] (:original-plane world)

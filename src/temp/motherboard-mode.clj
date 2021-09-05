@@ -207,6 +207,7 @@
                                       s (in? :shift keys)
                                       c (in? :control keys)
                                       w (-> @world
+                                            (assoc-in [:fake-click] true)
                                             (compute-transforms :parts)
                                             (assoc-in [:shift-pressed] s)
                                             (assoc-in [:control-pressed] c)
@@ -214,7 +215,8 @@
                                             (move-function spec)
                                             (release-function spec)
                                             (assoc-in [:shift-pressed] false)
-                                            (assoc-in [:control-pressed] false))]
+                                            (assoc-in [:control-pressed] false)
+                                            (assoc-in [:fake-click] false))]
                                   (reset! world w)))
 
                   get-transform (fn [part-name]
@@ -336,7 +338,7 @@
               (let [filename (get-script-filename motherboard-name)]
                 (if (file-exists? filename)
                   (assoc-in world [:parts motherboard-name :script]
-                    (slurp filename))
+                            (slurp filename))
                   w))
               w))
     world
@@ -708,11 +710,22 @@
       :connection (dissoc-in motherboard [:connections name])
       motherboard)))
 
+(defn validate-connection [world motherboard-name connection-name]
+  (let [connection (get-in world [:parts motherboard-name
+                                  :connections connection-name])]
+    (if (apply distinct? (filter keyword? (:points connection)))
+      world
+      (dissoc-in world [:parts motherboard-name
+                        :connections connection-name]))))
+
 (defn motherboard-connect-pressed [world {:keys [x y]}]
   (let [motherboard-name (:selected-motherboard world)
         motherboard (get-in world [:parts motherboard-name])
         motherboard-box (:motherboard-box world)
-        element (second (get-element-at motherboard motherboard-box x y))]
+        [type element] (get-element-at motherboard motherboard-box x y)
+        element (if (= type :joint)
+                  nil
+                  element)]
     (if-let [connection-name (:new-connection world)]
       (let [next (if (nil? element)
                    (snap-point (world->motherboard-coords motherboard-box x y))
@@ -724,7 +737,8 @@
           world
           (-> world
               (dissoc-in [:new-connection])
-              (assoc-in [:motherboard-subcommand] :move))))
+              (assoc-in [:motherboard-subcommand] :move)
+              (validate-connection motherboard-name connection-name))))
       (let [connection-name (gen-keyword :connection)]
         (-> world
             (assoc-in [:new-connection] connection-name)
@@ -784,10 +798,10 @@
           (let [motherboard-name (:selected-motherboard world)
                 motherboard (get-in world [:parts motherboard-name])]
             (case (:motherboard-subcommand world)
-              :move (if (:use-script motherboard)
+              :move (if (and (:use-script motherboard)
+                             (nil? (get-pin-at motherboard motherboard-box x y)))
                       (open-editor world)
                       (motherboard-move-pressed world event))
-              
               :and (-> world
                      (update-in [:parts motherboard-name] #(add-gate % motherboard-box :and event))
                      (assoc-in [:motherboard-subcommand] :move))
@@ -817,7 +831,6 @@
                         (= region :script) (toggle-script world)
                         (= region :editor) (open-editor world)
                         :else (assoc-in world [:motherboard-subcommand] region))]
-            (println! region)
             (show-hint world :motherboard region))
           world)
         world)
