@@ -73,7 +73,6 @@
   (+ (* (rand) (- max min)) min))
 
 (def colors {:medium-gray (new Color 128 128 128)
-             :gray (new Color 128 128 128)
              :orange (new Color 255 102 0)
              :white (new Color 255 255 255)
              :light-gray (new Color 179 179 179)

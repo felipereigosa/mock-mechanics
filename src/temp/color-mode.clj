@@ -41,8 +41,14 @@
   (if-let [collision (get-part-collision world event)]
     (let [part-name (:part-name collision)
           part (get-in world [:parts part-name])]
-      (if (= (:type part) :display)
+      (cond
+        (in? (:type part) [:ground :chip :motherboard :speaker])
+        world
+
+        (= (:type part) :display)
         (set-display-color world event)
+
+        :else
         (let [color (get-color (:current-color world))
               part (assoc-in part [:color] color)
               part (if (= (:type part) :lamp)

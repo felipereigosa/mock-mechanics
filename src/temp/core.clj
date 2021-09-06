@@ -111,7 +111,7 @@
       (create-update-cube)
 
       (assoc-in [:add-offset] 100)
-      ;; (start-replay "clock")
+      (start-replay "memory")
       ))
 (reset-world!)
 )

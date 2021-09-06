@@ -90,6 +90,11 @@
               part-name (keyword part-name)]
           (= (get-in world [:parts part-name :tab]) tab-num))
 
+        (.startsWith instruction "select")
+        (let [[_ part-name] elements
+              part-name (keyword part-name)]
+          (= part-name (:last-selected-part world)))
+
         (.startsWith instruction "set view")
         (let [[_ _ _ chip-name _ end-view] elements
               chip-name (keyword chip-name)

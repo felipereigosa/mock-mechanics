@@ -766,7 +766,9 @@
   (if (= (count instruction) 2)
     (let [[_ part-name] instruction
           part-name (keyword part-name)]
-      (select-part world part-name))
+      (-> world
+          (select-part part-name)
+          (assoc-in [:last-selected-part] part-name)))
     (let [[_ motherboard-name _ tab-num] instruction
           motherboard-name (keyword motherboard-name)]
       (assoc-in world [:parts motherboard-name :tab] tab-num))))

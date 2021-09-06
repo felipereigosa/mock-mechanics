@@ -58,10 +58,10 @@
                                         [0 0 0] [1 0 0 0] [1 1 1] :white)
 
     :body (create-model-mesh "res/gear-body.obj"
-                             [0 0 0] [1 0 0 0] [1 1 1] :gray)
+                             [0 0 0] [1 0 0 0] [1 1 1] :medium-gray)
 
     :tooth (create-model-mesh "res/gear-tooth.obj"
-                              [0 0 0] [1 0 0 0] [1 1 1] :gray)
+                              [0 0 0] [1 0 0 0] [1 1 1] :medium-gray)
 
     :points []
     :scale [0.5 0.5 0.5]
@@ -129,7 +129,7 @@
                                         [0 0 0] [1 0 0 0] [1 1 1] :white)
     :points []
     :scale [0.4 0.1 0.4]
-    :color :gray
+    :color :medium-gray
     :properties {:value 0
                  :frequency 440}
     }
