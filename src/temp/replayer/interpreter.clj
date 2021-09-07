@@ -389,6 +389,9 @@
                             :selected-chip
                             :selected-motherboard])
                 (select-part world value)
+                world)
+        world (if (= key :mode)
+                (dissoc-in world [:selected-motherboard])
                 world)]
     (assoc-in world [key] value)))
 
@@ -804,11 +807,19 @@
           (delete-part part-name)
           (compute-transforms :parts)
           (tree-changed)))
-    (let [[_ motherboard-name _ _ _ connection-name] instruction
+    (let [[_ motherboard-name _ _ type element-name] instruction
           motherboard-name (keyword motherboard-name)
-          connection-name (keyword connection-name)]
-      (dissoc-in world [:parts motherboard-name
-                        :connections connection-name]))))
+          type (keyword type)
+          element-name (keyword element-name)]
+      (case type
+        :connection
+        (dissoc-in world [:parts motherboard-name
+                          :connections element-name])
+        :pin
+        (-> world
+            (dissoc-in [:parts motherboard-name
+                        :pins element-name])
+            (update-in [:parts motherboard-name] prune-connections))))))
 
 (defn run-instruction [world instruction]
   (let [words (split instruction #" ")

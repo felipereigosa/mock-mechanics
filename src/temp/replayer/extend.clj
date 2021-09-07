@@ -145,10 +145,10 @@
         (let [elements (read-string (str "[" instruction "]"))
               motherboard-name (second elements)
               tab-num (fourth elements)]
-           ["set variable mode to motherboard"
-            (str "set variable selected-motherboard to " motherboard-name)
-            (format "select %s tab %s" motherboard-name tab-num)
-            instruction])
+          ["set variable mode to motherboard"
+           (str "set variable selected-motherboard to " motherboard-name)
+           (format "select %s tab %s" motherboard-name tab-num)
+           instruction])
 
         :else [instruction]))))
 
