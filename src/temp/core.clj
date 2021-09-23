@@ -41,7 +41,7 @@
   
   (-> (create-base-world)
       (merge (read-string (str "{" (slurp "settings.clj") "}")))
-      (assoc-in [:num-lines] 6)
+      (assoc-in [:num-lines] 1)
       (assoc-in [:background-meshes :grid] (create-grid-mesh 24 0.5))
       (assoc-in [:info] (create-info))
       (assoc-in [:parts] {})
@@ -110,7 +110,6 @@
       (create-weld-groups)
       (create-update-cube)
 
-      (assoc-in [:add-offset] 100)
       (start-replay "memory")
       ))
 (reset-world!)
@@ -197,9 +196,9 @@
 
   (draw-buffer! world)
   (draw-hint! world)
-  (draw-input-indicator! world)
+  ;; (draw-input-indicator! world)
 
-  (replay-draw world)
+  ;; (replay-draw world)
   )
 (redraw!))
 

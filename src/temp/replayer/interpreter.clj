@@ -339,6 +339,29 @@
 
 (declare wait-chip-flag)
 
+(defn run-amouse-instruction [world instruction]
+  (robot-set-active! true)
+  (let [[_ wait & events] instruction]
+
+    (when wait
+      (reset! wait-chip-flag true))
+
+    (.start
+     (new Thread
+          (proxy [Runnable] []
+            (run []
+              (robot-move (take 2 (first events)))
+              (doseq [i (range 1 (count events))]
+                (let [[x y time type button] (nth events i)
+                      delay (- time (nth (nth events (dec i)) 2))]
+                  (sleep delay)
+                  (case type
+                    :pressed (robot-mouse-press button)
+                    :moved (robot-move [x y])
+                    :released (robot-mouse-release button))))
+              (robot-set-active! false)))))
+    world))
+
 (defn run-mouse-instruction [world instruction]
   (robot-set-active! true)
   (let [[_ wait button & points] instruction
@@ -361,6 +384,37 @@
               (sleep 16)
               (robot-set-active! false)))))
     world))
+
+(defn run-line-instruction [w1 instruction]
+  (robot-set-active! true)
+  (let [[_ wait & lines] instruction
+        make-event (fn [entry]
+                     {:x 10000
+                      :y 10000
+                      :line (vec (butlast entry))})]
+    (when wait
+      (reset! wait-chip-flag true))
+    
+    (.start
+     (new Thread
+          (proxy [Runnable] []
+            (run []
+              (swap! world
+                     (fn [w]
+                       (mode-mouse-pressed w (make-event (first lines)))))
+              (doseq [i (range 1 (count lines))]
+                (let [t0 (third (nth lines (dec i)))
+                      t1 (third (nth lines i))
+                      event (make-event (first lines))]
+                  (swap! world (fn [w]
+                                 (mode-mouse-moved w event)))
+                  (sleep (- t1 t0))))
+              (swap! world
+                     (fn [w]
+                       (mode-mouse-released w (make-event (last lines)))))
+              (sleep 50)
+              (robot-set-active! false)))))
+    w1))
 
 (defn run-zoom-instruction [world instruction]
   (robot-set-active! true)
@@ -391,7 +445,10 @@
                 (select-part world value)
                 world)
         world (if (= key :mode)
-                (dissoc-in world [:selected-motherboard])
+                (-> world
+                    (dissoc-in [:last-selected-part])
+                    (dissoc-in [:selected-motherboard])
+                    (dissoc-in [:selected-chip]))
                 world)]
     (assoc-in world [key] value)))
 
@@ -696,6 +753,21 @@
                   (compute-transforms :parts)
                   (tree-changed))]
     (print-part-relative-location world copy-part-name)
+    world))
+
+(defn run-transfer-instruction [world instruction]
+  (let [[_ part-name _ parent-name _
+         position rotation] instruction
+        part-name (keyword part-name)
+        old-parent-name (get-parent-part world part-name)
+        parent-name (keyword parent-name)
+        transform (make-transform position rotation)
+        world (-> world
+                  (dissoc-in [:parts old-parent-name :children part-name])
+                  (assoc-in [:parts parent-name :children part-name] transform)
+                  (compute-transforms :parts)
+                  (tree-changed))]
+    (print-part-relative-location world part-name)
     world))
 
 (defn value-animation [world animation]

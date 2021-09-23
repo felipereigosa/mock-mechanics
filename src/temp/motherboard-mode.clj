@@ -468,9 +468,9 @@
   (let [tab-x 659
         buffer (:buffer motherboard-box)
         y (* (:h motherboard-box) 0.5)
-        active-tabs (distinct (map (fn [[name value]]
-                                     (:tab value))
-                                   (:gates motherboard)))]
+        active-tabs (distinct (map (comp :tab second)
+                                   (merge (:gates motherboard)
+                                          (:connections motherboard))))]
     (fill-rect buffer :dark-gray tab-x y 30 130)
     (doseq [i (range 0 5)]
       (let [tab-y (+ 25 (* i 25))]

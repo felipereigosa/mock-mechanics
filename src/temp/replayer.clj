@@ -161,8 +161,8 @@
             (run-instructions!))))))
   world)
 
-(defn change-event [event start-time]
-  [(int (:x event)) (int (:y event)) (- (get-current-time) start-time)])
+;; (defn change-event [event start-time]
+;;   [(int (:x event)) (int (:y event)) (- (get-current-time) start-time)])
 
 (def zoom-amount (atom 0))
 (def zoom-time (atom 0))
@@ -177,41 +177,56 @@
           (reset! zoom-amount 0))
         (swap! zoom-amount #(+ % (:amount event)))
         (reset! zoom-time current-time)
-        (println! "zoom" (:x event) (:y event) @zoom-amount)
+        (println "zoom" (:x event) (:y event) @zoom-amount)
         world))
     world))
 
-(defn replay-pressed [world event]
-  (if (:replay-filename world)
-    (if @replaying
-      world
+(defn shift-times [events]
+  (let [start-time (third (first events))]
+    (map #(update-in % [2] (fn [t] (- t start-time))) events)))
+
+(defn toggle-mouse-recording [world]
+  (if (:mouse-recording world)
+    (let [events (->> (:mouse-instruction world)
+                     (shift-times)
+                     (interpose " ")
+                     (apply str))]
+      (println! "-----------------------------------------")
+      (println! "amouse true" events)
+      (assoc-in world [:mouse-recording] false))
+    (do
+      (println! "recording mouse...")
       (-> world
-          (assoc-in [:replay-button] (dekeyword (:button event)))
-          (assoc-in [:replay-events]
-            [(change-event event (:press-time world))])
-          (assoc-in [:start-camera] (get-camera-vector world))))
+          (assoc-in [:mouse-recording] true)
+          (assoc-in [:mouse-instruction] [])))))
+
+(defn add-event [world type event]
+  (update-in world [:mouse-instruction]
+               #(conj % [(int (:x event))
+                         (int (:y event))
+                         (get-current-time)
+                         type
+                         (:button event)])))
+
+(defn replay-pressed [world event]
+  (if (and (:replay-filename world)
+           (not @replaying)
+           (:mouse-recording world))
+    (add-event world :pressed event)
     world))
 
 (defn replay-moved [world event]
-  (if (:replay-filename world)
-    (if (not-nil? (:replay-events world))
-      (update-in world [:replay-events]
-                 #(conj % (change-event event (:press-time world))))
-      world)
+  (if (and (:replay-filename world)
+           (not @replaying)
+           (:mouse-recording world))
+    (add-event world :moved event)
     world))
 
 (defn replay-released [world event]
-  (if (:replay-filename world)
-    (if @replaying
-      world
-      (let [points (conj (:replay-events world)
-                         (change-event event (:press-time world)))
-            button (:replay-button world)
-            camera (:start-camera world)
-            instruction (format "mouse %s true %s %s"
-                                camera button (join " " points))]
-        (println! instruction)
-        (dissoc-in world [:replay-events])))
+  (if (and (:replay-filename world)
+           (not @replaying)
+           (:mouse-recording world))
+    (add-event world :released event)
     world))
 
 (def replaying (atom false))

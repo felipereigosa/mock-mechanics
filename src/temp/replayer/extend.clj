@@ -117,6 +117,11 @@
               (str "select " (second atoms))
               instruction)
 
+        (.startsWith instruction "transfer")
+        (conj (change-mode-submode "edit" "edit-subcommand" "translate")
+              (str "select " (second atoms))
+              instruction)
+
         (.startsWith instruction "set color")
         (conj (change-mode-submode "color" "current-color" (last atoms))
               instruction)
@@ -133,9 +138,16 @@
 
         (.startsWith instruction "mouse")
         (let [elements (read-string (str "[" instruction "]"))]
-          [(apply format "set camera pivot %s angles %s distance %s"
+          ["set variable mode to simulation"
+           (apply format "set camera pivot %s angles %s distance %s"
                   (second elements))
            (join " " (vector-remove elements 1))])
+
+        (.startsWith instruction "amouse")
+        ["set variable mode to simulation" instruction]
+
+        (.startsWith instruction "line")
+        ["set variable mode to simulation" instruction]
 
         (.startsWith instruction "delete part")
         (conj (change-mode-submode "edit" "edit-subcommand" "delete")

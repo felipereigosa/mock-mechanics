@@ -2,6 +2,8 @@
 (do
 1
 
+(declare print-camera-instruction!)
+
 (defn get-bindings []
   {"A-d" #(change-mode % :debug)
    "A-q" #(update-in % [:draw-update-cube] not)
@@ -9,6 +11,12 @@
    "A-r" (fn [w]
            (println! "reset world")
            (create-world))
+
+   "C-x c" (fn [w]
+             (print-camera-instruction!)
+             w)
+
+   "C-x m" #(toggle-mouse-recording %)
    
    "right" #(replay-forward %)
    "C-right" #(toggle-run-instructions %)

@@ -1,0 +1,173 @@
+add part block10176 to ground-part at [-1.25 0.35 -0.25] [0.0 1.0 0.0 0.0]
+add part track10177 to block10176 at [1.25 0.0 0.2] [0.0 0.0 -1.0 90.00000250447816]
+scale track10177 by + [0.0 3.0 0.0]
+set color of track10177 to almost-black
+add part wagon10178 to track10177 at [0 0 0] [1 0 0 0] 0.0
+set property snap of wagon10178 to 0.2
+set color of wagon10178 to dark-gray
+add part block10179 to wagon10178 at [0.2 0.9000001 0.32500002] [1.0 0.0 0.0 90.00000250447816]
+scale block10179 by + [-0.4 0 0]
+scale block10179 by + [0 0.19999999999999996 0]
+scale block10179 by + [0 0 4.0]
+set color of block10179 to almost-black
+add part probe100-copy1 to block10179 at [-0.1 0.1 -1.8] [0.0 1.0 0.0 0.0]
+set color of probe100-copy1 to white
+add part probe100-copy2 to block10179 at [-0.1 -0.05 -1.6] [0.0 1.0 0.0 0.0]
+set color of probe100-copy2 to white
+add part probe100-copy3 to block10179 at [-0.1 -0.2 -1.4] [0.0 1.0 0.0 0.0]
+set color of probe100-copy3 to white
+add part probe100 to block10179 at [-0.1 0.25 -2.0] [0.0 0.0 1.0 90.00000250447816]
+set color of probe100 to white
+add part probe14385 to block10179 at [0.0 0.39999986 -2.05] [0.0 1.0 0.0 0.0]
+add part block10188 to ground-part at [3.25 0.35 -0.25] [0.0 1.0 0.0 0.0]
+add part chip10190 to block10188 at [0.0 0.28500003 0.0] [0.0 1.0 0.0 0.0]
+set chip10190 function wagon10178 [[0 0] [0.2 0.2]] true
+add part block10201 to ground-part at [0.15 0.35000002 -0.21999998] [0.0 1.0 0.0 0.0]
+scale block10201 by + [-0.30000000000000004 0 0]
+scale block10201 by + [0 0.19999999999999996 0]
+scale block10201 by + [0 0 -0.4]
+set color of block10201 to almost-black
+add part track10202 to block10201 at [0.0 0.19999999 1.05] [1.0 0.0 0.0 90.00000250447816]
+scale track10202 by + [0.0 -0.9 0.0]
+set property value of track10202 to 0.5
+set property free of track10202 to true
+set property snap of track10202 to 0.5
+add part block10203 to track10202 at [0 0.25 0] [1 0 0 0]
+scale block10203 by + [0.19999999999999996 0 0]
+scale block10203 by + [0 0.6000000000000001 0]
+scale block10203 by + [0 0 -0.4]
+move block10203 to [0.15 0.55 0.0]
+set color of block10203 to almost-black
+add part probe10197-copy1 to block10203 at [-0.05 0.35 -0.1] [0.0 1.0 0.0 0.0]
+set color of probe10197-copy1 to red
+add part probe10197-copy1-green to block10203 at [-0.05 0.2 -0.1] [0.0 1.0 0.0 0.0]
+set color of probe10197-copy1-green to dark-green
+add part probe10197-copy1-blue to block10203 at [-0.05 0.05 -0.1] [0.0 1.0 0.0 0.0]
+set color of probe10197-copy1-blue to blue
+add part probe10197-copy1-yellow to block10203 at [-0.05 -0.1 -0.1] [0.0 1.0 0.0 0.0]
+set color of probe10197-copy1-yellow to dark-yellow
+add part probe10197 to block10203 at [-0.25 0.35 -0.1] [0.0 1.0 0.0 0.0]
+set color of probe10197 to red
+add part probe10197-green to block10203 at [-0.25 0.2 -0.1] [0.0 1.0 0.0 0.0]
+set color of probe10197-green to dark-green
+add part probe10197-blue to block10203 at [-0.25 0.05 -0.1] [0.0 1.0 0.0 0.0]
+set color of probe10197-blue to blue
+add part probe10197-yellow to block10203 at [-0.25 -0.1 -0.1] [0.0 1.0 0.0 0.0]
+set color of probe10197-yellow to dark-yellow
+
+add part motherboard10202 to ground-part at [4.5 0.135 2.75] [0.0 1.0 0.0 0.0]
+set motherboard10202 tab 0 [probe14387 80 true] [chip51580 170]  [connection10203 probe14387 chip51580]
+set motherboard10202 tab 1 [probe10208 120] [button1 240] [not10230 120 50] [and10232 120 110] [connection10231 probe10208 gate-not10230] [connection10233 gate-not10230 gate-and10232] [connection10234 probe14387 [80 110] gate-and10232] [connection10235 gate-and10232 [240 110] button1]
+add part block10229 to ground-part at [0.25 0.35000002 -1.75] [0.0 1.0 0.0 0.0]
+scale block10229 by + [0.5 0 0]
+scale block10229 by + [0 -0.4 0]
+scale block10229 by + [0 0 0.5]
+set color of block10229 to almost-black
+add part track10205 to block10229 at [-0.25 1.0500001 -0.25] [0.0 1.0 0.0 0.0]
+set color of track10205 to dark-green
+add part wagon10206 to track10205 at [0 0 0] [1 0 0 0] 0.0
+add part probe10207 to wagon10206 at [0.0 0.0 0.125] [1.0 0.0 0.0 90.00000250447816]
+add part probe10208 to block10229 at [-0.25 0.1 -0.05000019] [0.0 1.0 0.0 0.0]
+add part chip10209 to block10229 at [0.25 0.085 -0.25] [0.0 1.0 0.0 0.0]
+set chip10209 function wagon10206 [[0.0 1.0] [1.0 0.0]] false
+add part motherboard10211 to block10229 at [0.25 0.085 0.25] [0.0 1.0 0.0 0.0]
+set motherboard10211 tab 0 [button10207 40 true] [button10207-green 80 true] [button10207-blue 120 true] [button10207-yellow 170 true] [chip10209 330] [or10218 270 90] [connection10221 gate-or10218 [330 90] chip10209] [connection10225 button10207-blue [120 90] gate-or10218] [connection10226 button10207-green [80 90] gate-or10218] [connection10227 button10207 [40 90] gate-or10218] [connection10228 button10207-yellow [170 90] gate-or10218]
+add part block10981 to ground-part at [1.6500001 0.35000002 -1.95] [0.0 1.0 0.0 0.0]
+scale block10981 by + [1.0 0 0]
+scale block10981 by + [0 -0.4 0]
+scale block10981 by + [0 0 0.7000000000000002]
+set color of block10981 to almost-black
+add part button1 to block10981 at [-0.4 0.15 -0.3] [0.0 1.0 0.0 0.0]
+set color of button1 to dark-gray
+add part motherboard10942 to block10981 at [0.39999998 0.085 -0.29999995] [0.0 1.0 0.0 0.0]
+set motherboard10942 tab 0 [probe10948 50 true] [probe14387 100] [chip10954 230] [not11156 100 50] [and11157 100 100] [connection11158 probe14387 gate-not11156] [connection11159 gate-not11156 gate-and11157] [connection11160 probe10948 [50 100] gate-and11157] [connection11332 gate-and11157 [230 100] chip10954]
+add part track10945 to block10981 at [-0.1500001 1.05 0.29999995] [0.0 1.0 0.0 0.0]
+scale track10945 by + [0.0 -0.8 0.0]
+set color of track10945 to black
+add part track10946 to track10945 at [1.0000002 0.0 0.0] [0.0 0.0 -1.0 90.00000250447816]
+scale track10946 by + [0.0 -0.19999999999999996 0.0]
+add part wagon10947 to track10946 at [0 0 0] [1 0 0 0] 0.0
+add part probe10948 to wagon10947 at [-0.125 0.0 0.0] [0.0 0.0 1.0 90.00000250447816]
+add part track10949 to block10981 at [-0.25 1.05 0.29999995] [0.0 1.0 0.0 0.0]
+scale track10949 by + [0.0 -0.7000000000000001 0.0]
+add part probe10950 to track10949 at [0.0 0.049999952 0.0] [0.0 1.0 0.0 0.0]
+add part chip10954 to block10981 at [-0.5 0.085 0.29999995] [0.0 1.0 0.0 0.0]
+set chip10954 function wagon10947 [[0 0] [0.5 0.8] [1.0 0.0]] false
+set chip10954 function wagon10178 [[0.8 0.0] [1.0 0.2]] true
+add part motherboard10974 to block10981 at [0.049999952 0.085 -0.29999995] [0.0 1.0 0.0 0.0]
+set motherboard10974 tab 0 [button1 40 true] [chip10954 100] [chip29281 160]  [connection1 button1 chip10954] [connection11338 button1 [40 80] [160 80] chip29281]
+add part block14900 to ground-part at [4.2000003 0.35 1.2] [0.0 1.0 0.0 0.0]
+scale block14900 by + [-0.09999999999999998 0 0]
+scale block14900 by + [0 0 -0.4]
+add part track14901 to block14900 at [-1.1999993 0.0 0.0] [0.0 0.0 1.0 90.00000250447816]
+scale track14901 by + [0.0 3.000000000000001 0.0]
+set color of track14901 to black
+add part wagon14902 to track14901 at [0 0 0] [1 0 0 0] 2.999999761581421
+set property snap of wagon14902 to 0.2
+add part probe14387 to wagon14902 at [0.0 0.0 -0.12500006] [-1.0 0.0 0.0 90.00000250447816]
+add part chip29281 to block14900 at [0.0 0.0 0.08499992] [1.0 0.0 0.0 90.00000250447816]
+set chip29281 function wagon14902 [[0 0.2] [0.3 0.0]] true
+add part chip51580 to ground-part at [4.5 0.135 2.25] [0.0 1.0 0.0 0.0]
+set chip51580 function wagon10178 [[0.5 0.0] [1.0 0.0]] false
+add part block51759 to ground-part at [-0.75 0.35000002 3.25] [0.0 1.0 0.0 180.00000500895632]
+scale block51759 by + [0.5 0 0]
+scale block51759 by + [0 -0.4 0]
+scale block51759 by + [0 0 1.0]
+set color of block51759 to almost-black
+add part lamp10193 to block51759 at [-0.25 0.15 -0.5] [0.0 1.0 0.0 0.0]
+add part button10207 to block51759 at [0.25 0.15 -0.5] [0.0 1.0 0.0 0.0]
+add part motherboard10212 to block51759 at [0.25 0.085 0.0] [0.0 1.0 0.0 0.0]
+set motherboard10212 tab 0 [button10207 70 true] [probe10197-copy1 130] [chip10190 190] [and51576 130 50] [connection51577 probe10197-copy1 gate-and51576] [connection51578 button10207 [70 50] gate-and51576] [connection51579 gate-and51576 [190 50] chip10190]
+set motherboard10212 tab 1 [chip51580 270] [not51581 130 50] [and51583 130 100] [connection51582 probe10197-copy1 gate-not51581] [connection51584 gate-not51581 gate-and51583] [connection51585 button10207 [70 100] gate-and51583] [connection51586 gate-and51583 [270 100] chip51580]
+add part speaker38118 to block51759 at [-0.25 0.1 0.0] [0.0 1.0 0.0 0.0]
+set property frequency of speaker38118 to 400
+add part motherboard51763 to block51759 at [0.25 0.085 0.5] [0.0 1.0 0.0 0.0]
+set motherboard51763 tab 0 [probe10197 40 true] [lamp10193 120] [speaker38118 200]  [connection100 probe10197 lamp10193] [connection51765 probe10197 [40 50] [200 50] speaker38118]
+add part block51759-green to ground-part at [0.75 0.35000002 3.25] [0.0 1.0 0.0 180.00000500895632]
+scale block51759-green by + [0.5 0 0]
+scale block51759-green by + [0 -0.4 0]
+scale block51759-green by + [0 0 1.0]
+set color of block51759-green to almost-black
+add part lamp10193-green to block51759-green at [-0.25 0.15 -0.5] [0.0 1.0 0.0 0.0]
+set color of lamp10193-green to dark-green
+add part button10207-green to block51759-green at [0.25 0.15 -0.5] [0.0 1.0 0.0 0.0]
+set color of button10207-green to dark-green
+add part motherboard10212-green to block51759-green at [0.25 0.085 0.0] [0.0 1.0 0.0 0.0]
+set motherboard10212-green tab 0 [button10207-green 70 true] [probe10197-copy1-green 130] [chip10190 190] [and51576 130 50] [connection51577 probe10197-copy1-green gate-and51576] [connection51578 button10207-green [70 50] gate-and51576] [connection51579 gate-and51576 [190 50] chip10190]
+set motherboard10212-green tab 1 [chip51580 270] [not51581 130 50] [and51583 130 100] [connection51582 probe10197-copy1-green gate-not51581] [connection51584 gate-not51581 gate-and51583] [connection51585 button10207-green [70 100] gate-and51583] [connection51586 gate-and51583 [270 100] chip51580]
+add part speaker38118-green to block51759-green at [-0.25 0.1 0.0] [0.0 1.0 0.0 0.0]
+set property frequency of speaker38118-green to 500
+add part motherboard51763-green to block51759-green at [0.25 0.085 0.5] [0.0 1.0 0.0 0.0]
+set motherboard51763-green tab 0 [probe10197-green 40 true] [lamp10193-green 120] [speaker38118-green 200]  [connection100 probe10197-green lamp10193-green] [connection51765 probe10197-green [40 50] [200 50] speaker38118-green]
+add part block51759-yellow to ground-part at [3.75 0.35000002 3.25] [0.0 1.0 0.0 180.00000500895632]
+scale block51759-yellow by + [0.5 0 0]
+scale block51759-yellow by + [0 -0.4 0]
+scale block51759-yellow by + [0 0 1.0]
+set color of block51759-yellow to almost-black
+add part lamp10193-yellow to block51759-yellow at [-0.25 0.15 -0.5] [0.0 1.0 0.0 0.0]
+set color of lamp10193-yellow to dark-yellow
+add part button10207-yellow to block51759-yellow at [0.25 0.15 -0.5] [0.0 1.0 0.0 0.0]
+set color of button10207-yellow to dark-yellow
+add part motherboard10212-yellow to block51759-yellow at [0.25 0.085 0.0] [0.0 1.0 0.0 0.0]
+set motherboard10212-yellow tab 0 [button10207-yellow 70 true] [probe10197-copy1-yellow 130] [chip10190 190] [and51576 130 50] [connection51577 probe10197-copy1-yellow gate-and51576] [connection51578 button10207-yellow [70 50] gate-and51576] [connection51579 gate-and51576 [190 50] chip10190]
+set motherboard10212-yellow tab 1 [chip51580 270] [not51581 130 50] [and51583 130 100] [connection51582 probe10197-copy1-yellow gate-not51581] [connection51584 gate-not51581 gate-and51583] [connection51585 button10207-yellow [70 100] gate-and51583] [connection51586 gate-and51583 [270 100] chip51580]
+add part speaker38118-yellow to block51759-yellow at [-0.25 0.1 0.0] [0.0 1.0 0.0 0.0]
+set property frequency of speaker38118-yellow to 700
+add part motherboard51763-yellow to block51759-yellow at [0.25 0.085 0.5] [0.0 1.0 0.0 0.0]
+set motherboard51763-yellow tab 0 [probe10197-yellow 40 true] [lamp10193-yellow 120] [speaker38118-yellow 200]  [connection100 probe10197-yellow lamp10193-yellow] [connection51765 probe10197-yellow [40 50] [200 50] speaker38118-yellow]
+add part block51759-blue to ground-part at [2.25 0.35000002 3.25] [0.0 1.0 0.0 180.00000500895632]
+scale block51759-blue by + [0.5 0 0]
+scale block51759-blue by + [0 -0.4 0]
+scale block51759-blue by + [0 0 1.0]
+set color of block51759-blue to almost-black
+add part lamp10193-blue to block51759-blue at [-0.25 0.15 -0.5] [0.0 1.0 0.0 0.0]
+set color of lamp10193-blue to blue
+add part button10207-blue to block51759-blue at [0.25 0.15 -0.5] [0.0 1.0 0.0 0.0]
+set color of button10207-blue to blue
+add part motherboard10212-blue to block51759-blue at [0.25 0.085 0.0] [0.0 1.0 0.0 0.0]
+set motherboard10212-blue tab 0 [button10207-blue 70 true] [probe10197-copy1-blue 130] [chip10190 190] [and51576 130 50] [connection51577 probe10197-copy1-blue gate-and51576] [connection51578 button10207-blue [70 50] gate-and51576] [connection51579 gate-and51576 [190 50] chip10190]
+set motherboard10212-blue tab 1 [chip51580 270] [not51581 130 50] [and51583 130 100] [connection51582 probe10197-copy1-blue gate-not51581] [connection51584 gate-not51581 gate-and51583] [connection51585 button10207-blue [70 100] gate-and51583] [connection51586 gate-and51583 [270 100] chip51580]
+add part speaker38118-blue to block51759-blue at [-0.25 0.1 0.0] [0.0 1.0 0.0 0.0]
+set property frequency of speaker38118-blue to 600
+add part motherboard51763-blue to block51759-blue at [0.25 0.085 0.5] [0.0 1.0 0.0 0.0]
+set motherboard51763-blue tab 0 [probe10197-blue 40 true] [lamp10193-blue 120] [speaker38118-blue 200]  [connection100 probe10197-blue lamp10193-blue] [connection51765 probe10197-blue [40 50] [200 50] speaker38118-blue]

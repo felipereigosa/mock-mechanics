@@ -375,3 +375,9 @@
 
 (defn interpolate-maps [m1 m2 t]
   (merge-with #(interpolate %1 %2 t) m1 m2))
+
+(defn enumerate [collection]
+  (map vector (range) collection))
+
+(defn find-index [pred coll]
+  (first (find-if (comp pred second) (enumerate coll))))
