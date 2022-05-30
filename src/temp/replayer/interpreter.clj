@@ -319,27 +319,9 @@
                 world)]
     (tree-changed world)))
 
-(defn interpolate-mouse [start end]
-  (let [ts (last start)
-        te (last end)
-        start (take 2 start)
-        end (take 2 end)
-        d (distance start end)
-        v (vector-subtract end start)
-        interval (- te ts)
-        dt 20.0
-        num-steps (int (/ interval dt))
-        extra-time (int (mod interval dt))]
-    (robot-move start)
-    (dotimes [i (dec num-steps)]
-      (sleep dt)
-      (robot-move (vector-add start (vector-multiply v (/ i num-steps)))))
-    (sleep extra-time)
-    (robot-move end)))
-
 (declare wait-chip-flag)
 
-(defn run-amouse-instruction [world instruction]
+(defn run-mouse-instruction [world instruction]
   (robot-set-active! true)
   (let [[_ wait & events] instruction]
 
@@ -359,77 +341,6 @@
                     :pressed (robot-mouse-press button)
                     :moved (robot-move [x y])
                     :released (robot-mouse-release button))))
-              (robot-set-active! false)))))
-    world))
-
-(defn run-mouse-instruction [world instruction]
-  (robot-set-active! true)
-  (let [[_ wait button & points] instruction
-        button (keyword button)]
-
-    (when wait
-      (reset! wait-chip-flag true))
-
-    (.start
-     (new Thread
-          (proxy [Runnable] []
-            (run []
-              (robot-move (take 2 (first points)))
-              (robot-mouse-press button)
-              (dotimes [i (dec (count points))]
-                (interpolate-mouse (nth points i)
-                                   (nth points (inc i))))
-              (sleep 16)
-              (robot-mouse-release button)
-              (sleep 16)
-              (robot-set-active! false)))))
-    world))
-
-(defn run-line-instruction [w1 instruction]
-  (robot-set-active! true)
-  (let [[_ wait & lines] instruction
-        make-event (fn [entry]
-                     {:x 10000
-                      :y 10000
-                      :line (vec (butlast entry))})]
-    (when wait
-      (reset! wait-chip-flag true))
-    
-    (.start
-     (new Thread
-          (proxy [Runnable] []
-            (run []
-              (swap! world
-                     (fn [w]
-                       (mode-mouse-pressed w (make-event (first lines)))))
-              (doseq [i (range 1 (count lines))]
-                (let [t0 (third (nth lines (dec i)))
-                      t1 (third (nth lines i))
-                      event (make-event (first lines))]
-                  (swap! world (fn [w]
-                                 (mode-mouse-moved w event)))
-                  (sleep (- t1 t0))))
-              (swap! world
-                     (fn [w]
-                       (mode-mouse-released w (make-event (last lines)))))
-              (sleep 50)
-              (robot-set-active! false)))))
-    w1))
-
-(defn run-zoom-instruction [world instruction]
-  (robot-set-active! true)
-  (let [[_ x y amount] instruction]
-    (.start
-     (new Thread
-          (proxy [Runnable] []
-            (run []
-              (robot-move [x y])
-
-              (dotimes [i (abs amount)]
-                (if (pos? amount)
-                  (robot-scroll 1)
-                  (robot-scroll -1))
-                (sleep 30))
               (robot-set-active! false)))))
     world))
 
@@ -918,10 +829,10 @@
                           (symbol)
                           (resolve))]
       (let [short-instruction (apply str (take 80 instruction))]
-        (if (= (count short-instruction)
-              (count instruction))
-          (println! instruction)
-          (println! short-instruction "..."))
+        ;; (if (= (count short-instruction)
+        ;;        (count instruction))
+        ;;   (println! instruction)
+        ;;   (println! short-instruction "..."))
         (-> world
           (function (read-string (str "[" instruction "]")))
           (redraw)))

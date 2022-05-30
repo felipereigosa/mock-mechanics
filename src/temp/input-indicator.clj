@@ -21,7 +21,15 @@
       (draw-image! image x y)
       (if-let [button (:button input-indicator)]
         (draw-image! (get input-indicator button) x y))
-      (draw-text-in-box! (:text input-indicator) :white 20 text-region))))
+      (draw-text-in-box! (:text input-indicator) :white 20 text-region)
+
+      (when (:draw-play world)
+        (draw-activate-highlight! world))
+
+      ;; (if-let [{:keys [x y r]} (:circle input-indicator)]
+      ;;   (draw-circle! :white x y r)
+      ;;   )
+      )))
 
 (defn set-indicator-text [world text]
   (do-later (fn []
@@ -80,10 +88,28 @@
 
 (defn input-indicator-mouse-pressed [world event]
   (if-let [input-indicator (:input-indicator world)]
-    (assoc-in world [:input-indicator :button] (:button event))
+    (-> world
+        (assoc-in [:input-indicator :button] (:button event))
+        (assoc-in [:input-indicator :circle]
+                  {:r 0
+                   :x (:x event)
+                   :y (:y event)}))
     world))
 
 (defn input-indicator-mouse-released [world event]
   (if-let [input-indicator (:input-indicator world)]
     (dissoc-in world [:input-indicator :button])
+    world))
+
+(defn input-indicator-update [world elapsed]
+  (if-let [input-indicator (:input-indicator world)]
+    (if (:circle input-indicator)
+      (if (< (get-in input-indicator [:circle :r]) 25)
+        (-> world
+            (update-in [:input-indicator :circle :r] #(+ % 1))
+            (redraw))
+        (-> world
+            (dissoc-in [:input-indicator :circle])
+            (redraw)))
+      world)
     world))

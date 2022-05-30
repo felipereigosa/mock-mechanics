@@ -30,18 +30,18 @@
 (load "track-loop")
 (load "hints")
 (load "input-indicator")
-
 (load "replayer/helpers")
+(load "bone-animation")
 
 (do
 1
 
 (defn create-world []
   (delete-temp-files!)
-  
+
   (-> (create-base-world)
       (merge (read-string (str "{" (slurp "settings.clj") "}")))
-      (assoc-in [:num-lines] 1)
+      (assoc-in [:num-lines] 6)
       (assoc-in [:background-meshes :grid] (create-grid-mesh 24 0.5))
       (assoc-in [:info] (create-info))
       (assoc-in [:parts] {})
@@ -64,12 +64,12 @@
       (assoc-in [:command] "")
       (assoc-in [:bindings] (get-bindings))
       (assoc-in [:current-color] :red)
-      
+
       (assoc-in [:action-menu]
                 (create-picture "action-menu" 240 340 40 -1))
       (assoc-in [:mode-menu]
                 (create-picture "mode-menu" 240 340 40 -1))
-      
+
       (assoc-in [:color-palette]
                 (create-picture "colors" 340 585 -1 40))
       (assoc-in [:add-menu]
@@ -105,18 +105,20 @@
                                                [1 1 1] :white))
 
       (reset-avatar)
-      
+      (load-avatar-meshes)
       (place-elements)
       (create-weld-groups)
       (create-update-cube)
 
-      (start-replay "memory")
+      ;; (start-replay "bridge")
+      ;; (create-input-indicator 670)
       ))
 (reset-world!)
 )
 
 (defn update-world [world elapsed]
-  (let [world (run-animation world elapsed)]
+  (let [world (run-animation world elapsed)
+        world (input-indicator-update world elapsed)]
     (if (in? (:mode world) [:simulation :graph :motherboard
                             :property :avatar])
       (let [world (-> world
@@ -139,15 +141,12 @@
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
     (draw-mesh! world mesh))
-  
+
   (if (> (get-in world [:camera :x-angle]) 0)
     (draw-mesh! world (:other-ground world)))
 
   (draw-spheres! world)
 
-  (if-let [fun (get-function (:mode world) :draw-3d)]
-    (fun world))
-  
   (if (:use-weld-groups world)
     (do
       (doseq [group (vals (:weld-groups world))]
@@ -164,6 +163,9 @@
   (draw-buttons! world)
   (draw-lamps! world)
   (draw-displays! world)
+
+  (if-let [fun (get-function (:mode world) :draw-3d)]
+    (fun world))
 
   (if (:draw-update-cube world)
     (draw-update-cube! world))
@@ -196,17 +198,17 @@
 
   (draw-buffer! world)
   (draw-hint! world)
-  ;; (draw-input-indicator! world)
+  (draw-input-indicator! world)
 
-  ;; (replay-draw world)
+  ;; (if (:has-focus world)
+  ;;   (fill-rect! :red 650 700 100 100))
   )
 (redraw!))
 
 (defn mouse-scrolled [world event]
   (let [world (-> world
                   (input-indicator-mouse-scrolled event)
-                  (redraw))
-        world (replay-zoomed world event)]
+                  (redraw))]
     (cond
       (and (= (:mode world) :graph)
            (inside-box? (:graph-box world) (:x event) (:y event)))
@@ -306,8 +308,7 @@
 (defn window-focused [world focused]
   (if focused
     (-> world
-      (update-scripts)
-      (redraw))
-    world))
-
-;;----------------------------------------------------------------------;;
+        (assoc-in [:has-focus] true)
+        update-scripts
+        redraw)
+    (assoc-in world [:has-focus] false)))

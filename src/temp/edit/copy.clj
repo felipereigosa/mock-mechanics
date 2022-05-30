@@ -82,9 +82,11 @@
   (if-let [collision (get-collision world event)]
     (if (:control-pressed world)
       (let [part-name (:part-name collision)]
-        (-> world
-            (assoc-in [:selected-part] part-name)
-            (select-part part-name)))
+        (if (not= part-name :ground-part)
+          (-> world
+              (assoc-in [:selected-part] part-name)
+              (select-part part-name))
+          world))
       (if-let [selected-part (:selected-part world)]
         (let [part (get-in world [:parts selected-part])
               suffix (gen-keyword :copy)

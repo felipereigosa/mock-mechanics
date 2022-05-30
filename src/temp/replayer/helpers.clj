@@ -55,6 +55,12 @@
           (.write writer instruction)
           (.write writer "\n"))))))
 
+(defn get-camera-vector [world]
+  (let [camera (:camera world)]
+    [(:pivot camera)
+     [(:x-angle camera) (:y-angle camera)]
+     (:distance camera)]))
+
 (defn print-camera-instruction! []
   (let [[pivot angles distance] (get-camera-vector @world)]
     (println! "set camera"

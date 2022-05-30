@@ -3,6 +3,9 @@
 
 (declare get-element-value)
 
+(defn motherboard-mode-entered [world]
+  (dissoc-in world [:selected-motherboard]))
+
 (defn get-input-names [world motherboard element-name]
   (let [connections (filter (fn [[name connection]]
                               (= (last (:points connection))
@@ -151,6 +154,10 @@
 
                   get-color #(get-thing! [:parts % :color])
 
+                  set-color (fn [part-name color]
+                              (set-thing! [:parts part-name :color] color)
+                              (update-thing! [] tree-changed))
+
                   wait (fn [pred]
                          (while (pred) (sleep 50))
                          (sleep 100))
@@ -279,10 +286,18 @@
                            (swap! world
                              (fn [w]
                                (let [mode (:mode w)
+                                     default-parameters {:block :ground
+                                                         :relative-position [0 0.1 0]
+                                                         :relative-direction [0 0 -1]
+                                                         :cameraman-position [-20 0 20]
+                                                         :x-angle 25
+                                                         :y-angle 35
+                                                         :pivot [0 0 0]}
                                      {:keys [address
                                              block relative-position relative-direction cameraman-position
-                                             x-angle y-angle pivot]} parameters
-                                     w (open-machine w address)]
+                                             x-angle y-angle pivot]} (merge default-parameters parameters)
+                                     w (open-machine w address)
+                                     ]
                                  (if (= mode :avatar)
                                    (-> w
                                      (change-mode :avatar)
@@ -296,9 +311,21 @@
                                      (assoc-in [:camera :x-angle] x-angle)
                                      (assoc-in [:camera :y-angle] y-angle)
                                      (assoc-in [:camera :pivot] pivot)
-                                     (compute-camera)))
-                                 )))))
-                  ]]
+                                     (compute-camera))))))))
+
+                  find-parts (fn [type position d scale]
+                               (let [scale (if (vector? scale)
+                                             scale
+                                             (vec (repeat 3 scale)))]
+                                 (map first
+                                      (filter (fn [[part-name part]]
+                                                (let [part-position (get-transform-position
+                                                                     (:transform part))]
+                                                  (and
+                                                   (= (:type part) type)
+                                                   (< (distance position part-position) d)
+                                                   (vector= scale (:scale part)))))
+                                              (:parts @world)))))]]
     `(do
        (require '[temp.core :refer :all])
        (let [~@bindings

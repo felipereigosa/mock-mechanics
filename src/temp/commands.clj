@@ -22,6 +22,8 @@
    "C-right" #(toggle-run-instructions %)
    "left" #(replay-back %)
    "C-left" #(replay-back %)
+   "up" #(replay-up %)
+   "down" #(replay-down %)
 
    "A-a" #(change-mode % :add)
    ":add b" #(assoc-in % [:add-type] :block)

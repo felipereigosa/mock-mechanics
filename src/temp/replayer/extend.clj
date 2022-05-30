@@ -137,16 +137,6 @@
         (extend-motherboard-instruction instruction)
 
         (.startsWith instruction "mouse")
-        (let [elements (read-string (str "[" instruction "]"))]
-          ["set variable mode to simulation"
-           (apply format "set camera pivot %s angles %s distance %s"
-                  (second elements))
-           (join " " (vector-remove elements 1))])
-
-        (.startsWith instruction "amouse")
-        ["set variable mode to simulation" instruction]
-
-        (.startsWith instruction "line")
         ["set variable mode to simulation" instruction]
 
         (.startsWith instruction "delete part")

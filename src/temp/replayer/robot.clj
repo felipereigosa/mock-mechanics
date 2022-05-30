@@ -27,7 +27,9 @@
 (defn robot-set-active! [value]
   (swap! robot
          (fn [r]
-           (assoc-in r [:active] value))))
+           (-> r
+               (assoc-in [:active] value)
+               (assoc-in [:origin] (get-window-coordinates))))))
 
 (defn robot-mouse-press [button]
   (.mousePress (:robot @robot) (get-button-mask button)))

@@ -13,7 +13,7 @@
 (import org.lwjgl.glfw.GLFWScrollCallback)
 (import org.lwjgl.glfw.GLFWWindowSizeCallback)
 (import org.lwjgl.glfw.GLFWWindowFocusCallback)
-(import org.lwjgl.glfw.GLFWWindowMaximizeCallback)                       
+(import org.lwjgl.glfw.GLFWWindowMaximizeCallback)
 (import java.awt.image.BufferedImage)
 (import javax.imageio.ImageIO)
 (import java.io.File)
@@ -67,12 +67,12 @@
         world (-> world
                   (assoc-in [:projection-matrix] projection-matrix)
                   (assoc-in [:ortho-mesh] (create-ortho-mesh width height))
-                  (assoc-in [:moving-ortho-mesh] (create-ortho-mesh width height))
+                  ;; (assoc-in [:moving-ortho-mesh] (create-ortho-mesh width height))
                   (assoc-in [:window-width] width)
                   (assoc-in [:window-height] height))]
     (GL11/glViewport 0 0 width height)
     (reset! window-width width)
-    (reset! window-height height)    
+    (reset! window-height height)
     (redraw world)))
 
 (def to-run (atom nil))
@@ -220,9 +220,9 @@
   (try
     (run-pending!)
     (catch Exception e))
-  
+
   (if (or (< @time-since-update 200)
-          (< @avatar-active-time 2000)
+          (< @avatar-active-time 10000)
           (not (empty? (:spheres @world)))
           ;; (:forces-active? @world)
           (spheres-moving? @world)
@@ -255,7 +255,20 @@
         (reset! time-since-update 0))
       )
     (sleep 5))
-  
+
+  ;; (GL11/glClear (bit-or GL11/GL_COLOR_BUFFER_BIT
+  ;;                       GL11/GL_DEPTH_BUFFER_BIT))
+  ;; (try
+  ;;   (draw-world! @world)
+  ;;   (catch Exception e))
+  ;; (try
+  ;;   (swap! world (fn [w] (update-world w 16)))
+  ;;   (catch Exception e))
+
+  ;; (GLFW/glfwSwapBuffers window)
+
+  ;; (sleep 5)
+
   (GLFW/glfwPollEvents)
   )
 
@@ -265,7 +278,7 @@
     (catch Exception e))
 
   (reset! time-since-update 0)
-  
+
   (while (not (GLFW/glfwWindowShouldClose window))
     (update-and-draw! window)))
 
@@ -292,7 +305,7 @@
       (create-mouse-scroll-handler! window)
       (create-window-size-handler! window)
       (create-window-focus-handler! window)
-          
+
       (GLFW/glfwMakeContextCurrent window)
       (GLFW/glfwSwapInterval 1)
       (GLFW/glfwShowWindow window)
@@ -310,7 +323,7 @@
       (loop! window)
 
       (GLFW/glfwDestroyWindow window)
-      (GLFW/glfwTerminate)      
+      (GLFW/glfwTerminate)
       ))))))
 
 (defn set-title! [text]
@@ -327,7 +340,8 @@
   (update-thing!
    []
    (fn [world]
-     (-> world
+     (-> (create-world)
+         (assoc-in [:recording] true)
          (assoc-in [:show-hints] false)
          (assoc-in [:num-lines] 1)
          (create-input-indicator 670)
@@ -393,15 +407,38 @@
   (let [num-active (GL20/glGetProgrami index GL20/GL_ACTIVE_ATTRIBUTES)]
     (map (fn [i]
            (let [size (make-int-buffer 100)
-                 type (make-int-buffer 100)]
-             (GL20/glGetActiveAttrib index i size type))) (range num-active))))
+                 type (make-int-buffer 100)
+                 name (GL20/glGetActiveAttrib index i size type)
+                 index (.indexOf name "[")]
+             (if (pos? index)
+               (subs name 0 index)
+               name)))
+         (range num-active))))
 
 (defn get-uniform-names [index]
   (let [num-active (GL20/glGetProgrami index GL20/GL_ACTIVE_UNIFORMS)]
     (map (fn [i]
            (let [size (make-int-buffer 100)
-                 type (make-int-buffer 100)]
-             (GL20/glGetActiveUniform index i size type))) (range num-active))))
+                 type (make-int-buffer 100)
+                 name (GL20/glGetActiveUniform index i size type)
+                 index (.indexOf name "[")]
+             (if (pos? index)
+               (subs name 0 index)
+               name)))
+         (range num-active))))
+;; (defn get-attribute-names [index]
+;;   (let [num-active (GL20/glGetProgrami index GL20/GL_ACTIVE_ATTRIBUTES)]
+;;     (map (fn [i]
+;;            (let [size (make-int-buffer 100)
+;;                  type (make-int-buffer 100)]
+;;              (GL20/glGetActiveAttrib index i size type))) (range num-active))))
+
+;; (defn get-uniform-names [index]
+;;   (let [num-active (GL20/glGetProgrami index GL20/GL_ACTIVE_UNIFORMS)]
+;;     (map (fn [i]
+;;            (let [size (make-int-buffer 100)
+;;                  type (make-int-buffer 100)]
+;;              (GL20/glGetActiveUniform index i size type))) (range num-active))))
 
 (defn location-name->keyword [name]
   (keyword (apply str (clojure.string/replace name #"_" "-"))))
@@ -700,7 +737,7 @@
 (defn redraw! []
   (reset! time-since-update 0)
   (reset! redraw-flag true))
-  
+
 (defn redraw [world]
   (reset! time-since-update 0)
   (reset! redraw-flag true)
@@ -712,6 +749,7 @@
   nil
   )
 
+;; (do
 (defn create-base-world []
   (GL/createCapabilities)
   (GL11/glClearColor 0 0.5 0.8 0)
@@ -724,10 +762,13 @@
       (assoc-in [:programs :textured] (create-program "textured"))
       (assoc-in [:programs :ortho] (create-program "ortho"))
       (assoc-in [:programs :colored] (create-program "colored"))
+      ;; (assoc-in [:programs :animated] (create-program "animated"))
       (recompute-viewport @window-width @window-height)
       (#(create-camera % [0 0 1] 40 25 -35))
       (compute-camera)
       ))
+;; (reset-world!)
+;; )
 
 (defn reset-world! []
   (gl-thread
@@ -1052,7 +1093,7 @@
                           (.startsWith line "map_Kd")))
                 lines)
         directory (subs filename 0 (.lastIndexOf filename "/"))
-        materials (create-groups [] #(.startsWith % "newmtl") lines)]
+        materials (create-groups #(.startsWith % "newmtl") lines)]
     (apply merge (cons {"white" {:diffuse [1 1 1]
                                  :texture nil}}
                    (map #(parse-material directory %) materials)))))
@@ -1071,49 +1112,49 @@
          indices)))
 
 (defn create-colors [lines materials]
-  (let [material-lines (filter (fn [[index line]]
-                                 (.startsWith line "usemtl"))
-                               (map vector (range) lines))]
-    (mapcat (fn [[i material] [j _]]
-              (let [name (subs material 7)
-                    color (get-in materials [name :diffuse])]
-                (repeat (* (- j i 1) 3) (conj (vec color) 1))))
-            material-lines
-            (conj (vec (rest material-lines))
-                  [(count lines) nil]))))
+  (let [groups (create-groups #(.startsWith % "usemtl") lines)]
+    (apply concat
+           (map (fn [group]
+                  (let [n (* 3 (count
+                                (filter #(.startsWith % "f ") group)))
+                        color (conj (vec (:diffuse
+                              (get materials (subs (first group) 7)))) 1)]
+                    (repeat n color)))
+                groups))))
 
 (defn create-model-mesh [filename position rotation scale color]
-  (let [materials-filename (-> filename
-                             (subs 0 (.lastIndexOf filename "."))
-                             (str ".mtl"))
-        materials (parse-materials materials-filename)
-        lines (filter (fn [line]
-                        (or (.startsWith line "o")
-                          (.startsWith line "v")
-                          (.startsWith line "vn")
-                          (.startsWith line "vt")
-                          (.startsWith line "f")
-                          (.startsWith line "usemtl")))
-                (read-lines filename))
-        v (map parse-line (filter #(.startsWith % "v") lines))
-        n (map parse-line (filter #(.startsWith % "vn") lines))
-        t (map parse-line (filter #(.startsWith % "vt") lines))
-        faces (mapcat parse-line-with-slashes
-                (filter #(.startsWith % "f") lines))
-        vertices (use-indices v (map first faces))
-        normals (use-indices n (map last faces))
-        texture-name (some :texture (vals materials))
-        texture-coords (if texture-name
-                         (use-indices t (map #(nth % 1) faces))
-                         [])
-        texture-coords (map (fn [[u v]]
-                              [u (- 1.0 v)])
-                         texture-coords)
-        skin (or color
-               texture-name
-               (create-colors lines materials))]
-    (create-mesh vertices position rotation scale
-      skin texture-coords normals)))
+  (with-open [reader (clojure.java.io/reader filename)]
+    (let [materials-filename (-> filename
+                                 (subs 0 (.lastIndexOf filename "."))
+                                 (str ".mtl"))
+          materials (parse-materials materials-filename)
+          lines (filter (fn [line]
+                          (or (.startsWith line "o")
+                              (.startsWith line "v")
+                              (.startsWith line "vn")
+                              (.startsWith line "vt")
+                              (.startsWith line "f")
+                              (.startsWith line "usemtl")))
+                        (line-seq reader))
+          v (map parse-line (filter #(.startsWith % "v ") lines))
+          n (map parse-line (filter #(.startsWith % "vn") lines))
+          t (map parse-line (filter #(.startsWith % "vt") lines))
+          faces (mapcat parse-line-with-slashes
+                        (filter #(.startsWith % "f") lines))
+          vertices (use-indices v (map first faces))
+          normals (use-indices n (map last faces))
+          texture-name (some :texture (vals materials))
+          texture-coords (if texture-name
+                           (use-indices t (map #(nth % 1) faces))
+                           [])
+          texture-coords (map (fn [[u v]]
+                                [u (- 1.0 v)])
+                              texture-coords)
+          skin (or color
+                   texture-name
+                   (create-colors lines materials))]
+      (create-mesh vertices position rotation scale
+                   skin texture-coords normals))))
 
 (defn draw-lines! [world mesh transform]
   (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)

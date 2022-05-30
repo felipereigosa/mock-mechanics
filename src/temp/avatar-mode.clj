@@ -1,22 +1,28 @@
 
 (load "avatar/running")
 (load "avatar/jumping")
+(load "bone-animation")
 
 (def avatar-keys ["s" "d" "f" "e"
                   "j" "u" "o" "k" "q"])
 
-(defn load-poses [root-name]
-  (let [obj-names (filter #(.endsWith % ".obj")
-                          (get-files-at (str "res/" root-name)))]
-    (apply merge (map (fn [obj-name]
-                        (let [l (- (count obj-name) 4)
-                              number (parse-int (subs obj-name 0 l))
-                              filename (str "res/" root-name "/" obj-name)
-                              model (create-model-mesh filename
-                                                       [0 0 0] [1 0 0 0]
-                                                       0.15 nil)]
-                          {number model}))
-                      obj-names))))
+(defn load-avatar-meshes [world]
+  (-> world
+      (assoc-in [:shadow-mesh]
+                (create-model-mesh "res/cylinder.obj"
+                                   [0 0 0] [1 0 0 0]
+                                   1 (make-color 0 0 0)))
+      (assoc-in [:shadow-mesh :color] [0 0 0 0.5])
+      (assoc-in [:rope-mesh]
+                (create-model-mesh "res/rope.obj"
+                                   [0 0 0] [1 0 0 0]
+                                   1 :white))
+      (assoc-in [:avatar-mesh]
+                (create-animated-mesh "res/avatar.obj"
+                                      [0 0 0] [0 1 0 0] 0.15))))
+
+(gl-thread
+ (update-thing! [] load-avatar-meshes))
 
 (defn reset-avatar [world]
   (assoc-in world [:avatar]
@@ -32,20 +38,11 @@
      :relative-direction [0 0 1]
      :position [0 0 0]
      :angle 0
-     :poses {:running (load-poses "run")
-             :jumping (load-poses "jump")}
-     :pose-index 0
      :pose-counter 0
-     :max-speed 0.06
+     :max-speed 0.04
      :state :running
      :friction-coefficient 0.8
      :vertical-velocity 0.0
-     :shadow-mesh (create-model-mesh "res/cylinder.obj"
-                    [0 0 0] [1 0 0 0]
-                    1 :black)
-     :rope-mesh (create-model-mesh "res/rope.obj"
-                  [0 0 0] [1 0 0 0]
-                  1 :black)
      :keys (apply merge (map (fn [key] {key :released}) avatar-keys))
      }))
 
@@ -100,7 +97,7 @@
             floor-distance (- avatar-height 0.25 shadow-height)
             size (map-between-ranges floor-distance 0 3 0.5 0.00)        
             scale (vector-multiply [1 0.0 1] size)
-            mesh (-> (:shadow-mesh avatar)
+            mesh (-> (:shadow-mesh world)
                      (assoc-in [:transform] transform)
                      (assoc-in [:scale] scale))]
         (draw-mesh! world mesh)))))
@@ -125,25 +122,34 @@
           middle (vector-add (vector-multiply v 0.5) start-point)
           rotation (quaternion-from-normal v)
           transform (make-transform middle rotation)
-          mesh (-> (get-in world [:avatar :rope-mesh])
+          mesh (-> (:rope-mesh world)
                    (assoc-in [:scale] scale)
-                   (assoc-in [:transform] transform))]
-      (draw-mesh! world mesh))))
+                   (assoc-in [:transform] transform))
+          end-mesh (-> (get-in world [:info :sphere :model])
+                       (assoc-in [:scale] [0.1 0.1 0.1])
+                       (assoc-in [:transform] (make-transform start-point [1 0 0 0])))]
+      (draw-mesh! world mesh)
+      (draw-mesh! world end-mesh))))
 
 (defn avatar-mode-draw-3d [world]
   (let [avatar (:avatar world)
         state (:state avatar)
-        position (:position avatar)
+        position (vector-subtract (:position avatar) [0 0.3 0])
         angle (:angle avatar)
-        rotation [0 1 0 angle]
-        transform (make-transform position rotation)
-        pose-index (:pose-index avatar)
-        mesh (get-in avatar [:poses state pose-index])
+        avatar-position (:position avatar)
+        tilt-rotation (if (= state :jumping)
+                        (make-transform [0 0 0] [1 0 0 0])
+                        (get-rotation-component
+                         (get-shadow-transform world avatar-position)))
+        angle-rotation (make-transform [0 0 0] [0 1 0 (+ angle 90)])
+        rotation-transform (combine-transforms angle-rotation tilt-rotation)
+        position-transform (make-transform position [1 0 0 0])
+        transform (combine-transforms rotation-transform position-transform)
+        mesh (:avatar-mesh world)
         mesh (assoc-in mesh [:transform] transform)]
     (draw-mesh! world mesh)
     (draw-shadow! world)
-    (draw-rope! world)
-    ))
+    (draw-rope! world)))
 
 (defn normalize-cameraman [world]
   (let [avatar (:avatar world)
@@ -170,8 +176,6 @@
     (-> world
         (exit-fn)
         (assoc-in [:avatar :state] new-state)
-        (assoc-in [:avatar :pose-index] 0)
-        (assoc-in [:avatar :pose-counter] 0)
         (enter-fn))))
 
 (defn update-state [world]
@@ -189,7 +193,11 @@
         blocks (-> (:parts world)
                  (get-parts-with-type :block)
                  (vec)
-                 (conj :ground))]
+                 (conj :ground))
+        block-name (get-in world [:avatar :block])
+        world (if (not (get-in world [:parts block-name]))
+                (reset-avatar world)
+                world)]
     (-> world
       (assoc-in [:camera :distance] 35)
       (compute-camera)
@@ -202,7 +210,7 @@
 
 (defn avatar-press-part [world]
   (let [avatar (:avatar world)
-        position (vector-subtract (:position avatar) [0 0.1 0])
+        position (vector-subtract (:position avatar) [0 0.12 0])
         direction (vector-rotate [0 0 1] [0 1 0] (:angle avatar))
         spec {:x 100000
               :y 100000
@@ -304,20 +312,27 @@
             world))
         world))))
 
+(defn block-visible? [world block-name]
+  (or (= block-name :ground)
+      (in? (get-in world [:parts block-name :layer])
+           (:visible-layers world))))
+
 (defn compute-close-blocks [world]
   (let [avatar (:avatar world)
         avatar-position (:position avatar)
         avatar-radius (* 2 (:radius avatar))]
     (assoc-in world [:avatar :close-block-names]
-      (filter (fn [block-name]
-                (let [block (get-solid-block world block-name)
-                      transform (:transform block)
-                      position (get-transform-position transform)
-                      scale (:scale block)
-                      d (distance position avatar-position)
-                      block-radius (vector-length (map * [0.5 0.5 0.5] scale))]
-                  (< d (+ block-radius avatar-radius))))
-        (:block-names world)))))
+              (filter (fn [block-name]
+                        (and
+                         (block-visible? world block-name)
+                         (let [block (get-solid-block world block-name)
+                               transform (:transform block)
+                               position (get-transform-position transform)
+                               scale (:scale block)
+                               d (distance position avatar-position)
+                               block-radius (vector-length (map * [0.5 0.5 0.5] scale))]
+                           (< d (+ block-radius avatar-radius)))))
+                      (:block-names world)))))
 
 (defn point-block-projection [point block]
   (let [transform (:transform block)
@@ -339,12 +354,13 @@
                     d (vector-length to-point)]
                 (if (< 0.0 d radius)
                   (let [wrong-velocity (vector-project (:velocity avatar) to-point)]
-                    (if (pos? (vector-dot-product wrong-velocity to-point))
-                      (update-in w [:avatar :velocity]
-                                 #(vector-subtract % wrong-velocity))
+                    (if (> (vector-dot-product wrong-velocity to-point) 0.001)
+                      (-> w
+                          (assoc-in [:wall-normal] (vector-multiply (vector-normalize wrong-velocity) -1))
+                          (update-in [:avatar :velocity] #(vector-subtract % wrong-velocity)))
                       w))
                   w)))
-            world
+            (assoc-in world [:wall-normal] nil)
             (:close-block-names avatar))))
 
 (defn avatar-mode-released [world event]
@@ -362,6 +378,7 @@
           to-eye (vector-subtract eye pivot)
           x-angle (- 90 (vector-angle to-eye [0 1 0]))
           y-angle (vector-angle (assoc to-eye 1 0) [0 0 1] [0 1 0])]
+                ;; (= (get-in world [:avatar :state]) :jumping))
       (-> world
           (assoc-in [:camera :x-angle] x-angle)
           (assoc-in [:camera :y-angle] y-angle)
@@ -394,4 +411,5 @@
       (normalize-cameraman)
       (set-view)
       ))
+
 

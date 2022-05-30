@@ -4,12 +4,6 @@
 (load "replayer/interpreter")
 (load "replayer/extend")
 
-(defn get-camera-vector [world]
-  (let [camera (:camera world)]
-    [(:pivot camera)
-     [(:x-angle camera) (:y-angle camera)]
-     (:distance camera)]))
-
 (defn print-part-names [filename]
   (let [types ["sphere" "wagon" "block" "button" "gear" "chip"
                "motherboard" "cylinder" "probe" "cone" "lamp"
@@ -30,38 +24,23 @@
         (println! (keyword name) (keyword (get-type name)))))
     (println! "}")))
 
-(def legend (atom nil))
-
-(defn replay-draw [world]
-  (when (:replay-filename world)
-    (let [x (- (:window-width world) 10)
-          y (- (:window-height world) 10 105)]
-
-      (if-let [{:keys [text x y size]} @legend]
-        (draw-text! :white text x y size))
-
-      (fill-rect! :black x y 20 20)
-      (draw-text! :white "R" (- x 4) (+ y 5) 15))))
-
 (defn load-instructions [world]
   (assoc-in world [:instructions]
     (-> (str "res/" (:replay-filename world) ".txt")
       (read-lines)
       (extend-instructions))))
 
-(def checkpoint (atom nil))
+(def history (atom []))
 
 (defn start-replay [world filename]
   (reset-robot!)
   (let [w (-> world
               (assoc-in [:replay-filename] filename)
               (assoc-in [:instruction-index] 0)
-              (load-instructions))
-        w (if (some #(starts-with? % ">") (:instructions w))
-            (assoc-in w [:replay-speed] 20.0)
-            (assoc-in w [:replay-speed] 1.0))]
+              (assoc-in [:replay-speed] 1.0)
+              (load-instructions))]
     (println "-----")
-    (reset! checkpoint w)
+    (reset! history [])
     (reset! replaying false)
     w))
 
@@ -71,14 +50,6 @@
     true
     (let [elements (read-string (str "[" instruction "]"))]
       (cond
-        (.startsWith instruction "set camera")
-        (let [[_ _ _ pivot _ angles _ distance] elements
-              [pivot2 angles2 distance2] (get-camera-vector world)]
-          (and
-           (vector= pivot pivot2)
-           (vector= angles angles2)
-           (float= distance distance2)))
-
         (.startsWith instruction "set variable")
         (let [[_ _ key _ value] elements
               key (keyword key)
@@ -105,81 +76,7 @@
 
         :else false))))
 
-(defn run-next-instruction [world]
-  (let [instructions (:instructions world)
-        index (:instruction-index world)]
-    (if (< index (count instructions))
-      (let [instruction (nth instructions index)
-            world (update-in world [:instruction-index] inc)]
-        (cond
-          (= instruction ">")
-          (do
-            (println! "checkpoint reached")
-            (reset! replaying false)
-            (set-thing! [:replay-speed] 1.0)
-            (reset! checkpoint world)
-            world)
-
-          (skip-instruction? world instruction)
-          (recur world)
-
-          :else
-          (run-instruction world instruction)))
-      (do
-        (println "no more instructions")
-        world))))
-
-(defn replay-forward [world]
-  (if (and
-        (:replay-filename world)
-        (not (:active @robot)))
-    (if (nil? (:animation world))
-      (run-next-instruction world)
-      (-> world
-        (assoc-in [:animation :t] 1.0)
-        (run-animation 16)
-        (run-next-instruction)))
-    world))
-
-(defn replay-back [world]
-  (if (:replay-filename world)
-    (do
-      (println! "restored checkpoint")
-      (-> @checkpoint
-          (load-instructions)
-          (tree-changed)))
-    world))
-
-(declare run-instructions!)
-
-(defn toggle-run-instructions [world]
-  (when (:replay-filename world)
-    (.start
-      (new Thread
-        (proxy [Runnable] []
-          (run []
-            (run-instructions!))))))
-  world)
-
-;; (defn change-event [event start-time]
-;;   [(int (:x event)) (int (:y event)) (- (get-current-time) start-time)])
-
-(def zoom-amount (atom 0))
-(def zoom-time (atom 0))
-
-(defn replay-zoomed [world event]
-  (if (:replay-filename world)
-    (if @replaying
-      world
-      (let [current-time (get-current-time)
-            zoom-elapsed (- current-time @zoom-time)]
-        (when (> zoom-elapsed 2000)
-          (reset! zoom-amount 0))
-        (swap! zoom-amount #(+ % (:amount event)))
-        (reset! zoom-time current-time)
-        (println "zoom" (:x event) (:y event) @zoom-amount)
-        world))
-    world))
+(def step (atom false))
 
 (defn shift-times [events]
   (let [start-time (third (first events))]
@@ -192,7 +89,7 @@
                      (interpose " ")
                      (apply str))]
       (println! "-----------------------------------------")
-      (println! "amouse true" events)
+      (println! "mouse true" events)
       (assoc-in world [:mouse-recording] false))
     (do
       (println! "recording mouse...")
@@ -249,26 +146,32 @@
                 (nth instructions (:instruction-index @world)))
           (update-thing! [:instruction-index] inc))
 
+        (when (.startsWith (nth instructions (:instruction-index @world)) ">")
+          (println! "checkpoint reached")
+          (reset! replaying false)
+          (update-thing! [:instruction-index] inc))
+
         ;; big or small delay depending on current and last instructions
-        (let [last @last-instruction
-              next (nth instructions (:instruction-index @world))]
-          (if (not (or
-                    (starts-with? last "sleep")
-                    (starts-with? next "sleep")))
-            (if (or
-                 (and (starts-with? last "set variable mode")
-                      (starts-with? next "set variable"))
+        (if (not @step)
+          (let [last @last-instruction
+                next (nth instructions (:instruction-index @world))]
+            (if (not (or
+                      (starts-with? last "sleep")
+                      (starts-with? next "sleep")))
+              (if (or
+                   (and (starts-with? last "set variable mode")
+                        (starts-with? next "set variable"))
 
-                 (and (starts-with? last "scale")
-                      (starts-with? next "scale"))
+                   (and (starts-with? last "scale")
+                        (starts-with? next "scale"))
 
-                 (and (starts-with? last "set view")
-                      (starts-with? next "put"))
+                   (and (starts-with? last "set view")
+                        (starts-with? next "put"))
 
-                 (starts-with? next "add motherboard")
-                 )
-              (sleep (int (/ 400 (:replay-speed @world))))
-              (sleep (int (/ 800 (:replay-speed @world)))))))
+                   (starts-with? next "add motherboard")
+                   )
+                (sleep (int (/ 400 (:replay-speed @world))))
+                (sleep (int (/ 800 (:replay-speed @world))))))))
 
         ;; save last instruction
         (reset! last-instruction
@@ -296,14 +199,62 @@
         (robot-move [-100 0])
         (do-later stop-sound! 300)
 
-        (when (and
-               (< (:instruction-index @world) (count instructions))
-               (= (nth instructions (:instruction-index @world)) ">"))
-          (println! "checkpoint reached")
-          (set-thing! [:replay-speed] 1.0)
-          (update-thing! [:instruction-index] inc)
-          (reset! checkpoint @world)
-          (reset! replaying false))
+        (swap! history conj @world)
+
+        (when @step
+          (reset! replaying false)
+          (reset! step false))
+
+        ;; (if (.startsWith @last-instruction "mouse")
+        ;;   (reset! replaying false))
+
         )
 
       (reset! replaying false))))
+
+  (reset! replaying false)
+
+(defn toggle-run-instructions [world]
+  (when (:replay-filename world)
+    (.start
+      (new Thread
+        (proxy [Runnable] []
+          (run []
+            (run-instructions!))))))
+  world)
+
+(defn replay-forward [world]
+  (if (not (:animation world))
+    (do
+      (reset! step true)  
+      (toggle-run-instructions world))
+    world))
+
+(defn replay-back [world]
+  (if (and (:replay-filename world)
+           (not (empty? @history)))
+    (let [new-instructions (-> (str "res/" (:replay-filename world) ".txt")
+                               (read-lines)
+                               (extend-instructions))
+          difference-index (find-if #(not= (nth (:instructions world) %)
+                                           (nth new-instructions %))
+                                    (range (min (count (:instructions world))
+                                                (count new-instructions))))                                    
+          n (if (nil? difference-index)
+              1
+              (- (:instruction-index world) difference-index))
+          n (if (neg? n)
+              1
+              n)]
+      (swap! history #(vec (drop-last n %)))
+      (-> (last @history)
+          (load-instructions)
+          (tree-changed)))
+    world))
+
+(defn replay-up [world]
+  (assoc-in world [:replay-speed] 20))
+
+(defn replay-down [world]
+  (assoc-in world [:replay-speed] 1))
+

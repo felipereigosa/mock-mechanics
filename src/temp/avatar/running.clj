@@ -14,15 +14,6 @@
         new-eye (vector-rotate eye pivot [0 1 0] angle)]
     (assoc-in world [:avatar :cameraman :position] new-eye)))
 
-(defn update-pose [world]
-  (let [pose-counter (get-in world [:avatar :pose-counter])
-        num-poses (count (get-in world [:avatar :poses :running]))]
-    (if (> pose-counter 5)
-      (-> world
-          (assoc-in [:avatar :pose-counter] 0)
-          (update-in [:avatar :pose-index] #(mod (inc %) num-poses)))
-      (update-in world [:avatar :pose-counter] inc))))
-
 (defn get-acceleration [world]
   (let [direction (cond
                     (and
@@ -61,6 +52,9 @@
             dv (assoc dv 1 0)]
         (vector-rotate dv [0 1 0] angle)))))
 
+(defn in-range [value start end]
+  (+ start (mod (- value start) (- end start))))
+
 (defn run-handle-direction-keys [world]
   (let [acceleration (get-acceleration world)]
     (if (not (vector= acceleration [0 0 0]))
@@ -79,7 +73,6 @@
             inverse-rotation (get-inverse-transform block-rotation)
             relative-direction (apply-transform inverse-rotation absolute-direction)]
         (-> world
-            (update-pose)
             (assoc-in [:avatar :velocity] new-velocity)
             (assoc-in [:avatar :relative-direction] relative-direction)))
       world)))
@@ -118,17 +111,16 @@
           (avatar-release-part)
           (assoc-in [:avatar :part-pressed] false))
       
-      (avatar-key-on? world "u") (rotate-cameraman world -2)
-      (avatar-key-on? world "o") (rotate-cameraman world 2)
+      (avatar-key-on? world "u") (rotate-cameraman world -1)
+      (avatar-key-on? world "o") (rotate-cameraman world 1)
       :else world)))
 
 (defn enter-running-state [world]
   (let [block-name (get-in world [:avatar :block])]
-    (if (not= block-name :ground)
-      (-> world
-          (assoc-in [:parts block-name :value] 1)
-          (assoc-in [:avatar :stopped] true))
-      world)))
+    (-> world
+        (assoc-in [:parts block-name :value] 1)
+        (assoc-in [:avatar :stopped] true)
+        (assoc-in [:avatar-mesh :index] 60))))
 
 (defn project-down [world block point]
   (let [line [point [0 -1 0]]
@@ -141,24 +133,23 @@
 
 (defn move-avatar [world]
   (let [avatar (:avatar world)
-        velocity (:velocity avatar)
-        stopped (:stopped avatar)
-        stop-velocity (* (:max-speed avatar) 0.5)]
+        acceleration (get-acceleration world)
+        stopped (:stopped avatar)]
     (cond
       (and (not stopped)
-           (< (vector-length velocity) stop-velocity))
+           (vector= acceleration [0 0 0]))
       (-> world
-          (assoc-in [:avatar :pose-index] 0)
-          (assoc-in [:avatar :pose-counter] 0)
+          (assoc-in [:avatar-mesh :index] 60)
           (assoc-in [:avatar :stopped] true))
 
       (and stopped
-           (> (vector-length velocity) stop-velocity))
-      (assoc-in world [:avatar :stopped] false)
+           (not (vector= acceleration [0 0 0])))
+      (-> world
+          (assoc-in [:avatar-mesh :index] 0)
+          (assoc-in [:avatar :stopped] false))
 
       :else
-      (let [avatar (:avatar world)
-            velocity (:velocity avatar)
+      (let [velocity (:velocity avatar)
             fc (:friction-coefficient avatar)
             block-name (:block avatar)
             block (get-solid-block world block-name)
@@ -214,10 +205,20 @@
 
 (declare handle-collisions)
 
+(defn update-running-pose [world]
+  (update-in world [:avatar-mesh]
+             (fn [mesh]
+               (let [index (:index mesh)]
+                 ;; (println! index)
+                 (if (< index 60)
+                   (assoc-in mesh [:index] (in-range (+ index 0.6) 0 59))
+                   (assoc-in mesh [:index]
+                             (in-range (+ index 0.3) 60 79)))))))
+
 (defn update-running-state [world]
   (let [avatar (:avatar world)
         velocity (vector-subtract (:position avatar)
-                   (:last-position avatar))]
+                                  (:last-position avatar))]
     (-> world
         (assoc-in [:avatar :last-position] (:position avatar))
         (assoc-in [:avatar :absolute-velocity] velocity)
@@ -226,6 +227,5 @@
         (handle-collisions)
         (move-avatar)
         (compute-avatar-transform)
-        (climb-small-elevation)
-        )))
-
+        (update-running-pose)
+        (climb-small-elevation))))

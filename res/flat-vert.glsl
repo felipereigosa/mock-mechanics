@@ -23,5 +23,11 @@ void main() {
   vertex_color += vec4(1, 1, 1, 1) * n_dot_h * 0.05;
 
   gl_Position = mvp_matrix * position;
-  fColor = vertex_color;
+
+  if (material_color.w < 1.0) {
+     fColor = material_color;
+  }
+  else {
+     fColor = vertex_color;
+  }
 }

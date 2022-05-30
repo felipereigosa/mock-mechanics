@@ -281,11 +281,12 @@
           p1 (apply-transform transform local-point)
           p2 (point-line-projection p1 line)
           force-vector (vector-subtract p2 p1)]
-      (assoc-in mouse-force [:vector] force-vector))
-    nil))
+      (assoc-in world [:mouse-force :vector] force-vector))
+    world))
 
 (defn apply-forces [world elapsed]
-  (let [mouse-force (update-mouse-force world)
+  (let [world (update-mouse-force world)
+        mouse-force (:mouse-force world)
         avatar-force (get-in world [:avatar :force])
         forces (remove-nil (concat [mouse-force avatar-force]
                                  ;; (get-collision-forces world)

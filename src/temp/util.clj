@@ -23,8 +23,8 @@
 (defn acos [value]
   (to-degrees (Math/acos value)))
 
- (defn atan2 [y x]
-   (Math/toDegrees (Math/atan2 y x)))
+(defn atan2 [y x]
+  (Math/toDegrees (Math/atan2 y x)))
 
 (defn sqrt [x]
   (Math/sqrt x))
@@ -279,7 +279,7 @@
                 (recur (concat prefix [a] suffix) fs))))]
     (helper argument functions)))
 
-(defn create-groups [acc header? lines]
+(defn create-groups-helper [acc header? lines]
   (if (empty? lines)
     acc
     (let [line (first lines)]
@@ -290,6 +290,10 @@
         (recur (update-in acc [(dec (count acc))] #(conj % line))
                header?
                (rest lines))))))
+
+(defn create-groups [header? lines]
+  (create-groups-helper
+   [] header? (drop-while (comp not header?) lines)))
 
 (defn dissoc-in [map keys]
   (if (= (count keys) 1)
@@ -381,3 +385,6 @@
 
 (defn find-index [pred coll]
   (first (find-if (comp pred second) (enumerate coll))))
+
+(defn in-range [value start end]
+  (+ start (mod (- value start) (- end start))))

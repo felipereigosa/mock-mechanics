@@ -457,8 +457,8 @@
                     (get-tail-transform part)
                     (:transform part))
         color (if (color= (:color part) :yellow)
-                [0 0 1 0]
-                [1 1 0 0])
+                [0 0 1 1]
+                [1 1 0 1])
         mesh (or
               (get-in world [:info type :white-model])
               (get-in world [:info type :model]))]
