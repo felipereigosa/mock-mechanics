@@ -1,6 +1,0 @@
-add part block9843 to ground-part at [0.25 0.35 1.25] [0.0 1.0 0.0 0.0]
-add part chip9844 to block9843 at [0.0 0.275 0.0] [0.0 1.0 0.0 0.0]
-rotate block9843 by 90
->
-set camera pivot [0.25 0.25 1.25] angles [27.4 -90.6] distance 16.72
-

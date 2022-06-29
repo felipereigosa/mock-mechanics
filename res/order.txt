@@ -1,6 +1,0 @@
-add block11735 to ground-part at [0.25 0.35 0.25] [0.0 1.0 0.0 0.0]
-add chip11736 to block11735 at [0.0 0.0 0.28500003] [1.0 0.0 0.0 90.00000250447816]
-add track11737 to block11735 at [0.0 1.25 0.0] [0.0 1.0 0.0 0.0]
-set variable mode to graph
-set variable selected-chip to chip11736
-put track11737 in chip11736

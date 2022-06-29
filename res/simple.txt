@@ -1,7 +1,0 @@
-add part block9951 to ground-part at [0.25 0.35 1.25] [0.0 1.0 0.0 0.0]
-add part track9952 to block9951 at [0.0 1.2499999 0.0] [0.0 1.0 0.0 0.0]
-scale track9952 by + [0.0 0.6000000000000001 0.0]
-add part block9953 to track9952 at [0 0.25 0] [1 0 0 0]
-scale block9953 by + [1.0 0 0]
-scale block9953 by + [0 -0.4 0]
-move block9953 to [0.5 0.049999952 0.0]

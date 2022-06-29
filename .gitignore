@@ -11,5 +11,7 @@ pom.xml.asc
 .hgignore
 .hg/
 jre/
-res/temp/
-temp.clj
+temp/
+res/*.png
+res/*.reg
+replayer/

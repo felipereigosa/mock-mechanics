@@ -1,34 +1,25 @@
-(defproject temp "0.1.0-SNAPSHOT"
 
-  :dependencies [[org.clojure/clojure "1.10.2"]
-                 [org.clojars.nakkaya/vecmath "1"]
-                 [org.clojars.nakkaya/jbullet "20101010"]
-                 [matrix/matrix "1.0.0"]
-                 ;; [batik/batik "1.14.0"]
+(defn lwjgl [names version]
+  (mapcat (fn [name]
+            (let [artifact (symbol "org.lwjgl" name)]
+              [[artifact version]
+               [artifact version
+                :classifier "natives-linux"
+                :native-prefix ""]]))
+          names))
 
-                 [lwjgl/lwjgl "1.0.0"]
-                 [lwjgl/lwjgl-natives-linux "1.0.0"]
-                 ;; [lwjgl/lwjgl-natives-macos "1.0.0"]
-                 ;; [lwjgl/lwjgl-natives-windows "1.0.0"]
-                 ;; [lwjgl/lwjgl-natives-windows-x86 "1.0.0"]
-                 
-                 [lwjgl/lwjgl-glfw "1.0.0"]
-                 [lwjgl/lwjgl-glfw-natives-linux "1.0.0"]
-                 ;; [lwjgl/lwjgl-glfw-natives-macos "1.0.0"]
-                 ;; [lwjgl/lwjgl-glfw-natives-windows "1.0.0"]
-                 ;; [lwjgl/lwjgl-glfw-natives-windows-x86 "1.0.0"]
-                 
-                 [lwjgl/lwjgl-opengl "1.0.0"]
-                 [lwjgl/lwjgl-opengl-natives-linux "1.0.0"]
-                 ;; [lwjgl/lwjgl-opengl-natives-macos "1.0.0"]
-                 ;; [lwjgl/lwjgl-opengl-natives-windows "1.0.0"]
-                 ;; [lwjgl/lwjgl-opengl-natives-windows-x86 "1.0.0"]
-                 ]
-  :main ^:skip-aot temp.core
+(defproject mockmechanics "2.0"
+  :dependencies ~(concat '[[org.clojure/clojure "1.10.0"]
+                           [org.clojars.nakkaya/jbullet "20101010"]
+                           [org.apache.xmlgraphics/batik-all "1.14" :extension "pom"]]
+                         (lwjgl ["lwjgl"
+                                 "lwjgl-opengl"
+                                 "lwjgl-glfw"] "3.3.1"))
+  :disable-implicit-clean true
+  :main ^:skip-aot mockmechanics.core
   :target-path "target/%s"
   :omit-source true
   :jvm-opts ["--illegal-access=deny"]
+  :java-source-paths ["src/mockmechanics/java"]
   :profiles {:uberjar {:aot :all}
-             :repl {:plugins [[cider/cider-nrepl "0.25.5"]]}
-             })
-
+             :repl {:plugins [[cider/cider-nrepl "0.25.5"]]}})
