@@ -1,4 +1,5 @@
 (ns mockmechanics.core
+  (:refer-clojure :exclude [println])
   (:gen-class))
 
 (load "util")
@@ -29,7 +30,6 @@
 (load "commands")
 (load "track-loop")
 (load "hints")
-(load "replayer/helpers")
 (load "bone-animation")
 (load "input-indicator")
 

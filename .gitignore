@@ -14,4 +14,4 @@ jre/
 temp/
 res/*.png
 res/*.reg
-replayer/
+/replayer/

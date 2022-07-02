@@ -3,6 +3,7 @@
 (load "replayer/robot")
 (load "replayer/interpreter")
 (load "replayer/extend")
+(load "replayer/helpers")
 
 (defn load-instructions [world]
   (assoc-in world [:instructions]
