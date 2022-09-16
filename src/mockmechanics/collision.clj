@@ -1,10 +1,13 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.matrix :as matrix]
+            [mockmechanics.library.vector :as vector]))
 
 (defn project-point [world point]
   (let [p-matrix (:projection-matrix world)
         v-matrix (:view-matrix world)
-        matrix (multiply-matrices v-matrix p-matrix)
+        matrix (matrix/multiply v-matrix p-matrix)
         point (float-array (conj point 1.0))
-        point-2d (vec (multiply-matrix-vector matrix point))
+        point-2d (vec (matrix/multiply-vector matrix point))
         [x y _ _] (map #(/ % (nth point-2d 3)) point-2d)]
     [(int (* (/ (inc x) 2) (:window-width world)))
      (int (* (/ (inc (- y)) 2) (:window-height world)))]))
@@ -14,18 +17,18 @@
         dy (- (dec (/ y (/ (:window-height world) 2))))
         p-matrix (:projection-matrix world)
         v-matrix (:view-matrix world)
-        matrix (multiply-matrices v-matrix p-matrix)
-        inverse-matrix (get-inverse-matrix matrix)
+        matrix (matrix/multiply v-matrix p-matrix)
+        inverse-matrix (matrix/get-inverse matrix)
         p-2d-a (float-array [dx dy -1.0 1.0])
-        p-3d-a (vec (multiply-matrix-vector inverse-matrix p-2d-a))
+        p-3d-a (vec (matrix/multiply-vector inverse-matrix p-2d-a))
         p-3d-a (map (slots / _ (nth p-3d-a 3)) p-3d-a)
         p-3d-a (vec (butlast p-3d-a))
 
         p-2d-b (float-array [dx dy 0.0 1.0])
-        p-3d-b (vec (multiply-matrix-vector inverse-matrix p-2d-b))
+        p-3d-b (vec (matrix/multiply-vector inverse-matrix p-2d-b))
         p-3d-b (map (slots / _ (nth p-3d-b 3)) p-3d-b)
         p-3d-b (vec (butlast p-3d-b))]
-    [p-3d-a (vector-normalize (vector-subtract p-3d-b p-3d-a))]))
+    [p-3d-a (vector/normalize (vector/subtract p-3d-b p-3d-a))]))
 
 (defn distance-comparator [a b]
   (cond
@@ -36,13 +39,13 @@
 
 (defn get-mesh-triangles [mesh transform scale]
   (let [vertices (partition 3 (vec (:vertices mesh)))
-        matrix (multiply-matrices
-                (apply get-scale-matrix scale)
-                (get-transform-matrix transform))
+        matrix (matrix/multiply
+                 (apply matrix/get-scale scale)
+                 (get-transform-matrix transform))
         vertices (map (fn [[x y z]]
                         (let [vertex (float-array [x y z 1])]
-                          (butlast (vec (multiply-matrix-vector
-                                             matrix vertex)))))
+                          (butlast (vec (matrix/multiply-vector
+                                          matrix vertex)))))
                       vertices)]
     (partition 3 vertices)))
 
@@ -50,7 +53,7 @@
   (let [triangles (get-mesh-triangles mesh transform scale)
         measured-triangles (map (fn [i]
                                   {:d (line-triangle-distance
-                                       line (nth triangles i))
+                                        line (nth triangles i))
                                    :i i})
                                 (range (count triangles)))
         collision (first (sort-by :d distance-comparator measured-triangles))]
@@ -68,9 +71,9 @@
         mesh (get-collision-model world type)
         triangles (partition 3 (partition 3 (:vertices mesh)))
         [a b c] (nth triangles index)
-        v1 (vector-subtract b a)
-        v2 (vector-subtract c a)]
-    (vector-cross-product v1 v2)))
+        v1 (vector/subtract b a)
+        v2 (vector/subtract c a)]
+    (vector/cross-product v1 v2)))
 
 (defn get-spec-line [world spec]
   (or (:line spec)

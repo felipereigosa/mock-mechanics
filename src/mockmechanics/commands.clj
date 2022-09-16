@@ -1,4 +1,7 @@
 
+(ns mockmechanics.core
+  (:require [mockmechanics.library.keymap :refer [keymap shift-keymap]]))
+
 (declare print-camera-instruction!)
 
 (defn get-bindings []
@@ -94,12 +97,15 @@
 
    "A-l" #(change-mode % :layer)
 
-   "A-x p" #(change-mode % :physics)
+   "C-x p" #(change-mode % :physics)
    "A-p" #(change-mode % :property)
 
    "A-f" #(change-mode % :avatar)
 
    "A-s" #(change-mode % :simulation)
+   ":simulation o" #(assoc-in % [:camera-rotating] -1.5)
+   ":simulation u" #(assoc-in % [:camera-rotating] 1.5)
+   ":simulation i" #(assoc-in % [:camera-rotating] nil)
 
    "C-n" #(-> %
               (new-file)
@@ -138,11 +144,11 @@
   (if-let [fun (get bindings command)]
     fun
     (second (find-if (fn [[keys fun]]
-                      (let [mode (str mode)]
-                        (and (.startsWith keys mode)
-                             (.equals (subs keys (inc (count mode)))
-                                      command))))
-                    bindings))))
+                       (let [mode (str mode)]
+                         (and (.startsWith keys mode)
+                              (.equals (subs keys (inc (count mode)))
+                                       command))))
+                     bindings))))
 
 (defn execute-command [world]
   (if-let [fun (find-binding (:bindings world)
@@ -215,9 +221,9 @@
           (text-input-key-pressed world event)
 
           (and
-           (= (:mode world) :avatar)
-           (avatar-key? key)
-           (empty? (:command world)))
+            (= (:mode world) :avatar)
+            (avatar-key? key)
+            (empty? (:command world)))
           (avatar-key-pressed world key)
 
           (string? key)
@@ -240,8 +246,8 @@
       (= key-name :alt) (assoc-in world [:alt-pressed] false)
 
       (and
-       (= (:mode world) :avatar)
-       (avatar-key? key-name))
+        (= (:mode world) :avatar)
+        (avatar-key? key-name))
       (avatar-key-released world key-name)
 
       :else world)))

@@ -1,27 +1,29 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (defn get-block-plane [block normal]
   (let [transform (:transform block)
         rotation-transform (get-rotation-component transform)
         inverse-rotation (get-inverse-transform rotation-transform)
-        local-normal (vector-normalize (apply-transform inverse-rotation normal))
+        local-normal (vector/normalize (apply-transform inverse-rotation normal))
         [a1 a2] (->> [[1 0 0] [0 1 0] [0 0 1]]
                      (map (fn [v]
-                            [(abs (vector-dot-product v local-normal)) v]))
+                            [(abs (vector/dot-product v local-normal)) v]))
                      (sort-by first)
                      (take 2)
                      (map second)
                      (map #(apply-transform rotation-transform %)))
-        n2 (vector-cross-product a2 a1)
-        [a1 a2] (if (neg? (vector-dot-product normal n2))
+        n2 (vector/cross-product a2 a1)
+        [a1 a2] (if (neg? (vector/dot-product normal n2))
                   [a2 a1]
                   [a1 a2])
-        a (vector-add
-           (get-transform-position transform)
-           (apply-transform rotation-transform
-                            (map #(* %1 %2 0.5) local-normal
-                                 (:scale block))))
-        b (vector-add a a1)
-        c (vector-add a a2)]
+        a (vector/add
+            (get-transform-position transform)
+            (apply-transform rotation-transform
+                             (map #(* %1 %2 0.5) local-normal
+                                  (:scale block))))
+        b (vector/add a a1)
+        c (vector/add a a2)]
     [a b c]))
 
 (defn get-track-plane [track]
@@ -31,8 +33,8 @@
         z (apply-transform rotation-transform [0 0 1])
         origin (get-transform-position transform)]
     [origin
-     (vector-add origin x)
-     (vector-add origin z)]))
+     (vector/add origin x)
+     (vector/add origin z)]))
 
 (defn move-part-pressed [world part-name point]
   (let [part-position (get-part-position world part-name)
@@ -42,20 +44,20 @@
         vy (apply-rotation transform [0 1 0])
         vz (apply-rotation transform [0 0 1])
         point (or point
-                  (vector-subtract
-                   part-position
-                   (vector-multiply vy (get-part-offset part))))
+                  (vector/subtract
+                    part-position
+                    (vector/multiply vy (get-part-offset part))))
         parent-name (get-parent-part world part-name)
         parent (get-in world [:parts parent-name])
-        offset (vector-subtract part-position point)
+        offset (vector/subtract part-position point)
         original-plane (case (:type parent)
                          :ground [[0.25 0 0.25] [1.25 0 0.25] [0.25 0 1.25]]
                          :track (get-track-plane parent)
                          (get-block-plane parent vy))
-        y-offset (vector-multiply vy (point-plane-distance point original-plane))
-        plane (map #(vector-add % y-offset) original-plane)
-        xz-offset (vector-subtract offset (vector-project offset vy))
-        plane (map #(vector-subtract % xz-offset) plane)]
+        y-offset (vector/multiply vy (point-plane-distance point original-plane))
+        plane (map #(vector/add % y-offset) original-plane)
+        xz-offset (vector/subtract offset (vector/project offset vy))
+        plane (map #(vector/subtract % xz-offset) plane)]
     (-> world
         (assoc-in [:edited-part] part-name)
         (assoc-in [:plane] plane)
@@ -76,14 +78,14 @@
           point (if (not (:fake-click world))
                   (get-normalized-plane-point plane point grain-size)
                   point)
-          v (vector-subtract point (first plane))
-          point (vector-add point offset)
+          v (vector/subtract point (first plane))
+          point (vector/add point offset)
           [a b c] (:original-plane world)
-          v1 (vector-subtract b a)
-          v2 (vector-subtract c a)
-          v (vector-subtract point a)
-          ox (vector-scalar-projection v v1)
-          oy (vector-scalar-projection v v2)]
+          v1 (vector/subtract b a)
+          v2 (vector/subtract c a)
+          v (vector/subtract point a)
+          ox (vector/scalar-projection v v1)
+          oy (vector/scalar-projection v v2)]
       (user-message! "x = " (format "%.2f" ox)
                      ", y = " (format "%.2f" oy))
       (update-in world [:parts part-name]

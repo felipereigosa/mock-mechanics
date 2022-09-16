@@ -1,3 +1,6 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.matrix :as matrix]
+            [clojure.string :refer [join]]))
 
 (defn draw-animated-mesh! [world mesh transform]
   (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
@@ -5,14 +8,14 @@
         program-index (:index program)
         attributes (:attributes program)
         uniforms (:uniforms program)
-        model-matrix (multiply-matrices
-                      (apply get-scale-matrix (:scale mesh))
-                      (get-transform-matrix transform))
+        model-matrix (matrix/multiply
+                       (apply matrix/get-scale (:scale mesh))
+                       (get-transform-matrix transform))
         view-matrix (:view-matrix world)
         projection-matrix (:projection-matrix world)
-        mv-matrix (multiply-matrices model-matrix view-matrix)
-        mvp-matrix (multiply-matrices mv-matrix projection-matrix)
-        itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
+        mv-matrix (matrix/multiply model-matrix view-matrix)
+        mvp-matrix (matrix/multiply mv-matrix projection-matrix)
+        itmv-matrix (matrix/get-transpose (matrix/get-inverse mv-matrix))]
 
     (GL20/glUseProgram program-index)
     (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
@@ -43,13 +46,13 @@
     (GL20/glUniformMatrix4fv (:bone-matrices uniforms)
                              false
                              (get-float-buffer
-                              (nth (:bone-matrices mesh)
-                                   (round (:index mesh)))))
+                               (nth (:bone-matrices mesh)
+                                    (round (:index mesh)))))
 
     (GL20/glUniformMatrix4fv (:inverse-bind-pose-matrices uniforms)
                              false
                              (get-float-buffer
-                              (:inverse-bind-pose-matrices mesh)))
+                               (:inverse-bind-pose-matrices mesh)))
 
     (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)))
 
@@ -112,8 +115,8 @@
        :bone-matrices bone-matrices})))
 
 (defn create-animated-mesh-helper [vertices position rotation
-                       scale colors normals
-                       weights bone-indices]
+                                   scale colors normals
+                                   weights bone-indices]
   (let [scale (if (vector? scale)
                 scale
                 (vec (repeat 3 scale)))
@@ -136,7 +139,7 @@
      :program :animated}))
 
 (defn invert-matrix [m]
-  (vec (get-inverse-matrix (float-array m))))
+  (vec (matrix/get-inverse (float-array m))))
 
 (defn create-animated-mesh [filename position rotation scale]
   (with-open [reader (clojure.java.io/reader filename)]
@@ -178,7 +181,7 @@
           (assoc-in [:num-frames] (:num-frames animation))
           (assoc-in [:inverse-bind-pose-matrices]
                     (convert-matrices (comp invert-matrix blender->opengl)
-                     (:inverse-bind-pose-matrices animation)))
+                                      (:inverse-bind-pose-matrices animation)))
           (assoc-in [:bone-matrices]
                     (vec (map (partial convert-matrices blender->opengl)
                               (partition (:num-bones animation)

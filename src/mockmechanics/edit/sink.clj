@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (declare sink-mode-moved)
 
@@ -10,7 +12,7 @@
           world)
         (let [part (get-in world [:parts part-name])
               part-position (get-part-position world part-name)
-              offset (vector-subtract part-position point)
+              offset (vector/subtract part-position point)
               rotation-transform (get-rotation-component (:transform part))
               y-axis (apply-transform rotation-transform [0 1 0])]
           (-> world
@@ -30,7 +32,7 @@
                        (:control-pressed world) 0.01
                        :else 0.05)
           d (* grain-size (round (/ d grain-size)))
-          snapped-position (vector-add (line-get-point (:sink-line world) d)
+          snapped-position (vector/add (line-get-point (:sink-line world) d)
                                        (:offset world))
           part (get-in world [:parts part-name])
           parent-name (get-parent-part world part-name)
@@ -52,7 +54,7 @@
           other-gear-name (if (= part-name a) b a)
           gear (get-in world [:parts part-name])
           position (get-transform-position (:transform gear))
-          offset (vector-subtract position (:start-position world))]
+          offset (vector/subtract position (:start-position world))]
       (move-part world other-gear-name offset))
     world))
 

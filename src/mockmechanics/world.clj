@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.util :refer [dissoc-in]]))
 
 (def world (atom {}))
 
@@ -20,4 +22,3 @@
 (defn remove-thing! [path]
   (swap! world dissoc-in path)
   nil)
-

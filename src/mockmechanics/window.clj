@@ -1,42 +1,46 @@
-(import org.lwjgl.glfw.GLFW)
-(import org.lwjgl.system.MemoryUtil)
-(import org.lwjgl.opengl.GL)
-(import org.lwjgl.opengl.GL11)
-(import org.lwjgl.opengl.GL12)
-(import org.lwjgl.opengl.GL13)
-(import org.lwjgl.opengl.GL20)
-(import org.lwjgl.opengl.GL30)
-(import org.lwjgl.glfw.GLFWCursorPosCallback)
-(import org.lwjgl.glfw.GLFWMouseButtonCallback)
-(import org.lwjgl.glfw.GLFWKeyCallback)
-(import org.lwjgl.glfw.GLFWScrollCallback)
-(import org.lwjgl.glfw.GLFWWindowSizeCallback)
-(import org.lwjgl.glfw.GLFWWindowFocusCallback)
-(import org.lwjgl.glfw.GLFWWindowMaximizeCallback)
-(import java.awt.image.BufferedImage)
-(import javax.imageio.ImageIO)
-(import java.io.File)
-(import java.awt.Color)
-(import java.awt.geom.Ellipse2D$Double)
-(import java.awt.RenderingHints)
-(import java.awt.Font)
-(import java.awt.Polygon)
-(import java.awt.geom.AffineTransform)
-(import java.awt.AlphaComposite)
-(import com.bulletphysics.linearmath.Transform)
-(import java.net.ServerSocket)
-(import java.net.Socket)
-(import java.io.BufferedReader)
-(import java.io.InputStreamReader)
-(import java.nio.ByteBuffer)
-(import java.nio.ByteOrder)
-(import org.lwjgl.opengl.GL11)
-(import org.lwjgl.opengl.GL13)
-(import org.lwjgl.opengl.GL20)
-(import java.nio.FloatBuffer)
-(import java.nio.IntBuffer)
-(import java.nio.ByteBuffer)
-(import java.nio.ByteOrder)
+(ns mockmechanics.core
+  (:require [mockmechanics.library.util :refer :all]
+            [mockmechanics.library.matrix :as matrix]
+            [mockmechanics.library.vector :as vector])
+  (:import org.lwjgl.glfw.GLFW
+           org.lwjgl.system.MemoryUtil
+           org.lwjgl.opengl.GL
+           org.lwjgl.opengl.GL11
+           org.lwjgl.opengl.GL12
+           org.lwjgl.opengl.GL13
+           org.lwjgl.opengl.GL20
+           org.lwjgl.opengl.GL30
+           org.lwjgl.glfw.GLFWCursorPosCallback
+           org.lwjgl.glfw.GLFWMouseButtonCallback
+           org.lwjgl.glfw.GLFWKeyCallback
+           org.lwjgl.glfw.GLFWScrollCallback
+           org.lwjgl.glfw.GLFWWindowSizeCallback
+           org.lwjgl.glfw.GLFWWindowFocusCallback
+           org.lwjgl.glfw.GLFWWindowMaximizeCallback
+           java.awt.image.BufferedImage
+           javax.imageio.ImageIO
+           java.io.File
+           java.awt.Color
+           java.awt.geom.Ellipse2D$Double
+           java.awt.RenderingHints
+           java.awt.Font
+           java.awt.Polygon
+           java.awt.geom.AffineTransform
+           java.awt.AlphaComposite
+           com.bulletphysics.linearmath.Transform
+           java.net.ServerSocket
+           java.net.Socket
+           java.io.BufferedReader
+           java.io.InputStreamReader
+           java.nio.ByteBuffer
+           java.nio.ByteOrder
+           org.lwjgl.opengl.GL11
+           org.lwjgl.opengl.GL13
+           org.lwjgl.opengl.GL20
+           java.nio.FloatBuffer
+           java.nio.IntBuffer
+           java.nio.ByteBuffer
+           java.nio.ByteOrder))
 
 (declare draw-2d!)
 (declare draw-3d!)
@@ -55,14 +59,15 @@
 (defn mouse-scrolled [world event] world)
 (defn window-changed [world event] world)
 (defn window-focused [world focused] world)
+(defn keep-active? [world] false)
 
 (def window-width (atom 800))
 (def window-height (atom 600))
 (def time-since-update (atom 0))
 
 (defn recompute-viewport [world width height]
-  (let [projection-matrix (get-perspective-matrix
-                           10 (/ width height) 3 1000)
+  (let [projection-matrix (matrix/get-perspective
+                            10 (/ width height) 3 1000)
         world (-> world
                   (assoc-in [:projection-matrix] projection-matrix)
                   (assoc-in [:ortho-mesh] (create-ortho-mesh width height))
@@ -199,8 +204,8 @@
         dt (float (/ elapsed 1000))
         chip (get-in world [:parts chip-name])]
     (and
-     (not (empty? (:functions chip)))
-     (not (>= (:time chip) (+ (:final-time chip) dt))))))
+      (not (empty? (:functions chip)))
+      (not (>= (:time chip) (+ (:final-time chip) dt))))))
 
 (declare get-parts-with-type)
 
@@ -221,13 +226,10 @@
 
   (if (or (< @time-since-update 200)
           (< @avatar-active-time 10000)
-          (not (empty? (:spheres @world)))
-          ;; (:forces-active? @world)
-          (spheres-moving? @world)
-          (not (nil? (:mouse-force @world)))
-          )
+          (keep-active? @world))
     (let [current-time (get-current-time)
           elapsed (within (- current-time @last-time) 0 40)]
+
       (reset! last-time current-time)
       (GL11/glClear (bit-or GL11/GL_COLOR_BUFFER_BIT
                             GL11/GL_DEPTH_BUFFER_BIT))
@@ -242,12 +244,14 @@
 
       (swap! time-since-update #(+ elapsed %))
 
+      ;; (sleep 100)
+
       (when (and (in? (:mode @world) [:simulation :graph
-                                    :motherboard :property
-                                    :avatar])
-               (or
-                (any-chip-active? @world)
-                (> @motherboard-activation-count 0)))
+                                      :motherboard :property
+                                      :avatar])
+                 (or
+                   (any-chip-active? @world)
+                   (> @motherboard-activation-count 0)))
         (reset! time-since-update 0))
       )
     (sleep 5))
@@ -269,43 +273,43 @@
 (defn window-init! []
   (.start (new Thread (proxy [Runnable] []
                         (run []
-    (GLFW/glfwInit)
-    (GLFW/glfwWindowHint GLFW/GLFW_VISIBLE GLFW/GLFW_FALSE)
-    (GLFW/glfwWindowHint GLFW/GLFW_RESIZABLE GLFW/GLFW_TRUE)
-    (GLFW/glfwWindowHint GLFW/GLFW_SAMPLES 8)
-    (GLFW/glfwWindowHint GLFW/GLFW_MAXIMIZED GLFW/GLFW_FALSE)
+                          (GLFW/glfwInit)
+                          (GLFW/glfwWindowHint GLFW/GLFW_VISIBLE GLFW/GLFW_FALSE)
+                          (GLFW/glfwWindowHint GLFW/GLFW_RESIZABLE GLFW/GLFW_TRUE)
+                          (GLFW/glfwWindowHint GLFW/GLFW_SAMPLES 8)
+                          (GLFW/glfwWindowHint GLFW/GLFW_MAXIMIZED GLFW/GLFW_FALSE)
 
-    (let [width @window-width
-          height @window-height
-          window (GLFW/glfwCreateWindow width height "-"
-                                        MemoryUtil/NULL MemoryUtil/NULL)]
+                          (let [width @window-width
+                                height @window-height
+                                window (GLFW/glfwCreateWindow width height "-"
+                                                              MemoryUtil/NULL MemoryUtil/NULL)]
 
-      (reset! the-window window)
-      (create-key-handler! window)
-      (create-mouse-handler! window)
-      (create-mouse-motion-handler! window)
-      (create-mouse-scroll-handler! window)
-      (create-window-size-handler! window)
-      (create-window-focus-handler! window)
+                            (reset! the-window window)
+                            (create-key-handler! window)
+                            (create-mouse-handler! window)
+                            (create-mouse-motion-handler! window)
+                            (create-mouse-scroll-handler! window)
+                            (create-window-size-handler! window)
+                            (create-window-focus-handler! window)
 
-      (GLFW/glfwMakeContextCurrent window)
-      (GLFW/glfwSwapInterval 1)
-      (GLFW/glfwShowWindow window)
+                            (GLFW/glfwMakeContextCurrent window)
+                            (GLFW/glfwSwapInterval 1)
+                            (GLFW/glfwShowWindow window)
 
-      (GL/createCapabilities)
+                            (GL/createCapabilities)
 
-      (GL11/glViewport 0 0 width height)
-      (GL11/glClearColor 0.0 0.0 0.0 0.0)
+                            (GL11/glViewport 0 0 width height)
+                            (GL11/glClearColor 0.0 0.0 0.0 0.0)
 
-      (GL11/glEnable GL11/GL_BLEND)
-      (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
+                            (GL11/glEnable GL11/GL_BLEND)
+                            (GL11/glBlendFunc GL11/GL_SRC_ALPHA GL11/GL_ONE_MINUS_SRC_ALPHA)
 
-      (GL11/glEnable GL11/GL_DEPTH_TEST)
+                            (GL11/glEnable GL11/GL_DEPTH_TEST)
 
-      (loop! window)
+                            (loop! window)
 
-      (GLFW/glfwDestroyWindow window)
-      (GLFW/glfwTerminate)))))))
+                            (GLFW/glfwDestroyWindow window)
+                            (GLFW/glfwTerminate)))))))
 
 (defn set-title! [text]
   (GLFW/glfwSetWindowTitle @the-window text))
@@ -460,13 +464,10 @@
 
 (defn draw-pixel [image color x y]
   (when (and
-         (<= 0 x (dec (get-image-width image)))
-         (<= 0 y (dec (get-image-height image))))
+          (<= 0 x (dec (get-image-width image)))
+          (<= 0 y (dec (get-image-height image))))
     (.setRGB image (int x) (int y) (.getRGB (get-color color))))
   image)
-
-(defn get-pixel [image x y]
-  (new Color (.getRGB image x y)))
 
 (defn fill-rect [image color x y w h]
   (let [g (get-image-graphics image)
@@ -521,11 +522,11 @@
                        w h)
           angle (to-radians (:angle rect))
           ellipse (.createTransformedShape
-                   (AffineTransform/getRotateInstance angle)
-                   ellipse)
+                    (AffineTransform/getRotateInstance angle)
+                    ellipse)
           ellipse (.createTransformedShape
-                   (AffineTransform/getTranslateInstance (:x rect) (:y rect))
-                   ellipse)]
+                    (AffineTransform/getTranslateInstance (:x rect) (:y rect))
+                    ellipse)]
       (.draw g ellipse)
       (fill-circle image color (:x rect) (:y rect) 2))))
 
@@ -577,7 +578,7 @@
     (GL13/glActiveTexture GL13/GL_TEXTURE0)
     (GL11/glBindTexture GL11/GL_TEXTURE_2D id)
     (GL11/glTexSubImage2D GL11/GL_TEXTURE_2D 0 0 0 width height
-                       GL11/GL_RGBA GL11/GL_UNSIGNED_BYTE buffer)
+                          GL11/GL_RGBA GL11/GL_UNSIGNED_BYTE buffer)
     mesh))
 
 (defn set-texture [mesh]
@@ -608,11 +609,11 @@
   ([]
    (let [mesh (get-in @world [:ortho-mesh])]
      (clear (:image mesh))
-    (gl-thread (reset-texture mesh))))
+     (gl-thread (reset-texture mesh))))
   ([color]
    (let [mesh (get-in @world [:ortho-mesh])]
      (clear (:image mesh) color)
-    (gl-thread (reset-texture mesh)))))
+     (gl-thread (reset-texture mesh)))))
 
 (defn draw-pixel! [color x y]
   (let [mesh (get-in @world [:ortho-mesh])]
@@ -725,9 +726,9 @@
 
 (defn reset-world! []
   (gl-thread
-   (try
-     (reset! world (create-world))
-     (catch Exception e))))
+    (try
+      (reset! world (create-world))
+      (catch Exception e))))
 
 (defn set-mesh-position [mesh position]
   (let [transform (:transform mesh)
@@ -748,20 +749,20 @@
 
 (defn compute-normals [vertices]
   (flatten (map (fn [[a b c]]
-                  (let [v1 (vector-subtract b a)
-                        v2 (vector-subtract c a)
-                        v3 (vector-cross-product v1 v2)
-                        nv3 (vector-normalize v3)]
+                  (let [v1 (vector/subtract b a)
+                        v2 (vector/subtract c a)
+                        v3 (vector/cross-product v1 v2)
+                        nv3 (vector/normalize v3)]
                     (list nv3 nv3 nv3)))
                 (partition 3 (partition 3 vertices)))))
 
 (defn quaternion-from-normal [normal]
-  (let [normal (vector-normalize normal)]
+  (let [normal (vector/normalize normal)]
     (cond
-      (vector= normal [0 1 0]) [0 1 0 0]
-      (vector= normal [0 -1 0]) [1 0 0 180]
-      :else (let [axis (vector-cross-product [0 1 0] normal)
-                  angle (vector-angle normal [0 1 0])]
+      (vector/equal? normal [0 1 0]) [0 1 0 0]
+      (vector/equal? normal [0 -1 0]) [1 0 0 180]
+      :else (let [axis (vector/cross-product [0 1 0] normal)
+                  angle (vector/angle normal [0 1 0])]
               (conj axis angle)))))
 
 (defn get-cube-vertices []
@@ -812,14 +813,14 @@
         program-index (:index program)
         attributes (:attributes program)
         uniforms (:uniforms program)
-        model-matrix (multiply-matrices
-                      (apply get-scale-matrix (:scale mesh))
-                      (get-transform-matrix transform))
+        model-matrix (matrix/multiply
+                       (apply matrix/get-scale (:scale mesh))
+                       (get-transform-matrix transform))
         view-matrix (:view-matrix world)
         projection-matrix (:projection-matrix world)
-        mv-matrix (multiply-matrices model-matrix view-matrix)
-        mvp-matrix (multiply-matrices mv-matrix projection-matrix)
-        itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
+        mv-matrix (matrix/multiply model-matrix view-matrix)
+        mvp-matrix (matrix/multiply mv-matrix projection-matrix)
+        itmv-matrix (matrix/get-transpose (matrix/get-inverse mv-matrix))]
 
     (GL20/glUseProgram program-index)
     (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
@@ -855,14 +856,14 @@
         program-index (:index program)
         attributes (:attributes program)
         uniforms (:uniforms program)
-        model-matrix (multiply-matrices
-                      (apply get-scale-matrix (:scale mesh))
-                      (get-transform-matrix transform))
+        model-matrix (matrix/multiply
+                       (apply matrix/get-scale (:scale mesh))
+                       (get-transform-matrix transform))
         view-matrix (:view-matrix world)
         projection-matrix (:projection-matrix world)
-        mv-matrix (multiply-matrices model-matrix view-matrix)
-        mvp-matrix (multiply-matrices mv-matrix projection-matrix)
-        itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
+        mv-matrix (matrix/multiply model-matrix view-matrix)
+        mvp-matrix (matrix/multiply mv-matrix projection-matrix)
+        itmv-matrix (matrix/get-transpose (matrix/get-inverse mv-matrix))]
 
     (GL20/glUseProgram program-index)
     (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
@@ -885,19 +886,19 @@
     (GL11/glDrawArrays GL11/GL_TRIANGLES 0 num-vertices)))
 
 (defn draw-textured-mesh! [world mesh transform]
-    (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
+  (let [num-vertices (/ (.capacity (:vertices-buffer mesh)) 3)
         program (get-in world [:programs (:program mesh)])
         program-index (:index program)
         attributes (:attributes program)
         uniforms (:uniforms program)
-        model-matrix (multiply-matrices
-                      (apply get-scale-matrix (:scale mesh))
-                      (get-transform-matrix transform))
+        model-matrix (matrix/multiply
+                       (apply matrix/get-scale (:scale mesh))
+                       (get-transform-matrix transform))
         view-matrix (:view-matrix world)
         projection-matrix (:projection-matrix world)
-        mv-matrix (multiply-matrices model-matrix view-matrix)
-        mvp-matrix (multiply-matrices mv-matrix projection-matrix)
-        itmv-matrix (get-transpose-matrix (get-inverse-matrix mv-matrix))]
+        mv-matrix (matrix/multiply model-matrix view-matrix)
+        mvp-matrix (matrix/multiply mv-matrix projection-matrix)
+        itmv-matrix (matrix/get-transpose (matrix/get-inverse mv-matrix))]
 
     (GL20/glUseProgram program-index)
     (GL20/glUniformMatrix4fv (:itmv-matrix uniforms) false
@@ -995,14 +996,14 @@
   (let [lines (read-lines filename)
         lines (filter (fn [line]
                         (or (.startsWith line "newmtl")
-                          (.startsWith line "Kd")
-                          (.startsWith line "map_Kd")))
-                lines)
+                            (.startsWith line "Kd")
+                            (.startsWith line "map_Kd")))
+                      lines)
         directory (subs filename 0 (.lastIndexOf filename "/"))
         materials (create-groups #(.startsWith % "newmtl") lines)]
     (apply merge (cons {"white" {:diffuse [1 1 1]
                                  :texture nil}}
-                   (map #(parse-material directory %) materials)))))
+                       (map #(parse-material directory %) materials)))))
 
 (defn parse-line-with-slashes [line]
   (map (fn [item]
@@ -1022,9 +1023,9 @@
     (apply concat
            (map (fn [group]
                   (let [n (* 3 (count
-                                (filter #(.startsWith % "f ") group)))
+                                 (filter #(.startsWith % "f ") group)))
                         color (conj (vec (:diffuse
-                              (get materials (subs (first group) 7)))) 1)]
+                                          (get materials (subs (first group) 7)))) 1)]
                     (repeat n color)))
                 groups))))
 
@@ -1069,13 +1070,13 @@
         program-index (:index program)
         attributes (:attributes program)
         uniforms (:uniforms program)
-        model-matrix (multiply-matrices
-                      (apply get-scale-matrix (:scale mesh))
-                      (get-transform-matrix transform))
+        model-matrix (matrix/multiply
+                       (apply matrix/get-scale (:scale mesh))
+                       (get-transform-matrix transform))
         view-matrix (:view-matrix world)
         projection-matrix (:projection-matrix world)
-        mv-matrix (multiply-matrices model-matrix view-matrix)
-        mvp-matrix (multiply-matrices mv-matrix projection-matrix)]
+        mv-matrix (matrix/multiply model-matrix view-matrix)
+        mvp-matrix (matrix/multiply mv-matrix projection-matrix)]
     (GL20/glUseProgram program-index)
     (GL20/glUniformMatrix4fv (:mvp-matrix uniforms) false
                              (get-float-buffer mvp-matrix))
@@ -1193,7 +1194,7 @@
 (defn create-ortho-mesh [width height]
   (let [image (new-image width height)
         vertices [-1 -1  0   1 -1  0   -1  1  0
-                   1 -1  0   1  1  0   -1  1  0]
+                  1 -1  0   1  1  0   -1  1  0]
         texture-coordinates [0 1   1 1   0 0
                              1 1   1 0   0 0]
         texture-id (GL11/glGenTextures)

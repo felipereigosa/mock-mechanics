@@ -1,5 +1,7 @@
-
-(require '[clojure.java.shell :refer [sh]])
+(ns mockmechanics.core
+  (:require [mockmechanics.library.util :refer :all]
+            [mockmechanics.library.vector :as vector]
+            [clojure.java.shell :refer [sh]]))
 
 (declare get-element-value)
 
@@ -26,8 +28,11 @@
   (filter #(= (get-pin-direction motherboard %) type)
           (keys (:pins motherboard))))
 
-(defn get-input-pin-value [world motherboard pin-name]
-  (get-in world [:parts pin-name :value]))
+(defn get-input-pin-value [world pin-name]
+  (let [part (get-in world [:parts pin-name])]
+    (if (= (:type part) :wagon)
+      (* (:value part) (reduce + (:track-lengths part)))
+      (:value part))))
 
 (defn get-output-pin-value [world motherboard pin-name]
   (let [inputs (get-input-names world motherboard pin-name)]
@@ -40,7 +45,7 @@
         direction (get-pin-direction motherboard pin-name)]
     (if (= direction :output)
       (get-output-pin-value world motherboard pin-name)
-      (get-input-pin-value world motherboard pin-name))))
+      (get-input-pin-value world pin-name))))
 
 (defn get-and-value [world motherboard gate-name]
   (let [inputs (get-input-names world motherboard gate-name)
@@ -107,6 +112,12 @@
                         scaled-value (/ value (reduce + (:track-lengths wagon)))]
                     (assoc-in w [:parts part-name :value] scaled-value))
 
+                  :track
+                  (-> w
+                      (assoc-in [:parts part-name :value]
+                                (get-element-value w motherboard part-name))
+                      (update-in [:driven-parts] #(vec (distinct (conj % part-name)))))
+
                   (assoc-in w [:parts part-name :value]
                             (get-element-value w motherboard part-name)))))
             world
@@ -118,6 +129,21 @@
                                       nil
                                       {a b}))
                                   names values)))))
+
+(declare get-pixel-coordinates)
+
+(defn get-color-at [world spec]
+  (let [collision (get-part-collision world spec)
+        part-name (:part-name collision)
+        part (get-in world [:parts part-name])
+        color (if (= (:type part) :display)
+                (let [image (get-in part [:texture :image])
+                      [px py] (get-pixel-coordinates world spec)
+                      c (get-color-vector (get-pixel image (+ 10 (* 20 px)) (+ 10 (* 20 py))))
+                      [r g b _] (map #(int (* 255 %)) c)]
+                  (new Color r g b))
+                (:color part))]
+    (get-reverse-color color)))
 
 (defn process-code [code pins]
   (let [names (nth code 1)
@@ -135,7 +161,8 @@
                                     value (if (= (:type part) :wagon)
                                             (/ value (reduce + (:track-lengths part)))
                                             value)]
-                                (set-thing! [:parts name :value] value)))
+                                (set-thing! [:parts name :value] value)
+                                (sleep 50)))
 
                   chip-active? #(chip-active? @world %)
 
@@ -148,7 +175,7 @@
                   get-children #(keys (get-thing! [:parts % :children]))
 
                   get-part-position #(get-part-position
-                                      (compute-transforms @world :parts) %)
+                                       (compute-transforms @world :parts) %)
 
                   get-color #(get-thing! [:parts % :color])
 
@@ -187,73 +214,6 @@
                         (float= a b)
                         (= a b)))
 
-                  probe->line (fn [probe-name]
-                                (let [world @world
-                                      transform (use-root-relative-transform world probe-name)
-                                      point (get-transform-position transform)
-                                      direction (vector-normalize (apply-transform (get-rotation-component transform) [0 1 0]))
-                                      offset (vector-multiply direction 0.051)]
-                                  [(vector-add point offset) direction]))
-
-                  make-spec (fn [probe-name]
-                              {:x 100000
-                               :y 100000
-                               :line (probe->line probe-name)})
-
-                  mode-click! (fn [mode pointer keys]
-                                (let [spec (if (keyword? pointer)
-                                             (make-spec pointer)
-                                             {:x 100000
-                                              :y 100000
-                                              :line pointer})
-                                      press-function (get-function mode :pressed)
-                                      move-function (get-function mode :moved)
-                                      release-function (get-function mode :released)
-                                      s (in? :shift keys)
-                                      c (in? :control keys)
-                                      w (-> @world
-                                            (assoc-in [:fake-click] true)
-                                            (compute-transforms :parts)
-                                            (assoc-in [:shift-pressed] s)
-                                            (assoc-in [:control-pressed] c)
-                                            (press-function spec)
-                                            (move-function spec)
-                                            (release-function spec)
-                                            (assoc-in [:shift-pressed] false)
-                                            (assoc-in [:control-pressed] false)
-                                            (assoc-in [:fake-click] false))]
-                                  (reset! world w)))
-
-                  get-transform (fn [part-name]
-                                  (get-thing! [:parts part-name :transform]))
-
-                  set-transform (fn [part-name transform]
-                                  (let [parent-name (get-parent-part @world part-name)]
-                                    (swap! world
-                                           #(-> %
-                                                (assoc-in [:parts part-name :transform] transform)
-                                                (create-relative-transform part-name parent-name)
-                                                (tree-changed)))))
-
-                  get-part-helper (fn [pointer max-distance]
-                                    (let [spec (if (keyword? pointer)
-                                                 (make-spec pointer)
-                                                 {:x 100000
-                                                  :y 100000
-                                                  :line pointer})
-                                          world (compute-transforms @world :parts)
-                                          collision (get-part-collision world spec)]
-                                      (if (and (not (nil? collision))
-                                               (< (:distance collision) max-distance))
-                                        (:part-name collision)
-                                        nil)))
-
-                  get-part (fn
-                             ([pointer max-distance]
-                              (get-part-helper pointer max-distance))
-                             ([pointer]
-                              (get-part-helper pointer 10000)))
-
                   clear-display (fn [display-name color]
                                   (let [display (get-thing! [:parts display-name])
                                         mesh (:texture display)]
@@ -272,60 +232,11 @@
                                      (dotimes [xo (count (first pattern))]
                                        (if (= (get-in pattern [yo xo]) 1)
                                          (set-pixel display-name (+ x xo) (+ y yo) color))))))
-
-                  get-pointed-color (fn [pointer]
-                                      (get-color-at @world (make-spec pointer)))
-
-                  get-attribute (fn [part-name attribute]
-                                  (get-thing! [:parts part-name attribute]))
-
-                  jump (fn [parameters]
-                         (gl-thread
-                           (swap! world
-                             (fn [w]
-                               (let [mode (:mode w)
-                                     default-parameters {:block :ground
-                                                         :relative-position [0 0.1 0]
-                                                         :relative-direction [0 0 -1]
-                                                         :cameraman-position [-20 0 20]
-                                                         :x-angle 25
-                                                         :y-angle 35
-                                                         :pivot [0 0 0]}
-                                     {:keys [address
-                                             block relative-position relative-direction cameraman-position
-                                             x-angle y-angle pivot]} (merge default-parameters parameters)
-                                     w (open-machine w address)
-                                     ]
-                                 (if (= mode :avatar)
-                                   (-> w
-                                     (change-mode :avatar)
-                                     (dissoc-in [:avatar :force])
-                                     (dissoc-in [:pressed-part])
-                                     (assoc-in [:avatar :block] block)
-                                     (assoc-in [:avatar :relative-position] relative-position)
-                                     (assoc-in [:avatar :relative-direction] relative-direction)
-                                     (assoc-in [:avatar :cameraman :position] cameraman-position))
-                                   (-> w
-                                     (assoc-in [:camera :x-angle] x-angle)
-                                     (assoc-in [:camera :y-angle] y-angle)
-                                     (assoc-in [:camera :pivot] pivot)
-                                     (compute-camera))))))))
-
-                  find-parts (fn [type position d scale]
-                               (let [scale (if (vector? scale)
-                                             scale
-                                             (vec (repeat 3 scale)))]
-                                 (map first
-                                      (filter (fn [[part-name part]]
-                                                (let [part-position (get-transform-position
-                                                                     (:transform part))]
-                                                  (and
-                                                   (= (:type part) type)
-                                                   (< (distance position part-position) d)
-                                                   (vector= scale (:scale part)))))
-                                              (:parts @world)))))]]
+                  ]]
     `(do
        (require '[mockmechanics.core :refer :all])
+       (require '[mockmechanics.library.util :refer :all])
+
        (let [~@bindings
              ~@helpers]
          ~@body))))
@@ -344,8 +255,8 @@
 
 (defn show-message [world message]
   (let [world (assoc-in world [:hint]
-                {:text message
-                 :time (get-current-time)})]
+                        {:text message
+                         :time (get-current-time)})]
     (do-later redraw! 1000)
     (redraw world)))
 
@@ -357,10 +268,10 @@
     (spit filename (:script motherboard))
     (.start
       (new Thread
-        (proxy [Runnable] []
-          (run []
-            (sh "emacs" "-rv" filename)
-            ))))
+           (proxy [Runnable] []
+             (run []
+               (sh "emacs" "-rv" filename)
+               ))))
     (show-message world "Opening editor...")))
 
 (defn update-scripts [world]
@@ -372,8 +283,8 @@
                             (slurp filename))
                   w))
               w))
-    world
-    (get-parts-with-type (:parts world) :motherboard)))
+          world
+          (get-parts-with-type (:parts world) :motherboard)))
 
 (defn run-script [world motherboard-name pin-name]
   (try
@@ -383,11 +294,11 @@
           code (process-code text sorted-pins)]
       (.start
         (new Thread
-          (proxy [Runnable] []
-            (run []
-              (swap! motherboard-activation-count inc)
-              ((eval code) pin-name)
-              (swap! motherboard-activation-count dec))))))
+             (proxy [Runnable] []
+               (run []
+                 (swap! motherboard-activation-count inc)
+                 ((eval code) pin-name)
+                 (swap! motherboard-activation-count dec))))))
     (catch Exception e
       (user-message! e)
       (user-message! "script failed")))
@@ -461,10 +372,10 @@
                                         (abs (- y2 y1)))
                                    9
                                    4))
-                      [ax ay] (-> (vector-subtract [x2 y2] [x1 y1])
-                                  (vector-normalize)
-                                  (vector-multiply distance)
-                                  (vector-add [x1 y1]))]
+                      [ax ay] (-> (vector/subtract [x2 y2] [x1 y1])
+                                  (vector/normalize)
+                                  (vector/multiply distance)
+                                  (vector/add [x1 y1]))]
                   (fill-circle buffer :yellow ax ay 5)))
               (draw-line buffer :yellow x1 y1 x2 y2)))
           (doseq [i (range 1 (count points))]
@@ -488,12 +399,12 @@
       (let [buffer (:buffer motherboard-box)
             x (:x gate)
             y (:y gate)]
-      (fill-circle buffer :gray x y 15)
-      (let [text (case (:type gate)
-                   :and "A"
-                   :or "O"
-                   :not "N")]
-        (draw-text buffer :black text (- x 8) (+ y 7) 20))))))
+        (fill-circle buffer :gray x y 15)
+        (let [text (case (:type gate)
+                     :and "A"
+                     :or "O"
+                     :not "N")]
+          (draw-text buffer :black text (- x 8) (+ y 7) 20))))))
 
 (defn draw-tab-switcher [motherboard motherboard-box]
   (let [tab-x 659
@@ -597,15 +508,15 @@
 (defn get-pin-at [motherboard motherboard-box x y]
   (first (find-if (fn [[name pin]]
                     (let [point (motherboard->world-coords motherboard-box (:x pin) 12)]
-                      (< (distance [x y] point) 10)))
+                      (< (vector/distance [x y] point) 10)))
                   (:pins motherboard))))
 
 (defn get-gate-at [motherboard motherboard-box x y]
   (first (find-if (fn [[name gate]]
                     (let [point (motherboard->world-coords
-                                 motherboard-box (:x gate) (:y gate))]
+                                  motherboard-box (:x gate) (:y gate))]
                       (and (= (:tab gate) (:tab motherboard))
-                           (< (distance [x y] point) 15))))
+                           (< (vector/distance [x y] point) 15))))
                   (:gates motherboard))))
 
 (defn get-joint-at [motherboard motherboard-box x y]
@@ -620,7 +531,7 @@
     (find-if (fn [[connection index point]]
                (let [tab (get-in motherboard [:connections connection :tab])]
                  (and (= tab (:tab motherboard))
-                      (< (distance point [x y]) 10))))
+                      (< (vector/distance point [x y]) 10))))
              named-joints)))
 
 (defn get-connection-at [motherboard motherboard-box x y]
@@ -654,8 +565,8 @@
                  (let [x (* i 40)]
                    (if (and (< x 600)
                             (some #(< (abs (- x %)) 21) x-values))
-                   (recur (inc i))
-                   x)))]
+                     (recur (inc i))
+                     x)))]
     (helper 1)))
 
 (defn motherboard-change-part [world event]
@@ -683,8 +594,8 @@
   (let [motherboard-box (:motherboard-box world)
         selected-motherboard (:selected-motherboard world)]
     (if-let [moving-element (get-element-at
-                             (get-in world [:parts selected-motherboard])
-                             motherboard-box x y)]
+                              (get-in world [:parts selected-motherboard])
+                              motherboard-box x y)]
       (assoc-in world [:moving-element] moving-element)
       world)))
 
@@ -697,7 +608,7 @@
           world (case (first moving-element)
                   :pin (let [pin-name (second moving-element)]
                          (assoc-in world [:parts motherboard-name :pins
-                                           pin-name :x] x))
+                                          pin-name :x] x))
                   :gate (let [gate-name (second moving-element)]
                           (-> world
                               (assoc-in [:parts motherboard-name
@@ -735,8 +646,8 @@
                (dissoc-in [:pins name])
                (prune-connections))
       :gate (-> motherboard
-               (dissoc-in [:gates name])
-               (prune-connections))
+                (dissoc-in [:gates name])
+                (prune-connections))
       :joint (dissoc-in motherboard [:connections name])
       :connection (dissoc-in motherboard [:connections name])
       motherboard)))
@@ -803,14 +714,14 @@
     (cond
       (inside-box? button x y)
       (-> world
-        (update-in [:show-submenu] not)
-        (place-elements))
+          (update-in [:show-submenu] not)
+          (place-elements))
 
       (inside-box? motherboard-box x y)
       (let [selected-motherboard (:selected-motherboard world)]
         (if (> cx 646)
           (assoc-in world [:parts selected-motherboard :tab]
-            (within (int (/ (- cy 17) 25)) 0 4))
+                    (within (int (/ (- cy 17) 25)) 0 4))
 
           (let [motherboard-name (:selected-motherboard world)
                 motherboard (get-in world [:parts motherboard-name])]
@@ -820,25 +731,25 @@
                       (open-editor world)
                       (motherboard-move-pressed world event))
               :and (-> world
-                     (update-in [:parts motherboard-name] #(add-gate % motherboard-box :and event))
-                     (assoc-in [:motherboard-subcommand] :move))
+                       (update-in [:parts motherboard-name] #(add-gate % motherboard-box :and event))
+                       (assoc-in [:motherboard-subcommand] :move))
               :or (-> world
-                    (update-in [:parts motherboard-name] #(add-gate % motherboard-box :or event))
-                    (assoc-in [:motherboard-subcommand] :move))
+                      (update-in [:parts motherboard-name] #(add-gate % motherboard-box :or event))
+                      (assoc-in [:motherboard-subcommand] :move))
               :not (-> world
-                     (update-in [:parts motherboard-name] #(add-gate % motherboard-box :not event))
-                     (assoc-in [:motherboard-subcommand] :move))
+                       (update-in [:parts motherboard-name] #(add-gate % motherboard-box :not event))
+                       (assoc-in [:motherboard-subcommand] :move))
               :delete (-> world
-                        (update-in [:parts motherboard-name] #(delete-element % motherboard-box event))
-                        (assoc-in [:motherboard-subcommand] :move))
+                          (update-in [:parts motherboard-name] #(delete-element % motherboard-box event))
+                          (assoc-in [:motherboard-subcommand] :move))
               :connect (motherboard-connect-pressed world event)
               :toggle (-> world
-                        (update-in [:parts motherboard-name] #(toggle-trigger-pin % motherboard-box event))
-                        (assoc-in [:motherboard-subcommand] :move))
+                          (update-in [:parts motherboard-name] #(toggle-trigger-pin % motherboard-box event))
+                          (assoc-in [:motherboard-subcommand] :move))
 
               :run (-> world
-                     (run-chip-at event)
-                     (assoc-in [:motherboard-subcommand] :move))
+                       (run-chip-at event)
+                       (assoc-in [:motherboard-subcommand] :move))
               world))))
 
       (inside-box? menu x y)

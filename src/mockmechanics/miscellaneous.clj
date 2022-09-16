@@ -1,3 +1,6 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]
+            [clojure.java.io :as io]))
 
 (declare get-parts-with-type)
 (declare get-tail-transform)
@@ -7,8 +10,6 @@
 (declare redo!)
 (declare show-hint)
 (declare change-mode)
-
-(require '[clojure.java.io :as io])
 
 (defn get-function-value [function t interpolator]
   (let [final-time (first (last function))]
@@ -42,7 +43,7 @@
           (compute-camera))
       (-> world
           (assoc-in [:camera :pivot]
-                    (vector-interpolate start end (sigmoid t)))
+                    (vector/interpolate start end (sigmoid t)))
           (compute-camera)))))
 
 (defn create-pivot-animation [world event]
@@ -64,7 +65,7 @@
         pivot (get-in world [:camera :pivot])]
     {:start pivot
      :end pos
-     :time (max 0.8 (* 0.1 (distance pivot pos)))
+     :time (max 0.8 (* 0.1 (vector/distance pivot pos)))
      :t 0
      :fn pivot-animation}))
 
@@ -79,7 +80,7 @@
 
 (defn delete-temp-files! []
   (let [files (filter #(.isFile %)
-                (file-seq (io/file "temp")))]
+                      (file-seq (io/file "temp")))]
     (doseq [file files]
       (io/delete-file file))))
 
@@ -145,15 +146,15 @@
         )))
 
 (defn point-between-points? [p p1 p2 d]
-  (if (vector= p1 p2)
-    (vector= p p1)
-    (let [v (vector-subtract p2 p1)
-          line [p1 (vector-normalize v)]
-          l (vector-length v)]
+  (if (vector/equal? p1 p2)
+    (vector/equal? p p1)
+    (let [v (vector/subtract p2 p1)
+          line [p1 (vector/normalize v)]
+          l (vector/length v)]
       (and
-       (< (point-line-distance p line) d)
-       (< (distance p p1) l)
-       (< (distance p p2) l)))))
+        (< (point-line-distance p line) d)
+        (< (vector/distance p p1) l)
+        (< (vector/distance p p2) l)))))
 
 (defn run-animation [world elapsed]
   (if-let [animation (:animation world)]
@@ -175,9 +176,9 @@
   (read-input world (fn [w text]
                       (let [atoms (split text #" ")
                             function (->> (first atoms)
-                                       (str "mockmechanics.core/")
-                                       (symbol)
-                                       (resolve))]
+                                          (str "mockmechanics.core/")
+                                          (symbol)
+                                          (resolve))]
                         (try
                           (apply function w (rest atoms))
                           (catch Exception e

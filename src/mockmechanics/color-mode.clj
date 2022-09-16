@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (defn get-display-plane [display]
   (let [rotation (:transform display)]
@@ -16,10 +18,10 @@
         display (get-in world [:parts display-name])
         plane (get-display-plane display)
         [a b c] plane
-        v1 (vector-subtract b a)
-        v2 (vector-subtract c a)
+        v1 (vector/subtract b a)
+        v2 (vector/subtract c a)
         point (line-plane-intersection line plane)
-        vp (vector-subtract point a)
+        vp (vector/subtract point a)
         [x y] (get-affine-coordinates v1 v2 vp)
         [sx _ sz] (:scale display)
         px (int (/ (+ x (* sx 0.5)) 0.05))
@@ -74,7 +76,7 @@
         (draw-rect! color x y (- w i) (- h i 1))))))
 
 (defn color-mode-released [world event]
-  (let [x (:x event)                    
+  (let [x (:x event)
         y (:y event)]
     (if-let [color-name (get-region-at (:color-palette world) x y)]
       (assoc-in world [:current-color] color-name)

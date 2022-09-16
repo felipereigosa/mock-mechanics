@@ -1,8 +1,8 @@
-(import java.awt.Color)
-(import java.io.File)
-
-(require '[clojure.set :refer [difference union map-invert]])
-(require '[clojure.string :refer [split join]])
+(ns mockmechanics.library.util
+  (:require [clojure.set :refer [difference union map-invert]]
+            [clojure.string :refer [split join]])
+  (:import java.awt.Color
+           java.io.File))
 
 (def pi Math/PI)
 (def e Math/E)
@@ -123,9 +123,9 @@
   (let [a (get-color a)
         b (get-color b)]
     (and
-     (= (get-red a) (get-red b))
-     (= (get-green a) (get-green b))
-     (= (get-blue a) (get-blue b)))))
+      (= (get-red a) (get-red b))
+      (= (get-green a) (get-green b))
+      (= (get-blue a) (get-blue b)))))
 
 (defn near-zero? [value]
   (< (abs value) 0.001))
@@ -189,9 +189,9 @@
 
 (defn float= [a b]
   (and
-   (number? a)
-   (number? b)
-   (< (abs (- a b)) 0.0001)))
+    (number? a)
+    (number? b)
+    (< (abs (- a b)) 0.0001)))
 
 (def not-nil? (comp not nil?))
 
@@ -242,8 +242,8 @@
   (if (number? step)
     (* (round (/ value step)) step)
     (first
-     (first
-      (sort-by second (map #(list % (abs (- % value))) step))))))
+      (first
+        (sort-by second (map #(list % (abs (- % value))) step))))))
 
 (defn snap-point [[x y]]
   [(snap-value x 10)
@@ -276,7 +276,7 @@
 
 (defn create-groups [header? lines]
   (create-groups-helper
-   [] header? (drop-while (comp not header?) lines)))
+    [] header? (drop-while (comp not header?) lines)))
 
 (defn dissoc-in [map keys]
   (if (= (count keys) 1)
@@ -292,13 +292,13 @@
 
 (defn do-later [func time]
   (.start
-   (new Thread
-        (proxy [Runnable] []
-          (run []
-            (try
-              (sleep time)
-              (func)
-              (catch Exception e)))))))
+    (new Thread
+         (proxy [Runnable] []
+           (run []
+             (try
+               (sleep time)
+               (func)
+               (catch Exception e)))))))
 
 (defn snap-axis [v]
   (let [m (apply max (map abs v))]
@@ -315,22 +315,8 @@
 (defn get-reverse-color [color]
   (first (find-if #(color= color (second %)) colors)))
 
-(declare get-part-collision)
-(declare get-pixel-coordinates)
-(declare get-pixel)
-
-(defn get-color-at [world spec]
-  (let [collision (get-part-collision world spec)
-        part-name (:part-name collision)
-        part (get-in world [:parts part-name])
-        color (if (= (:type part) :display)
-                (let [image (get-in part [:texture :image])
-                      [px py] (get-pixel-coordinates world spec)
-                      c (get-color-vector (get-pixel image (+ 10 (* 20 px)) (+ 10 (* 20 py))))
-                      [r g b _] (map #(int (* 255 %)) c)]
-                  (new Color r g b))
-                (:color part))]
-    (get-reverse-color color)))
+(defn get-pixel [image x y]
+  (new Color (.getRGB image x y)))
 
 (defn dekeyword [k]
   (subs (str k) 1))
@@ -352,16 +338,6 @@
 
 (defn sigmoid [t]
   (/ 1 (+ 1 (pow e (- (* (- t 0.5) 12))))))
-
-(declare vector-interpolate)
-
-(defn interpolate [a b t]
-  (if (vector? a)
-    (vector-interpolate a b t)
-    (interpolate-values a b t)))
-
-(defn interpolate-maps [m1 m2 t]
-  (merge-with #(interpolate %1 %2 t) m1 m2))
 
 (defn enumerate [collection]
   (map vector (range) collection))

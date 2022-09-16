@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (defn rotate-mode-pressed [world event]
   (let [{:keys [x y]} event]
@@ -8,8 +10,8 @@
             axis (apply-transform rotation [0 1 0])
             center (get-part-position world part-name)
             point (:point collision)
-            v1 (vector-subtract point center)
-            v2 (vector-normalize (vector-cross-product v1 axis))]
+            v1 (vector/subtract point center)
+            v2 (vector/normalize (vector/cross-product v1 axis))]
         (-> world
             (assoc-in [:edited-part] part-name)
             (assoc-in [:edit-start-point] [x y])
@@ -25,7 +27,7 @@
           grain-size (if (:shift-pressed world) 45 5)
           angle (snap-value angle grain-size)
           rotation (make-transform [0 0 0] [0 1 0 angle])
-          original-transform (:original-transform world)          
+          original-transform (:original-transform world)
           transform (combine-transforms rotation original-transform)]
       (user-message! "angle = " (format "%.2f" (float angle)))
       (-> world

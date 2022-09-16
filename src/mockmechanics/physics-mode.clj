@@ -1,21 +1,29 @@
-
-(import [com.bulletphysics.collision.dispatch DefaultCollisionConfiguration
-         CollisionDispatcher])
-(import com.bulletphysics.collision.broadphase.AxisSweep3)
-(import [com.bulletphysics.collision.shapes CollisionShape
-         StaticPlaneShape BoxShape
-         SphereShape CylinderShape])
-(import [com.bulletphysics.linearmath Transform DefaultMotionState])
-
-(import [com.bulletphysics.dynamics
-         constraintsolver.SequentialImpulseConstraintSolver
-         DiscreteDynamicsWorld RigidBodyConstructionInfo RigidBody])
-(import com.bulletphysics.dynamics.constraintsolver.Point2PointConstraint)
-(import com.bulletphysics.dynamics.constraintsolver.HingeConstraint)
-(import com.bulletphysics.dynamics.constraintsolver.SliderConstraint)
-(import com.bulletphysics.dynamics.constraintsolver.Generic6DofConstraint)
-(import com.bulletphysics.collision.dispatch.CollisionFlags)
-(import javax.vecmath.Vector3f)
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector])
+  (:import [com.bulletphysics.collision.dispatch
+            DefaultCollisionConfiguration
+            CollisionDispatcher]
+           [com.bulletphysics.collision.shapes
+            CollisionShape
+            StaticPlaneShape
+            BoxShape
+            SphereShape
+            CylinderShape]
+           [com.bulletphysics.linearmath
+            Transform
+            DefaultMotionState]
+           [com.bulletphysics.dynamics
+            constraintsolver.SequentialImpulseConstraintSolver
+            DiscreteDynamicsWorld
+            RigidBodyConstructionInfo
+            RigidBody]
+           com.bulletphysics.collision.broadphase.AxisSweep3
+           com.bulletphysics.dynamics.constraintsolver.Point2PointConstraint
+           com.bulletphysics.dynamics.constraintsolver.HingeConstraint
+           com.bulletphysics.dynamics.constraintsolver.SliderConstraint
+           com.bulletphysics.dynamics.constraintsolver.Generic6DofConstraint
+           com.bulletphysics.collision.dispatch.CollisionFlags
+           javax.vecmath.Vector3f))
 
 (defn create-planet []
   (let [collision-configuration (new DefaultCollisionConfiguration)
@@ -34,11 +42,11 @@
 (defn create-static-plane [[nx ny nz] d]
   (let [shape (new StaticPlaneShape (new Vector3f nx ny nz) d)
         transform (let [t (new Transform)]
-                           (.setIdentity t)
-                           t)
+                    (.setIdentity t)
+                    t)
         motion-state (new DefaultMotionState transform)
         construction-info (new RigidBodyConstructionInfo 0 motion-state
-                                      shape (new Vector3f 0 0 0))
+                               shape (new Vector3f 0 0 0))
         rigid-body (new RigidBody construction-info)]
     rigid-body))
 
@@ -56,7 +64,7 @@
   (.addRigidBody planet (create-static-plane [0 0 -1] -6) 2 1)
   planet)
 
-(defn create-body [shape mass transform]
+(defn create-body [shape mass transform kinematic?]
   (let [motion-state (new DefaultMotionState transform)
         local-inertia (let [vec (new Vector3f)]
                         (.calculateLocalInertia shape mass vec)
@@ -65,12 +73,18 @@
                                shape local-inertia)
         rigid-body (new RigidBody construction-info)]
     (.forceActivationState rigid-body RigidBody/DISABLE_DEACTIVATION)
+
+    ;; (when kinematic?
+    ;;   (.setCollisionFlags rigid-body
+    ;;                       (bit-or
+    ;;                         (.getCollisionFlags rigid-body)
+    ;;                         CollisionFlags/KINEMATIC_OBJECT)))
     rigid-body))
 
 (declare make-transform)
 
 (defn create-sphere-body [r mass transform]
-  (create-body (new SphereShape r) mass transform))
+  (create-body (new SphereShape r) mass transform false))
 
 (defn get-body-transform [body]
   (let [transform (new Transform)]
@@ -96,15 +110,15 @@
 
 (defn make-sphere [world position rotation]
   (let [body (create-sphere-body
-              (:sphere-radius world) 1.0
-              (make-transform position rotation))]
+               (:sphere-radius world) 1.0
+               (make-transform position rotation))]
     (add-body-to-planet (:planet world) body)
     body))
 
 (defn create-sphere [world position]
   (let [body (create-sphere-body
-              (:sphere-radius world) 1.0
-              (make-transform position [1 0 0 0]))]
+               (:sphere-radius world) 1.0
+               (make-transform position [1 0 0 0]))]
     (add-body-to-planet (:planet world) body)
     (update-in world [:spheres] (partial cons body))))
 
@@ -120,7 +134,7 @@
     (first (sort-by (fn [sphere]
                       (let [transform (get-body-transform sphere)
                             position (get-transform-position transform)]
-                        (distance position eye)))
+                        (vector/distance position eye)))
                     spheres))))
 
 (defn draw-spheres! [world]
@@ -131,9 +145,11 @@
         (draw-mesh! world mesh)))))
 
 (defn is-solid-part? [[name part]]
-  (and
-   (in? (:type part) [:block :wagon])
-   (:solid part)))
+  ;; (and
+  ;;  (in? (:type part) [:block :wagon])
+  ;;  (:solid part))
+  (= (:type part) :block)
+  )
 
 (defn remove-all-bodies [world]
   (doseq [{:keys [body]} (:bodies world)]
@@ -144,7 +160,7 @@
   (let [part (get-in parts [part-name])
         [w h d] (:scale part)
         shape (new BoxShape (new Vector3f (/ w 2) (/ h 2) (/ d 2)))
-        body (create-body shape 100 (make-transform [0 0 0] [1 0 0 0]))
+        body (create-body shape 100 (make-transform [0 0 0] [1 0 0 0]) true)
         root-name (first (find-if #(in? part-name %) groups))
         root (get-in parts [root-name])
         part-transform (:transform part)
@@ -183,15 +199,15 @@
           part (get-in world [:parts (:part-name collision)])
           rotation (get-rotation-component (:transform part))
           normal (apply-transform rotation local-normal)
-          offset (vector-multiply (vector-normalize normal)
+          offset (vector/multiply (vector/normalize normal)
                                   (:sphere-radius world))
-          position (vector-add (:point collision) offset)]
+          position (vector/add (:point collision) offset)]
       (create-sphere world position))
     (let [line (get-spec-line world event)
           ground-plane [[0 0 0] [1 0 0] [0 0 1]]
           offset [0 (:sphere-radius world) 0]
           point (line-plane-intersection line ground-plane)
-          position (vector-add point offset)]
+          position (vector/add point offset)]
       (create-sphere world position))))
 
 (defn delete-sphere [world sphere]

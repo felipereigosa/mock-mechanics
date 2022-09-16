@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (load "avatar/running")
 (load "avatar/jumping")
@@ -23,24 +25,24 @@
 
 (defn reset-avatar [world]
   (assoc-in world [:avatar]
-    {:cameraman {:position [0 0 70]
-                 :distance 30
-                 :height 15
-                 }
-     :acceleration [0 0 0]
-     :velocity [0 0 0]
-     :block :ground
-     :radius 0.20
-     :relative-position [0 0.25 0]
-     :relative-direction [0 0 1]
-     :position [0 0 0]
-     :angle 0
-     :pose-counter 0
-     :max-speed 0.04
-     :state :running
-     :friction-coefficient 0.8
-     :vertical-velocity 0.0
-     :keys (apply merge (map (fn [key] {key :released}) avatar-keys))}))
+            {:cameraman {:position [0 0 70]
+                         :distance 30
+                         :height 15
+                         }
+             :acceleration [0 0 0]
+             :velocity [0 0 0]
+             :block :ground
+             :radius 0.20
+             :relative-position [0 0.25 0]
+             :relative-direction [0 0 1]
+             :position [0 0 0]
+             :angle 0
+             :pose-counter 0
+             :max-speed 0.04
+             :state :running
+             :friction-coefficient 0.8
+             :vertical-velocity 0.0
+             :keys (apply merge (map (fn [key] {key :released}) avatar-keys))}))
 
 (defn get-solid-block [world block-name]
   (if (= block-name :ground)
@@ -53,13 +55,13 @@
 
 (defn set-down-collision [world]
   (let [point (get-in world [:avatar :position])
-        point (vector-subtract point [0 0.19 0])
+        point (vector/subtract point [0 0.19 0])
         avatar (:avatar world)
         collision (->> (map (fn [block-name]
                               (let [block (get-solid-block world block-name)]
                                 (if-let [collision (get-mesh-collision
-                                                    block (:transform block)
-                                                    (:scale block) [point [0 -1 0]])]
+                                                     block (:transform block)
+                                                     (:scale block) [point [0 -1 0]])]
                                   (conj collision block-name)
                                   nil)))
                             (:close-block-names avatar))
@@ -74,13 +76,13 @@
           block (get-solid-block world block-name)
           triangles (partition 3 (partition 3 (:vertices block)))
           [a b c] (nth triangles index)
-          v1 (vector-subtract b a)
-          v2 (vector-subtract c a)
-          local-normal (vector-cross-product v1 v2)
+          v1 (vector/subtract b a)
+          v2 (vector/subtract c a)
+          local-normal (vector/cross-product v1 v2)
           block-rotation (get-rotation-component (:transform block))
           global-normal (apply-transform block-rotation local-normal)]
-      (if (< (vector-angle global-normal [0 1 0]) 60)
-        (let [position (vector-add point [0 0.001 0])
+      (if (< (vector/angle global-normal [0 1 0]) 60)
+        (let [position (vector/add point [0 0.001 0])
               rotation (quaternion-from-normal global-normal)]
           (make-transform position rotation))))))
 
@@ -92,7 +94,7 @@
       (let [shadow-height (second (get-transform-position transform))
             floor-distance (- avatar-height 0.25 shadow-height)
             size (map-between-ranges floor-distance 0 3 0.5 0.00)
-            scale (vector-multiply [1 0.0 1] size)
+            scale (vector/multiply [1 0.0 1] size)
             mesh (-> (:shadow-mesh world)
                      (assoc-in [:transform] transform)
                      (assoc-in [:scale] scale))]
@@ -110,12 +112,12 @@
 
 (defn draw-rope! [world]
   (if-let [start-point (get-force-point world)]
-    (let [end-point (vector-subtract
-                     (get-in world [:avatar :position])
-                     [0 0.1 0])
-          v (vector-subtract end-point start-point)
-          scale [0.02 (vector-length v) 0.02]
-          middle (vector-add (vector-multiply v 0.5) start-point)
+    (let [end-point (vector/subtract
+                      (get-in world [:avatar :position])
+                      [0 0.1 0])
+          v (vector/subtract end-point start-point)
+          scale [0.02 (vector/length v) 0.02]
+          middle (vector/add (vector/multiply v 0.5) start-point)
           rotation (quaternion-from-normal v)
           transform (make-transform middle rotation)
           mesh (-> (:rope-mesh world)
@@ -130,13 +132,13 @@
 (defn avatar-mode-draw-3d [world]
   (let [avatar (:avatar world)
         state (:state avatar)
-        position (vector-subtract (:position avatar) [0 0.3 0])
+        position (vector/subtract (:position avatar) [0 0.3 0])
         angle (:angle avatar)
         avatar-position (:position avatar)
         tilt-rotation (if (= state :jumping)
                         (make-transform [0 0 0] [1 0 0 0])
                         (get-rotation-component
-                         (get-shadow-transform world avatar-position)))
+                          (get-shadow-transform world avatar-position)))
         angle-rotation (make-transform [0 0 0] [0 1 0 (+ angle 90)])
         rotation-transform (combine-transforms angle-rotation tilt-rotation)
         position-transform (make-transform position [1 0 0 0])
@@ -152,11 +154,11 @@
         avatar-position (:position avatar)
         cameraman (:cameraman avatar)
         cameraman-position (:position cameraman)
-        to-cameraman (vector-normalize
-                      (vector-subtract
-                       cameraman-position avatar-position))
-        to-cameraman (vector-multiply to-cameraman (:distance cameraman))
-        new-cameraman-position (vector-add avatar-position to-cameraman)]
+        to-cameraman (vector/normalize
+                       (vector/subtract
+                         cameraman-position avatar-position))
+        to-cameraman (vector/multiply to-cameraman (:distance cameraman))
+        new-cameraman-position (vector/add avatar-position to-cameraman)]
     (assoc-in world [:avatar :cameraman :position] new-cameraman-position)))
 
 (defn get-state-function [state fn-name]
@@ -182,23 +184,23 @@
 (defn set-cameraman-from-camera [world]
   (let [position (assoc-in (get-in world [:camera :eye]) [1] 0)]
     (-> world
-      (assoc-in [:avatar :cameraman :position] position))))
+        (assoc-in [:avatar :cameraman :position] position))))
 
 (defn avatar-mode-entered [world]
   (let [parts (:parts world)
         blocks (-> (:parts world)
-                 (get-parts-with-type :block)
-                 (vec)
-                 (conj :ground))
+                   (get-parts-with-type :block)
+                   (vec)
+                   (conj :ground))
         block-name (get-in world [:avatar :block])
         world (if (not (get-in world [:parts block-name]))
                 (reset-avatar world)
                 world)]
     (-> world
-      (assoc-in [:camera :distance] 35)
-      (compute-camera)
-      (assoc-in [:block-names] blocks)
-      (change-state :running))))
+        (assoc-in [:camera :distance] 35)
+        (compute-camera)
+        (assoc-in [:block-names] blocks)
+        (change-state :running))))
 
 (defn avatar-mode-exited [world]
   (reset! avatar-active-time 10000)
@@ -206,8 +208,8 @@
 
 (defn avatar-press-part [world]
   (let [avatar (:avatar world)
-        position (vector-subtract (:position avatar) [0 0.12 0])
-        direction (vector-rotate [0 0 1] [0 1 0] (:angle avatar))
+        position (vector/subtract (:position avatar) [0 0.12 0])
+        direction (vector/rotate [0 0 1] [0 1 0] (:angle avatar))
         spec {:x 100000
               :y 100000
               :line [position direction]}]
@@ -265,8 +267,8 @@
 (defn avatar-key-on? [world key]
   (let [keys (get-in world [:avatar :keys])]
     (or
-     (= (get keys key) :pressed)
-     (= (get keys key) :repeated))))
+      (= (get keys key) :pressed)
+      (= (get keys key) :repeated))))
 
 (defn avatar-key-pressed? [world key]
   (let [keys (get-in world [:avatar :keys])]
@@ -295,13 +297,13 @@
               part (get-in world [:weld-groups part-name])
               transform (:transform part)
               p1 (apply-transform transform local-point)
-              p2 (vector-subtract (:position avatar) [0 0.1 0])
-              d (distance p1 p2)]
+              p2 (vector/subtract (:position avatar) [0 0.1 0])
+              d (vector/distance p1 p2)]
           (if (> d rope-length)
             (let [strength (- d rope-length)
-                  force-vector (-> (vector-subtract p2 p1)
-                                   (vector-normalize)
-                                   (vector-multiply strength))]
+                  force-vector (-> (vector/subtract p2 p1)
+                                   (vector/normalize)
+                                   (vector/multiply strength))]
               (assoc-in world [:avatar :force :vector] force-vector))
             world))
         world))))
@@ -318,14 +320,14 @@
     (assoc-in world [:avatar :close-block-names]
               (filter (fn [block-name]
                         (and
-                         (block-visible? world block-name)
-                         (let [block (get-solid-block world block-name)
-                               transform (:transform block)
-                               position (get-transform-position transform)
-                               scale (:scale block)
-                               d (distance position avatar-position)
-                               block-radius (vector-length (map * [0.5 0.5 0.5] scale))]
-                           (< d (+ block-radius avatar-radius)))))
+                          (block-visible? world block-name)
+                          (let [block (get-solid-block world block-name)
+                                transform (:transform block)
+                                position (get-transform-position transform)
+                                scale (:scale block)
+                                d (vector/distance position avatar-position)
+                                block-radius (vector/length (map * [0.5 0.5 0.5] scale))]
+                            (< d (+ block-radius avatar-radius)))))
                       (:block-names world)))))
 
 (defn point-block-projection [point block]
@@ -344,14 +346,14 @@
     (reduce (fn [w block-name]
               (let [block (get-solid-block world block-name)
                     collision-point (point-block-projection position block)
-                    to-point (vector-subtract collision-point position)
-                    d (vector-length to-point)]
+                    to-point (vector/subtract collision-point position)
+                    d (vector/length to-point)]
                 (if (< 0.0 d radius)
-                  (let [wrong-velocity (vector-project (:velocity avatar) to-point)]
-                    (if (> (vector-dot-product wrong-velocity to-point) 0.001)
+                  (let [wrong-velocity (vector/project (:velocity avatar) to-point)]
+                    (if (> (vector/dot-product wrong-velocity to-point) 0.001)
                       (-> w
-                          (assoc-in [:wall-normal] (vector-multiply (vector-normalize wrong-velocity) -1))
-                          (update-in [:avatar :velocity] #(vector-subtract % wrong-velocity)))
+                          (assoc-in [:wall-normal] (vector/multiply (vector/normalize wrong-velocity) -1))
+                          (update-in [:avatar :velocity] #(vector/subtract % wrong-velocity)))
                       w))
                   w)))
             (assoc-in world [:wall-normal] nil)
@@ -369,9 +371,9 @@
           cameraman-position (:position cameraman)
           eye (assoc (:position cameraman)
                      1 (:height cameraman))
-          to-eye (vector-subtract eye pivot)
-          x-angle (- 90 (vector-angle to-eye [0 1 0]))
-          y-angle (vector-angle (assoc to-eye 1 0) [0 0 1] [0 1 0])]
+          to-eye (vector/subtract eye pivot)
+          x-angle (- 90 (vector/angle to-eye [0 1 0]))
+          y-angle (vector/angle (assoc to-eye 1 0) [0 0 1] [0 1 0])]
       (-> world
           (assoc-in [:camera :x-angle] x-angle)
           (assoc-in [:camera :y-angle] y-angle)

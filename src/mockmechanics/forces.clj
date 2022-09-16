@@ -1,3 +1,6 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]
+            [mockmechanics.library.matrix :as matrix]))
 
 (defn get-function-segment [function t]
   (cond
@@ -23,7 +26,7 @@
                      loop-fn)
         value (within (:value wagon) 0.0 1.0)
         [[_ p0] [_ p1]] (get-function-segment loop-fn value)]
-    (vector-normalize (vector-subtract p1 p0))))
+    (vector/normalize (vector/subtract p1 p0))))
 
 (defn get-first-dof [world part-name]
   (let [part (get-in world [:parts part-name])]
@@ -36,9 +39,9 @@
 
 (defn get-scaled-transform [scale transform]
   (let [[sx sy sz] scale
-        scale-matrix (get-scale-matrix sx sy sz)
+        scale-matrix (matrix/get-scale sx sy sz)
         other-matrix (get-transform-matrix transform)
-        final-matrix (multiply-matrices scale-matrix other-matrix)]
+        final-matrix (matrix/multiply scale-matrix other-matrix)]
     (matrix->transform final-matrix)))
 
 (defn create-all-pairs [elements]
@@ -62,12 +65,12 @@
                     [-0.5 -0.5 -0.5] [0.5 -0.5 -0.5]]
 
           a-transform (get-scaled-transform
-                       (get-in world [:parts a-name :scale])
-                       (use-root-relative-transform world a-name))
+                        (get-in world [:parts a-name :scale])
+                        (use-root-relative-transform world a-name))
 
           b-transform (get-scaled-transform
-                       (get-in world [:parts b-name :scale])
-                       (use-root-relative-transform world b-name))
+                        (get-in world [:parts b-name :scale])
+                        (use-root-relative-transform world b-name))
 
           ia-transform (get-inverse-transform a-transform)
           ib-transform (get-inverse-transform b-transform)
@@ -78,9 +81,9 @@
           all-vertices (concat a-vertices b-vertices)]
       (some (fn [[x y z]]
               (and
-               (<= -0.5 x 0.5)
-               (<= -0.5 y 0.5)
-               (<= -0.5 z 0.5)))
+                (<= -0.5 x 0.5)
+                (<= -0.5 y 0.5)
+                (<= -0.5 z 0.5)))
             all-vertices))))
 
 (defn get-colliding-pairs [world]
@@ -95,19 +98,19 @@
 
 (defn get-force-pair [world a-name b-name]
   (let [a-transform (get-scaled-transform
-                     (get-in world [:parts a-name :scale])
-                     (use-root-relative-transform world a-name))
+                      (get-in world [:parts a-name :scale])
+                      (use-root-relative-transform world a-name))
         b-transform (get-scaled-transform
-                     (get-in world [:parts b-name :scale])
-                     (use-root-relative-transform world b-name))
+                      (get-in world [:parts b-name :scale])
+                      (use-root-relative-transform world b-name))
         a-position (get-transform-position a-transform)
         b-position (get-transform-position b-transform)
-        v (vector-subtract a-position b-position)
+        v (vector/subtract a-position b-position)
         force-function (fn [d]
                          (* 3 (pow Math/E (* 2 (- d)))))
-        v (vector-multiply (vector-normalize v)
-                           (force-function (vector-length v)))
-        midpoint (vector-multiply (vector-add a-position b-position) 0.5)
+        v (vector/multiply (vector/normalize v)
+                           (force-function (vector/length v)))
+        midpoint (vector/multiply (vector/add a-position b-position) 0.5)
 
         a-dof (or (get-first-dof world a-name) :ground-part)
         a-dof-transform (get-in world [:weld-groups a-dof :transform])
@@ -123,7 +126,7 @@
       :vector v}
      {:part-name b-dof
       :local-point b-dof-local-point
-      :vector (vector-multiply v -1)}]))
+      :vector (vector/multiply v -1)}]))
 
 (defn get-collision-forces [world]
   (let [pairs (get-colliding-pairs world)]
@@ -134,8 +137,8 @@
 (defn apply-force-to-wagon [world force elapsed]
   (let [{:keys [part-name vector]} force
         track-direction (get-wagon-direction world part-name)
-        force-component (/ (vector-dot-product vector track-direction)
-                           (vector-length track-direction))
+        force-component (/ (vector/dot-product vector track-direction)
+                           (vector/length track-direction))
         acceleration (* force-component 500)
         value (get-in world [:parts part-name :value])
         dt (* elapsed 0.001)
@@ -156,13 +159,13 @@
           track-position (get-transform-position transform)
           track-line [track-position track-direction]
           p2 (point-line-projection p1 track-line)
-          arm-vector (vector-subtract p1 p2)
-          sign (if (pos? (vector-dot-product
-                          (vector-cross-product arm-vector vector)
-                          track-direction)) 1 -1)
-          perpendicular (vector-cross-product arm-vector track-direction)
-          vector (vector-project vector perpendicular)
-          acceleration (* sign 100 (vector-length vector))
+          arm-vector (vector/subtract p1 p2)
+          sign (if (pos? (vector/dot-product
+                           (vector/cross-product arm-vector vector)
+                           track-direction)) 1 -1)
+          perpendicular (vector/cross-product arm-vector track-direction)
+          vector (vector/project vector perpendicular)
+          acceleration (* sign 100 (vector/length vector))
           value (get-in world [:parts part-name :value])
           dt (* elapsed 0.001)
           dv (* acceleration dt)
@@ -194,7 +197,7 @@
           transform (:transform part)
           p1 (apply-transform transform local-point)
           p2 (point-line-projection p1 line)
-          force-vector (vector-subtract p2 p1)]
+          force-vector (vector/subtract p2 p1)]
       (assoc-in world [:mouse-force :vector] force-vector))
     world))
 
@@ -203,7 +206,8 @@
         mouse-force (:mouse-force world)
         avatar-force (get-in world [:avatar :force])
         forces (remove-nil (concat [mouse-force avatar-force]
-                                 ;; (get-collision-forces world)
+                                   ;; (get-collision-forces world)
+                                   ;; (get-cables-forces world)
                                    ))]
     (reduce (fn [w force]
               (apply-force w force elapsed))

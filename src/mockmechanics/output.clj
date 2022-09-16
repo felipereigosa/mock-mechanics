@@ -42,14 +42,7 @@
 
     (draw-mode-text! world)))
 
-(defn transform-output [arg]
-  (cond
-    (instance? com.bulletphysics.linearmath.Transform arg)
-    [(get-transform-position arg)
-     (get-transform-rotation arg)]
-    :else arg))
-
-(defn println [& args]
+(defn println! [& args]
   (apply gl-println (map transform-output args))
   (let [args (map transform-output args)
         line (apply print-str (conj (vec args) "\n"))
@@ -60,7 +53,7 @@
   (redraw!)
   nil)
 
-(def user-message! println)
+(def user-message! println!)
 
 (defn clear-output! []
   (reset! output "")

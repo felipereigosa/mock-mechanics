@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (load "replayer/compiler")
 (load "replayer/robot")
@@ -7,9 +9,9 @@
 
 (defn load-instructions [world]
   (assoc-in world [:instructions]
-    (-> (str "replayer/" (:replay-filename world) ".txt")
-      (read-lines)
-      (extend-instructions))))
+            (-> (str "replayer/" (:replay-filename world) ".txt")
+                (read-lines)
+                (extend-instructions))))
 
 (def history (atom []))
 
@@ -53,7 +55,7 @@
               chip (get-in world [:parts chip-name])
               {:keys [zoom-x zoom-y offset]} (:view chip)
               [x y] offset]
-          (vector= end-view [x y zoom-x zoom-y]))
+          (vector/equal? end-view [x y zoom-x zoom-y]))
 
         :else false))))
 
@@ -66,9 +68,9 @@
 (defn toggle-mouse-recording [world]
   (if (:mouse-recording world)
     (let [events (->> (:mouse-instruction world)
-                     (shift-times)
-                     (interpose " ")
-                     (apply str))]
+                      (shift-times)
+                      (interpose " ")
+                      (apply str))]
       (println "-----------------------------------------")
       (println "mouse true" events)
       (assoc-in world [:mouse-recording] false))
@@ -80,11 +82,11 @@
 
 (defn add-event [world type event]
   (update-in world [:mouse-instruction]
-               #(conj % [(int (:x event))
-                         (int (:y event))
-                         (get-current-time)
-                         type
-                         (:button event)])))
+             #(conj % [(int (:x event))
+                       (int (:y event))
+                       (get-current-time)
+                       type
+                       (:button event)])))
 
 (defn replay-pressed [world event]
   (if (and (:replay-filename world)
@@ -123,8 +125,8 @@
 
         ;; skip instructions
         (while (skip-instruction?
-                @world
-                (nth instructions (:instruction-index @world)))
+                 @world
+                 (nth instructions (:instruction-index @world)))
           (update-thing! [:instruction-index] inc))
 
         (when (.startsWith (nth instructions (:instruction-index @world)) ">")
@@ -137,20 +139,20 @@
           (let [last @last-instruction
                 next (nth instructions (:instruction-index @world))]
             (if (not (or
-                      (starts-with? last "sleep")
-                      (starts-with? next "sleep")))
+                       (starts-with? last "sleep")
+                       (starts-with? next "sleep")))
               (if (or
-                   (and (starts-with? last "set variable mode")
-                        (starts-with? next "set variable"))
+                    (and (starts-with? last "set variable mode")
+                         (starts-with? next "set variable"))
 
-                   (and (starts-with? last "scale")
-                        (starts-with? next "scale"))
+                    (and (starts-with? last "scale")
+                         (starts-with? next "scale"))
 
-                   (and (starts-with? last "set view")
-                        (starts-with? next "put"))
+                    (and (starts-with? last "set view")
+                         (starts-with? next "put"))
 
-                   (starts-with? next "add motherboard")
-                   )
+                    (starts-with? next "add motherboard")
+                    )
                 (sleep (int (/ 400 (:replay-speed @world))))
                 (sleep (int (/ 800 (:replay-speed @world))))))))
 
@@ -166,14 +168,20 @@
                  (parse-int)
                  (* 1000)
                  (sleep))
-            (update-thing! [] #(run-instruction % instruction)))
+            (if (or (starts-with? instruction "copy")
+                    (starts-with? instruction "import"))
+              (do
+                (sleep 100)
+                (gl-thread
+                  (update-thing! [] #(run-instruction % instruction))))
+              (update-thing! [] #(run-instruction % instruction))))
           (update-thing! [:instruction-index] inc))
 
         ;; wait for instruction to finish
         (while (or
-                (get-thing! [:animation])
-                (and @wait-chip-flag (any-chip-active? @world))
-                (:active @robot))
+                 (get-thing! [:animation])
+                 (and @wait-chip-flag (any-chip-active? @world))
+                 (:active @robot))
           nil)
         (reset! wait-chip-flag false)
         (robot-move [-100 0])
@@ -190,15 +198,15 @@
 
       (reset! replaying false))))
 
-  (reset! replaying false)
+(reset! replaying false)
 
 (defn toggle-run-instructions [world]
   (when (:replay-filename world)
     (.start
       (new Thread
-        (proxy [Runnable] []
-          (run []
-            (run-instructions!))))))
+           (proxy [Runnable] []
+             (run []
+               (run-instructions!))))))
   world)
 
 (defn replay-forward [world]

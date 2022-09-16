@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (defn set-block-size [world block-name original-scale
                       original-center increase]
@@ -7,15 +9,15 @@
                            a
                            (abs b)))
                        original-scale increase)
-        scale-change (vector-subtract new-scale original-scale)
+        scale-change (vector/subtract new-scale original-scale)
         value (if (some neg? increase)
                 -0.5
                 0.5)
         part-rotation (get-transform-rotation (:transform block))
         rotation-transform (make-transform [0 0 0] part-rotation)
         offset (apply-transform rotation-transform
-                                (vector-multiply scale-change value))
-        new-center (vector-add original-center offset)
+                                (vector/multiply scale-change value))
+        new-center (vector/add original-center offset)
         new-transform (make-transform new-center part-rotation)]
     (-> world
         (assoc-in [:parts block-name :scale] (map abs new-scale))
@@ -32,7 +34,7 @@
         children (:children part)
         moving-children (filter (fn [child-name]
                                   (let [direction (get-child-local-direction world part-name child-name)]
-                                    (vector= direction normal)))                                
+                                    (vector/equal? direction normal)))
                                 (keys children))]
     (-> world
         (assoc-in [:saved-transform] (:transform part))
@@ -41,7 +43,7 @@
 
 (defn move-children [world part-name scale-offset]
   (let [part (get-in world [:parts part-name])
-        v (vector-multiply scale-offset 0.5)
+        v (vector/multiply scale-offset 0.5)
         rotation (get-rotation-component (:transform part))
         v (apply-transform (get-inverse-transform rotation) v)
         offset-transform (make-transform v [1 0 0 0])]
@@ -70,7 +72,7 @@
           v (apply-transform rotation-transform normal)
           scale (:scale part)
           center (get-transform-position (:transform part))
-          adjust-line [(:point collision) (vector-normalize v)]]
+          adjust-line [(:point collision) (vector/normalize v)]]
       (-> world
           (assoc-in [:edited-part] part-name)
           (assoc-in [:adjust-line] adjust-line)
@@ -93,13 +95,13 @@
           l1 (+ d (abs (reduce + (map * normal scale))))
           l2 (within l1 0.1 10)
           increase-vector (map * (:normal world) [l2 l2 l2])
-          scale-offset (vector-multiply (second adjust-line) d)]
+          scale-offset (vector/multiply (second adjust-line) d)]
       (user-message! (format "side: %.2f" l2))
       (-> world
           (set-block-size block-name scale center increase-vector)
           (#(if (float= l1 l2)
-             (move-children % block-name scale-offset)
-             %))))
+              (move-children % block-name scale-offset)
+              %))))
     world))
 
 (defn scale-block-released [world event]
@@ -113,12 +115,12 @@
 (defn set-track-size [world track-name original-scale original-center height]
   (let [track (get-in world [:parts track-name])
         new-scale (assoc original-scale 1 height)
-        scale-change (vector-subtract new-scale original-scale)
+        scale-change (vector/subtract new-scale original-scale)
         part-rotation (get-transform-rotation (:transform track))
         rotation-transform (make-transform [0 0 0] part-rotation)
         new-center (->> scale-change
                         (apply-transform rotation-transform)
-                        (vector-add original-center))
+                        (vector/add original-center))
         new-transform (make-transform new-center part-rotation)]
     (-> world
         (assoc-in [:parts track-name :scale] new-scale)
@@ -134,7 +136,7 @@
           v (apply-transform rotation-transform [0 1 0])]
       (-> world
           (assoc-in [:edited-part] part-name)
-          (assoc-in [:adjust-line] [point (vector-normalize v)])
+          (assoc-in [:adjust-line] [point (vector/normalize v)])
           (assoc-in [:original-scale] scale)
           (assoc-in [:original-center] center)))
     world))
@@ -182,7 +184,7 @@
           local-normal (cond
                          (float= ly half-height) [0 1 0]
                          (float= ly (- half-height)) [0 -1 0]
-                         :else (vector-normalize [lx 0 lz]))
+                         :else (vector/normalize [lx 0 lz]))
           rotation-transform (get-rotation-component (:transform part))
           v (apply-transform rotation-transform local-normal)
           scale (:scale part)
@@ -205,12 +207,12 @@
           scale (:original-scale world)
           center (:original-center world)
           normal (:normal world)]
-      (if (vector= (vector-cross-product normal [0 1 0]) [0 0 0])
+      (if (vector/equal? (vector/cross-product normal [0 1 0]) [0 0 0])
         (let [grain-size (if (:shift-pressed world) 0.5 0.1)
               d (snap-value d grain-size)
               l1 (+ d (second scale))
               l2 (max l1  0.1)
-              scale-offset (vector-multiply (second adjust-line) d)]
+              scale-offset (vector/multiply (second adjust-line) d)]
           (user-message! (format "height: %.2f" l2))
           (-> world
               (set-block-size part-name scale center [0 (* l2 (second normal)) 0])
@@ -244,7 +246,7 @@
           [lx ly lz] local-point
           local-normal (if (pos? ly)
                          [0 1 0]
-                         (vector-normalize [lx 0 lz]))
+                         (vector/normalize [lx 0 lz]))
           rotation-transform (get-rotation-component (:transform part))
           v (apply-transform rotation-transform local-normal)
           scale (:scale part)
@@ -290,7 +292,7 @@
   (if-let [{:keys [part-name point index]}
            (get-part-collision world event)]
     (let [center (get-part-position world part-name)
-          v (vector-normalize (vector-subtract point center))]
+          v (vector/normalize (vector/subtract point center))]
       (-> world
           (assoc-in [:edited-part] part-name)
           (assoc-in [:adjust-line] [center v])))
@@ -326,13 +328,13 @@
               v (apply-transform rotation-transform normal)
               scale (:scale part)
               center (get-transform-position (:transform part))
-              adjust-line [(:point collision) (vector-normalize v)]]
+              adjust-line [(:point collision) (vector/normalize v)]]
           (-> world
               (assoc-in [:edited-part] part-name)
               (assoc-in [:adjust-line] adjust-line)
               (assoc-in [:original-scale] scale)
               (assoc-in [:original-center] center)
-              (assoc-in [:x] (float= (abs (vector-dot-product normal [1 0 0])) 1.0))
+              (assoc-in [:x] (float= (abs (vector/dot-product normal [1 0 0])) 1.0))
               (assoc-in [:normal] normal)
               (assoc-in [:last-dimensions] nil)))
         world))
@@ -351,7 +353,7 @@
           l1 (+ d (abs (reduce + (map * normal scale))))
           l2 (within l1 0.1 10)
           increase-vector (map * (:normal world) [l2 l2 l2])
-          scale-offset (vector-multiply (second adjust-line) d)
+          scale-offset (vector/multiply (second adjust-line) d)
           dimensions (if (:x world)
                        [(round (/ l2 0.05))
                         (round (/ (last scale) 0.05))]
@@ -361,8 +363,8 @@
       (-> world
           (set-block-size display-name scale center increase-vector)
           (#(if (not= dimensions (:last-dimensions %))
-                  (resize-display-texture % display-name)
-                  %))
+              (resize-display-texture % display-name)
+              %))
           (assoc-in [:last-dimensions] dimensions)))
     world))
 

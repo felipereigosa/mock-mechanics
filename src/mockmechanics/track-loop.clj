@@ -1,17 +1,19 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (defn tracks-connected? [world t0-name t1-name]
   (let [parts (:parts world)
         t0 (get-in parts [t0-name])
         t1 (get-in parts [t1-name])]
     (or
-     (in? t1-name (keys (:children t0)))
-     (in? t0-name (keys (:children t1))))))
+      (in? t1-name (keys (:children t0)))
+      (in? t0-name (keys (:children t1))))))
 
 (defn get-track-neighbours [world part-name]
   (filter (fn [other-part-name]
             (and
-             (not (= other-part-name part-name))
-             (tracks-connected? world other-part-name part-name)))
+              (not (= other-part-name part-name))
+              (tracks-connected? world other-part-name part-name)))
           (get-parts-with-type (:parts world) :track)))
 
 (defn grow-loop [world loop color]
@@ -19,13 +21,13 @@
         end (last loop)
         get-next (fn [tip]
                    (first
-                    (filter (fn [part-name]
-                              (let [part (get-in world [:parts part-name])]
-                                (and
-                                 (= (:type part) :track)
-                                 (= (:color part) color)
-                                 (not (in? part-name loop)))))
-                            (get-track-neighbours world tip))))
+                     (filter (fn [part-name]
+                               (let [part (get-in world [:parts part-name])]
+                                 (and
+                                   (= (:type part) :track)
+                                   (= (:color part) color)
+                                   (not (in? part-name loop)))))
+                             (get-track-neighbours world tip))))
         before (get-next start)
         after (get-next end)]
     (if (and (nil? before)
@@ -85,10 +87,10 @@
 
 (defn is-extra-point? [a b c]
   (float=
-   (vector-dot-product
-    (vector-normalize (vector-subtract b a))
-    (vector-normalize (vector-subtract c a)))
-   1.0))
+    (vector/dot-product
+      (vector/normalize (vector/subtract b a))
+      (vector/normalize (vector/subtract c a)))
+    1.0))
 
 (defn remove-extra-points [points]
   (concat [(first points)]
@@ -106,7 +108,7 @@
 (defn set-wagon-loop [world wagon-name track-name]
   (let [loop (remove-extra-points (get-track-loop world track-name))
         lengths (map (fn [a b]
-                       (vector-length (vector-subtract a b)))
+                       (vector/length (vector/subtract a b)))
                      loop (rest loop))
         total-length (reduce + lengths)
         times (map #(/ % total-length) (accumulate lengths))

@@ -36,6 +36,7 @@
     (-> part
         (dissoc-in [:transform])
         (dissoc-in [:model])
+        (dissoc-in [:white-model])
         (modify-field :color get-simple-color)
         (modify-field :dark-color get-simple-color)
         (modify-field :texture get-simple-texture)

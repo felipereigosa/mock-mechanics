@@ -1,5 +1,6 @@
 
-(import org.lwjgl.glfw.GLFW)
+(ns mockmechanics.library.keymap
+  (:import org.lwjgl.glfw.GLFW))
 
 (def keymap {GLFW/GLFW_KEY_SPACE                   " "
              GLFW/GLFW_KEY_APOSTROPHE              "'"

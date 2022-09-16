@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (defn create-info []
   {:ground
@@ -196,12 +198,12 @@
 
 (defn create-display-texture [display]
   (let [vertices (vec (flatten
-                       [-0.5 0 0.5
-                        0.5 0 0.5
-                        -0.5 0 -0.5
-                        -0.5 0 -0.5
-                        0.5 0 0.5
-                        0.5 0 -0.5]))
+                        [-0.5 0 0.5
+                         0.5 0 0.5
+                         -0.5 0 -0.5
+                         -0.5 0 -0.5
+                         0.5 0 0.5
+                         0.5 0 -0.5]))
         position [0 0 0]
         rotation [1 0 0 0]
         scale (:scale display)
@@ -258,8 +260,8 @@
 
         part (if (= type :motherboard)
                (-> part
-                 (assoc-in [:script] (slurp "res/default-script.clj"))
-                 (assoc-in [:tab] 0))
+                   (assoc-in [:script] (slurp "res/default-script.clj"))
+                   (assoc-in [:tab] 0))
                part)
 
         part (if (= type :display)
@@ -312,7 +314,7 @@
         parent-name (get-parent-part world part-name)]
     (-> world
         (update-in [:parts part-name]
-                      #(set-part-position % (vector-add position offset)))
+                   #(set-part-position % (vector/add position offset)))
         (create-relative-transform part-name parent-name))))
 
 (defn get-parts-with-type [parts type]
@@ -324,8 +326,8 @@
   (let [track-transform (:transform track)
         y-offset (* -0.5 (second (:scale track)))]
     (combine-transforms
-     (make-transform [0 y-offset 0] [1 0 0 0])
-     track-transform)))
+      (make-transform [0 y-offset 0] [1 0 0 0])
+      track-transform)))
 
 (defn draw-part! [world part]
   (let [info (get-in world [:info (:type part)])
@@ -365,7 +367,7 @@
                               (map (fn [j]
                                      (let [p1 (nth positions i)
                                            p2 (nth positions j)
-                                           d (distance p1 p2)]
+                                           d (vector/distance p1 p2)]
                                        (if (< d 0.12)
                                          [i j]
                                          nil)))
@@ -390,8 +392,8 @@
                 rotation-transform (make-transform [0 0 0] rotation)
                 up (apply-transform rotation-transform [0 1 0])
                 offset (if (= (:value button) 1)
-                         (make-transform (vector-multiply up 0.02) [1 0 0 0])
-                         (make-transform (vector-multiply up 0.1) [1 0 0 0]))
+                         (make-transform (vector/multiply up 0.02) [1 0 0 0])
+                         (make-transform (vector/multiply up 0.1) [1 0 0 0]))
                 transform (combine-transforms base-transform offset)
                 property (nth (get-in world [:properties])
                               (:selected-property world))
@@ -428,7 +430,7 @@
                 rotation (get-transform-rotation (:transform display))
                 rotation-transform (make-transform [0 0 0] rotation)
                 up (apply-transform rotation-transform [0 1 0])
-                offset (make-transform (vector-multiply up 0.026) [1 0 0 0])
+                offset (make-transform (vector/multiply up 0.026) [1 0 0 0])
                 transform (combine-transforms base-transform offset)
                 mesh (-> (:texture display)
                          (assoc-in [:transform] transform))]
@@ -447,7 +449,7 @@
 (defn select-part [world part-name]
   (let [part (get-in world [:parts part-name])
         type (:type part)
-        scale (vector-multiply (:scale part) 1.01)
+        scale (vector/multiply (:scale part) 1.01)
         transform (if (= type :track)
                     (get-tail-transform part)
                     (:transform part))
@@ -455,8 +457,8 @@
                 [0 0 1 1]
                 [1 1 0 1])
         mesh (or
-              (get-in world [:info type :white-model])
-              (get-in world [:info type :model]))]
+               (get-in world [:info type :white-model])
+               (get-in world [:info type :model]))]
     (if (= type :ground)
       world
       (do
@@ -494,23 +496,23 @@
 
 (defn async-create-weld-groups [w]
   (.start
-   (new Thread
-        (proxy [Runnable] []
-          (run []
-            (try
-              (let [fast-world (create-weld-groups w)
-                    ]
-                (set-thing! [:weld-groups]
-                            (:weld-groups fast-world))
+    (new Thread
+         (proxy [Runnable] []
+           (run []
+             (try
+               (let [fast-world (create-weld-groups w)
+                     ]
+                 (set-thing! [:weld-groups]
+                             (:weld-groups fast-world))
 
-                (set-thing! [:root-relative-transforms]
-                            (:root-relative-transforms fast-world))
+                 (set-thing! [:root-relative-transforms]
+                             (:root-relative-transforms fast-world))
 
-                (set-thing! [:bodies] (:bodies fast-world))
+                 (set-thing! [:bodies] (:bodies fast-world))
 
-                (set-thing! [:use-weld-groups] true)
-                (redraw!))
-              (catch Exception e))))))
+                 (set-thing! [:use-weld-groups] true)
+                 (redraw!))
+               (catch Exception e))))))
   w)
 
 (declare reset-wagons)

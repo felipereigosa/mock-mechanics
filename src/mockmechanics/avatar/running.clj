@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (declare change-state)
 (declare get-solid-block)
@@ -11,29 +13,29 @@
 (defn rotate-cameraman [world angle]
   (let [pivot (get-in world [:avatar :position])
         eye (get-in world [:avatar :cameraman :position])
-        new-eye (vector-rotate eye pivot [0 1 0] angle)]
+        new-eye (vector/rotate eye pivot [0 1 0] angle)]
     (assoc-in world [:avatar :cameraman :position] new-eye)))
 
 (defn get-acceleration [world]
   (let [direction (cond
                     (and
-                     (avatar-key-on? world "s")
-                     (avatar-key-on? world "e"))
+                      (avatar-key-on? world "s")
+                      (avatar-key-on? world "e"))
                     [-1 0 -1]
 
                     (and
-                     (avatar-key-on? world "s")
-                     (avatar-key-on? world "d"))
+                      (avatar-key-on? world "s")
+                      (avatar-key-on? world "d"))
                     [-1 0 1]
 
                     (and
-                     (avatar-key-on? world "f")
-                     (avatar-key-on? world "e"))
+                      (avatar-key-on? world "f")
+                      (avatar-key-on? world "e"))
                     [1 0 -1]
 
                     (and
-                     (avatar-key-on? world "f")
-                     (avatar-key-on? world "d"))
+                      (avatar-key-on? world "f")
+                      (avatar-key-on? world "d"))
                     [1 0 1]
 
                     (avatar-key-on? world "s") [-1 0 0]
@@ -42,28 +44,28 @@
                     (avatar-key-on? world "e") [0 0 -1]
 
                     :else [0 0 0])]
-    (if (float= (vector-length direction) 0.0)
+    (if (float= (vector/length direction) 0.0)
       [0 0 0]
-      (let [[vx _ vz] (vector-normalize direction)
+      (let [[vx _ vz] (vector/normalize direction)
             angle (- (atan2 (- vz) vx) 90)
             avatar (:avatar world)
             cameraman (:cameraman avatar)
-            dv (vector-subtract (:position avatar) (:position cameraman))
+            dv (vector/subtract (:position avatar) (:position cameraman))
             dv (assoc dv 1 0)]
-        (vector-rotate dv [0 1 0] angle)))))
+        (vector/rotate dv [0 1 0] angle)))))
 
 (defn run-handle-direction-keys [world]
   (let [acceleration (get-acceleration world)]
-    (if (not (vector= acceleration [0 0 0]))
+    (if (not (vector/equal? acceleration [0 0 0]))
       (let [avatar (:avatar world)
             velocity (:velocity avatar)
-            new-velocity (vector-add velocity acceleration)
+            new-velocity (vector/add velocity acceleration)
             max-speed (:max-speed avatar)
-            new-velocity (if (> (vector-length new-velocity) max-speed)
-                           (vector-multiply
-                            (vector-normalize new-velocity) max-speed)
+            new-velocity (if (> (vector/length new-velocity) max-speed)
+                           (vector/multiply
+                             (vector/normalize new-velocity) max-speed)
                            new-velocity)
-            absolute-direction (vector-normalize new-velocity)
+            absolute-direction (vector/normalize new-velocity)
             avatar (:avatar world)
             block (get-solid-block world (:block avatar))
             block-rotation (get-rotation-component (:transform block))
@@ -79,11 +81,11 @@
         velocity (:velocity avatar)
         absolute-velocity (:absolute-velocity avatar)
         block-velocity (-> absolute-velocity
-                           (vector-subtract velocity)
-                           (vector-multiply 0.7))
+                           (vector/subtract velocity)
+                           (vector/multiply 0.7))
         final-velocity (-> velocity
-                           (vector-multiply 1.5)
-                           (vector-add block-velocity))]
+                           (vector/multiply 1.5)
+                           (vector/add block-velocity))]
     (-> world
         (assoc-in [:avatar :vertical-velocity] vertical)
         (assoc-in [:avatar :velocity] final-velocity))))
@@ -102,8 +104,8 @@
           (assoc-in [:avatar :part-pressed] true))
 
       (and
-       (avatar-key-released? world "k")
-       (get-in world [:avatar :part-pressed]))
+        (avatar-key-released? world "k")
+        (get-in world [:avatar :part-pressed]))
       (-> world
           (avatar-release-part)
           (assoc-in [:avatar :part-pressed] false))
@@ -134,13 +136,13 @@
         stopped (:stopped avatar)]
     (cond
       (and (not stopped)
-           (vector= acceleration [0 0 0]))
+           (vector/equal? acceleration [0 0 0]))
       (-> world
           (assoc-in [:avatar-mesh :index] 60)
           (assoc-in [:avatar :stopped] true))
 
       (and stopped
-           (not (vector= acceleration [0 0 0])))
+           (not (vector/equal? acceleration [0 0 0])))
       (-> world
           (assoc-in [:avatar-mesh :index] 0)
           (assoc-in [:avatar :stopped] false))
@@ -153,14 +155,14 @@
             transform (:transform block)
             position (apply-transform transform
                                       (:relative-position avatar))
-            new-position (vector-add position velocity)
-            new-position (vector-add new-position [0 0.1 0])]
+            new-position (vector/add position velocity)
+            new-position (vector/add new-position [0 0.1 0])]
         (if-let [ground-position (project-down world block new-position)]
           (let [inverse-transform (get-inverse-transform transform)
                 offset (apply-transform inverse-transform ground-position)]
             (-> world
                 (assoc-in [:avatar :relative-position] offset)
-                (update-in [:avatar :velocity] #(vector-multiply % fc))))
+                (update-in [:avatar :velocity] #(vector/multiply % fc))))
           (-> world
               (set-jump-velocity 0.03)
               (change-state :jumping)))))))
@@ -174,13 +176,13 @@
         relative-position (:relative-position avatar)
         position (->> relative-position
                       (apply-transform transform)
-                      (vector-add [0 0.3 0]))
+                      (vector/add [0 0.3 0]))
         relative-direction (:relative-direction avatar)
         rotation-transform (get-rotation-component transform)
         direction (apply-transform rotation-transform relative-direction)
         direction (assoc-in direction [1] 0)
-        direction (vector-normalize direction)
-        angle (vector-angle direction [0 0 1] [0 -1 0])]
+        direction (vector/normalize direction)
+        angle (vector/angle direction [0 0 1] [0 -1 0])]
     (-> world
         (assoc-in [:avatar :position] position)
         (assoc-in [:avatar :angle] angle))))
@@ -213,7 +215,7 @@
 
 (defn update-running-state [world]
   (let [avatar (:avatar world)
-        velocity (vector-subtract (:position avatar)
+        velocity (vector/subtract (:position avatar)
                                   (:last-position avatar))]
     (-> world
         (assoc-in [:avatar :last-position] (:position avatar))

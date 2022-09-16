@@ -1,3 +1,6 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]
+            [mockmechanics.library.matrix :as matrix]))
 
 (declare get-parts-with-type)
 (declare get-tail-transform)
@@ -32,8 +35,8 @@
               roots))))
 
 (defn bake-part [world part]
-   (if (or (not (in? (:layer part) (:visible-layers world)))
-           (get-in part [:model :texture-coordinates]))
+  (if (or (not (in? (:layer part) (:visible-layers world)))
+          (get-in part [:model :texture-coordinates]))
     {}
     (let [type (:type part)
           model (or (:model part)
@@ -47,14 +50,14 @@
                                           (* a b)) v scale)]
                             (apply-transform transform sv)))
                         (vec (partition 3 (:vertices model))))
-          matrix (multiply-matrices
-                  (apply get-scale-matrix scale)
-                  (get-transform-matrix transform))
-          it-matrix (get-transpose-matrix (get-inverse-matrix matrix))
+          matrix (matrix/multiply
+                   (apply matrix/get-scale scale)
+                   (get-transform-matrix transform))
+          it-matrix (matrix/get-transpose (matrix/get-inverse matrix))
           normals (map (fn [normal]
                          (let [array (float-array (conj (vec normal) 0.0))
-                               [x y z w] (vec (multiply-matrix-vector it-matrix array))]
-                           (vector-normalize [x y z])))
+                               [x y z w] (vec (matrix/multiply-vector it-matrix array))]
+                           (vector/normalize [x y z])))
                        (vec (partition 3 (:normals model))))
           part-color (let [color (get-color (:color part))
                            r (/ (get-red color) 255.0)
@@ -82,10 +85,10 @@
         root-transform (:transform root)
         inverse-transform (get-inverse-transform root-transform)
         vertices (vec (flatten (map #(apply-transform
-                                      inverse-transform %) vertices)))
+                                       inverse-transform %) vertices)))
         rotation-transform (get-rotation-component inverse-transform)
         normals (vec (flatten (map #(apply-transform
-                                     rotation-transform %) normals)))
+                                      rotation-transform %) normals)))
         colors (vec (flatten colors))]
     (create-mesh vertices [0 0 0] [1 0 0 0]
                  [1 1 1] colors [] normals)))
@@ -135,11 +138,11 @@
                              (or
                                (in? (:type part) [:probe :lamp :button
                                                   :display :block])
-                              (get-in part [:model :texture-coordinates])
-                              ))
-                     parts))
+                               (get-in part [:model :texture-coordinates])
+                               ))
+                           parts))
         rrt (apply merge (map #(get-relative-transform % parts groups)
-                           part-names))]
+                              part-names))]
     (assoc-in world [:root-relative-transforms] rrt)))
 
 (defn use-root-relative-transform [world part-name]

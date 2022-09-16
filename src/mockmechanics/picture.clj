@@ -1,16 +1,17 @@
-
-(import org.apache.batik.transcoder.image.ImageTranscoder)
-(import java.io.FileInputStream)
-(import org.apache.batik.transcoder.image.ImageTranscoder)
-(import org.apache.batik.transcoder.TranscoderInput)
-(import org.apache.batik.transcoder.TranscoderOutput)
-(import org.apache.batik.transcoder.TranscodingHints)
-(import org.apache.batik.anim.dom.SVGDOMImplementation)
-(import org.apache.batik.util.SVGConstants)
-(import java.io.ByteArrayInputStream)
-(import java.awt.image.BufferedImage)
-
-(load "xml")
+(ns mockmechanics.core
+  (:require [mockmechanics.library.util :refer :all]
+            [mockmechanics.library.xml :refer :all]
+            [clojure.string :refer [split]])
+  (:import org.apache.batik.transcoder.image.ImageTranscoder
+           java.io.FileInputStream
+           org.apache.batik.transcoder.image.ImageTranscoder
+           org.apache.batik.transcoder.TranscoderInput
+           org.apache.batik.transcoder.TranscoderOutput
+           org.apache.batik.transcoder.TranscodingHints
+           org.apache.batik.anim.dom.SVGDOMImplementation
+           org.apache.batik.util.SVGConstants
+           java.io.ByteArrayInputStream
+           java.awt.image.BufferedImage))
 
 (defn parse-svg-from-map [document width height]
   (let [transcoder-hints (new TranscodingHints)
@@ -114,7 +115,7 @@
 (defn get-region-at [picture x y]
   (first (find-if (fn [[name region]]
                     (inside-box? (get-absolute-region
-                                  region picture) x y))
+                                   region picture) x y))
                   (:regions picture))))
 
 (defn create-png [base x y w h]

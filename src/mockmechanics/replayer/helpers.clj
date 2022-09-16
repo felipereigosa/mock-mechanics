@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (defn export-path [points filename]
   (let [points (read-string (str "(" points ")"))
@@ -38,11 +40,11 @@
                   (subs .  8)
                   (read-string .))]
     (println
-     (map (fn [[x y z]]
-            [(round (* x width))
-             (round (* z width))
-             (round (* y final-time))])
-          vertices))))
+      (map (fn [[x y z]]
+             [(round (* x width))
+              (round (* z width))
+              (round (* y final-time))])
+           vertices))))
 
 (defn create-extended! [source destination]
   (let [source (str "replayer/" source ".txt")
@@ -62,12 +64,12 @@
         get-type (fn [word]
                    (second (re-find #"([a-z]*).*?" (str word))))
         names (>> (str "replayer/" filename ".txt")
-                (slurp)
-                (str "[" . "]")
-                (read-string)
-                (flatten)
-                (filter #(in? (get-type %) types) .)
-                (distinct))]
+                  (slurp)
+                  (str "[" . "]")
+                  (read-string)
+                  (flatten)
+                  (filter #(in? (get-type %) types) .)
+                  (distinct))]
     (println "{")
     (doseq [name names]
       (if (.startsWith (str name) "gate")
@@ -84,9 +86,9 @@
 (defn print-camera-instruction! []
   (let [[pivot angles distance] (get-camera-vector @world)]
     (println "set camera"
-              "pivot" pivot
-               "angles" angles
-               "distance" distance)))
+             "pivot" pivot
+             "angles" angles
+             "distance" distance)))
 
 (defn check-replay! [world]
   (let [filename (get-last-version-filename (:replay-filename world))
@@ -100,11 +102,11 @@
                 target-transform (get-in parts [parent-name
                                                 :children part-name])]
             (if (not
-                 (and
-                  (vector= (:position target-transform)
-                           (get-transform-position transform))
-                  (vector= (:rotation target-transform)
-                           (get-transform-rotation transform))))
+                  (and
+                    (vector/equal? (:position target-transform)
+                                    (get-transform-position transform))
+                    (vector/equal? (:rotation target-transform)
+                                    (get-transform-rotation transform))))
               (println part-name "wrong relative transform")))
           (println part-name "missing"))))
     (println "check done")))

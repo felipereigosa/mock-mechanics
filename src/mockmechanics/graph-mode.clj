@@ -1,3 +1,6 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.util :as util]
+            [mockmechanics.library.vector :as vector]))
 
 (defn graph-mode-entered [world]
   (dissoc-in world [:selected-chip]))
@@ -44,9 +47,9 @@
     (doseq [i (range 1 (count points))]
       (let [buffer (:buffer graph-box)
             [x1 y1] (local->global
-                     graph-box view (nth points (dec i)))
+                      graph-box view (nth points (dec i)))
             [x2 y2] (local->global
-                     graph-box view (nth points i))]
+                      graph-box view (nth points i))]
         (draw-line buffer color x1 y1 x2 y2)
 
         (if (:relative function)
@@ -139,7 +142,7 @@
 (defn activate-chip [world chip-name]
   (let [chip (get-in world [:parts chip-name])
         functions (map-map (fn [[part-name function]]
-                              {part-name (normalize-function function)})
+                             {part-name (normalize-function function)})
                            (:functions chip))
         final-time (apply max (map (comp first last :points)
                                    (vals functions)))]
@@ -196,8 +199,8 @@
                     world)
             final-points (get-in world [:parts part-name :final-points])
             new-value (float (get-function-value
-                              final-points time linear-interpolator))
-            world (update-in world [:chip-driven-parts] #(conj % part-name))]
+                               final-points time linear-interpolator))
+            world (update-in world [:driven-parts] #(conj % part-name))]
         (if (= chip-name (:controlling-chip part))
           (case (:type part)
             :wagon
@@ -263,13 +266,13 @@
         functions (sort-by #(:z (second %)) > (:functions chip))
         named-points (mapcat (fn [[name function]]
                                (let [points (:points function)]
-                               (map (fn [point index]
-                                      [name index point])
-                                    points (range (count points)))))
+                                 (map (fn [point index]
+                                        [name index point])
+                                      points (range (count points)))))
                              functions)
         node-size 0.01
         offset-point (global->local graph-box view [(+ x 7) (- y 7)])
-        [dx dy] (vector-subtract offset-point [t v])
+        [dx dy] (vector/subtract offset-point [t v])
         named-point (find-if (fn [[name index [px py]]]
                                (and (< (abs (- px t)) dx)
                                     (< (abs (- py v)) dy)))
@@ -347,7 +350,7 @@
                 (= (count (:points function)) 2))
           world
           (update-in world [:parts chip-name :functions function-name :points]
-                     #(vector-remove % index))))
+                     #(util/vector-remove % index))))
       world)))
 
 (defn toggle-relative-flag [world x y]
@@ -451,12 +454,12 @@
           end-point [x y]
           p1 (global->local graph-box view start-point)
           p2 (global->local graph-box view end-point)
-          [dx dy] (vector-subtract p2 p1)
+          [dx dy] (vector/subtract p2 p1)
           displacement [(* dx (:zoom-x view))
                         (* dy (:zoom-y view))]]
       (-> world
           (assoc-in [:parts chip-name :view :offset]
-                    (vector-add (:saved-offset world) displacement))
+                    (vector/add (:saved-offset world) displacement))
           (redraw)))
     world))
 
@@ -518,9 +521,9 @@
       (if (= (:type part) :wagon)
         (do
           (user-message! "track lengths: "
-                    (vec (map #(format "%.2f" %)
-                              (:track-lengths part)))
-                    (format "%.2f" (reduce + (:track-lengths part))))
+                         (vec (map #(format "%.2f" %)
+                                   (:track-lengths part)))
+                         (format "%.2f" (reduce + (:track-lengths part))))
           world)
         world))
     world))
@@ -585,10 +588,10 @@
 
 (defn place-point [view graph-box local-point global-point]
   (let [p (global->local graph-box view global-point)
-        [dx dy] (vector-subtract p local-point)
+        [dx dy] (vector/subtract p local-point)
         v [(* dx (:zoom-x view))
            (* dy (:zoom-y view))]]
-    (update-in view [:offset] #(vector-add % v))))
+    (update-in view [:offset] #(vector/add % v))))
 
 (defn change-zoom [view graph-box event shift-pressed]
   (let [offset (:offset view)

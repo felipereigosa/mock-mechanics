@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (defn get-properties [world]
   (if-let [part-name (:selected-part world)]
@@ -6,8 +8,8 @@
       (map (fn [property]
              (let [value (get-in part [property])
                    value (if (and
-                              (= (:type part) :wagon)
-                              (= property :value))
+                               (= (:type part) :wagon)
+                               (= property :value))
                            (* value (reduce + (:track-lengths part)))
                            value)
                    value (cond
@@ -95,6 +97,11 @@
 
       :skin (set-skin world part-name value)
 
+      :free
+      (-> world
+          (assoc-in [:parts part-name :free] value)
+          (tree-changed))
+
       (assoc-in world [:parts part-name key] value))))
 
 (defn set-property [world x y]
@@ -119,17 +126,17 @@
         track-direction (apply-transform rotation [0 1 0])
         plane (get-camera-plane world point)
         [p0 p1 p2] plane
-        v1 (vector-subtract p1 p0)
-        v2 (vector-subtract p2 p0)
-        plane-normal (vector-normalize (vector-cross-product v1 v2))
+        v1 (vector/subtract p1 p0)
+        v2 (vector/subtract p2 p0)
+        plane-normal (vector/normalize (vector/cross-product v1 v2))
         line (get-spec-line world spec)
         p2 (line-plane-intersection line plane)
-        side-vector (vector-normalize
-                     (vector-cross-product track-direction plane-normal))
+        side-vector (vector/normalize
+                      (vector/cross-product track-direction plane-normal))
         side-line [point side-vector]
         p3 (point-line-projection p2 side-line)
-        v (vector-subtract p3 point)
-        s (/ (- (vector-dot-product v side-vector)) 2)
+        v (vector/subtract p3 point)
+        s (/ (- (vector/dot-product v side-vector)) 2)
         new-value (+ start-value s)]
     (assoc-in world [:parts part-name :value] new-value)))
 
@@ -175,8 +182,8 @@
 (defn property-mode-released [world {:keys [x y]}]
   (let [box (:property-box world)
         world (if (and
-                   (not (inside-box? box x y))
-                   (< (- (get-current-time) (:press-time world)) 200))
+                    (not (inside-box? box x y))
+                    (< (- (get-current-time) (:press-time world)) 200))
                 (select-part world (:selected-part world))
                 world)]
     (-> world

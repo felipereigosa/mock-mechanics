@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (declare extend-instructions)
 
@@ -22,27 +24,27 @@
            (str "set variable selected-chip to " chip-name)]
 
         r (conj r (format "set view of %s to %s"
-                    chip-name (get-bounding-viewbox
-                                (concat points [[0 0] [1 1]]))))
+                          chip-name (get-bounding-viewbox
+                                      (concat points [[0 0] [1 1]]))))
 
         r (conj r (format "put %s in %s" part-name chip-name))
-        r (if (not (vector= (first points) [0 0]))
+        r (if (not (vector/equal? (first points) [0 0]))
             (conj r (format "move point 0 of function %s of %s to %s"
-                      part-name chip-name (first points)))
+                            part-name chip-name (first points)))
             r)
-        r (if (not (vector= (last points) [1 1]))
+        r (if (not (vector/equal? (last points) [1 1]))
             (conj r (format "move point 1 of function %s of %s to %s"
-                      part-name chip-name (last points)))
+                            part-name chip-name (last points)))
             r)
 
         r (reduce (fn [rt point]
                     (conj rt (format "add point %s to function %s of %s"
-                               point part-name chip-name)))
-            r
-            (butlast (rest points)))
+                                     point part-name chip-name)))
+                  r
+                  (butlast (rest points)))
         r (if relative
             (conj r (format "toggle %s function %s"
-                      chip-name part-name))
+                            chip-name part-name))
             r)
         ;; r (conj r (str "activate " chip-name))
         ]
@@ -64,26 +66,26 @@
                     (if (= (get-element-type element) :connection)
                       (let [[connection-name & element] element
                             rt (conj rt (format "set %s connection %s %s"
-                                          motherboard-name
-                                          connection-name
-                                          (vec (take 2 element))))]
+                                                motherboard-name
+                                                connection-name
+                                                (vec (take 2 element))))]
                         (reduce (fn [rtt point]
                                   (conj rtt (format "add %s %s point %s"
-                                              motherboard-name
-                                              connection-name
-                                              point)))
-                          rt
-                          (nthrest element 2)))
+                                                    motherboard-name
+                                                    connection-name
+                                                    point)))
+                                rt
+                                (nthrest element 2)))
                       (let [rt (conj rt (format "set %s %s %s"
-                                          motherboard-name
-                                          (dekeyword (get-element-type element))
-                                          element))]
+                                                motherboard-name
+                                                (dekeyword (get-element-type element))
+                                                element))]
                         (if (= (last element) 'true)
                           (conj rt (format "toggle %s pin %s"
-                                     motherboard-name (first element)))
+                                           motherboard-name (first element)))
                           rt))))
-            r
-            elements)]
+                  r
+                  elements)]
     r))
 
 (defn extend-instruction [instruction]
@@ -101,14 +103,18 @@
           (conj (change-mode-submode "add" "add-type" (dekeyword type))
                 instruction))
 
+        (.startsWith instruction "add gears")
+        (conj (change-mode-submode "add" "add-type" "gear")
+                instruction)
+
         (.startsWith instruction "move point")
         [instruction]
 
         (or
-         (.startsWith instruction "move")
-         (.startsWith instruction "scale")
-         (.startsWith instruction "sink")
-         (.startsWith instruction "rotate"))
+          (.startsWith instruction "move")
+          (.startsWith instruction "scale")
+          (.startsWith instruction "sink")
+          (.startsWith instruction "rotate"))
         (conj (change-mode-submode "edit" "edit-subcommand" (first atoms))
               instruction)
 

@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (declare move-part-pressed)
 (declare move-part-moved)
@@ -43,7 +45,7 @@
 
 (defn get-ground-anchor [world part collision]
   (let [offset [0 (get-part-offset part) 0]
-        position (vector-add offset (:point collision))]
+        position (vector/add offset (:point collision))]
     (make-transform position [1 0 0 0])))
 
 (defn get-block-anchor [world part collision]
@@ -51,15 +53,15 @@
         parent (get-in world [:parts parent-name])
         parent-transform (:transform parent)
         parent-rotation (get-rotation-component parent-transform)
-        local-normal (vector-normalize (get-collision-normal world collision))
+        local-normal (vector/normalize (get-collision-normal world collision))
         global-normal (apply-transform parent-rotation local-normal)
         offset (get-part-offset part)
-        position (vector-add (:point collision)
-                             (vector-multiply global-normal offset))
+        position (vector/add (:point collision)
+                             (vector/multiply global-normal offset))
         normal-rotation (make-transform [0 0 0]
                                         (quaternion-from-normal local-normal))
         rotation (get-transform-rotation
-                  (combine-transforms normal-rotation parent-rotation))]
+                   (combine-transforms normal-rotation parent-rotation))]
     (make-transform position rotation)))
 
 (defn get-track-anchor [world part collision]
@@ -73,9 +75,9 @@
     (make-transform position rotation)))
 
 (defn get-cylinder-anchor [world part collision]
-  (let [normal (vector-normalize (get-collision-normal world collision))]
-    (if (or (vector= normal [0 1 0])
-            (vector= normal [0 -1 0]))
+  (let [normal (vector/normalize (get-collision-normal world collision))]
+    (if (or (vector/equal? normal [0 1 0])
+            (vector/equal? normal [0 -1 0]))
       (get-block-anchor world part collision)
       nil)))
 
@@ -84,10 +86,10 @@
         mesh (:track-head-model world)
         triangles (partition 3 (partition 3 (:vertices mesh)))
         [a b c] (nth triangles index)
-        v1 (vector-subtract b a)
-        v2 (vector-subtract c a)
-        normal (vector-normalize (vector-cross-product v1 v2))]
-    (if (vector= normal [0 -1 0])
+        v1 (vector/subtract b a)
+        v2 (vector/subtract c a)
+        normal (vector/normalize (vector/cross-product v1 v2))]
+    (if (vector/equal? normal [0 -1 0])
       nil
       (let [transform (get-in world [:parts (:track-head world) :transform])
             position (apply-transform transform normal)
@@ -122,10 +124,10 @@
            [:block :wagon :track :ground])
       true
       (= (:type target) :cylinder)
-      (let [normal (vector-normalize
-                    (get-collision-normal world collision))]
-        (if (or (vector= normal [0 1 0])
-                (vector= normal [0 -1 0]))
+      (let [normal (vector/normalize
+                     (get-collision-normal world collision))]
+        (if (or (vector/equal? normal [0 1 0])
+                (vector/equal? normal [0 -1 0]))
           true
           (user-message! "can't place on the side of cylinder")))
       :else
@@ -193,14 +195,14 @@
     (let [line (get-spec-line world event)
           track-names (get-parts-with-type (:parts world) :track)
           track-distances (remove-nil
-                           (map (fn [track-name]
-                                  (let [track (get-in world [:parts track-name])
-                                        p (get-transform-position (:transform track))
-                                        d (point-line-distance p line)]
-                                    (if (< d 0.25)
-                                      [track-name d]
-                                      nil)))
-                                track-names))
+                            (map (fn [track-name]
+                                   (let [track (get-in world [:parts track-name])
+                                         p (get-transform-position (:transform track))
+                                         d (point-line-distance p line)]
+                                     (if (< d 0.25)
+                                       [track-name d]
+                                       nil)))
+                                 track-names))
           track-name (first (first (sort-by second track-distances)))]
       (assoc-in world [:track-head] track-name))
     (assoc-in world [:track-head] nil)))

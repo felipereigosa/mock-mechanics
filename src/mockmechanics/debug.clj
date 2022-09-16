@@ -3,7 +3,6 @@
 (declare create-line-mesh)
 (declare clear-output!)
 (declare get-parent-part)
-(declare println)
 
 (defn debug-mode-draw [world]
   (let [w (:window-width world)
@@ -12,6 +11,12 @@
         hh (* h 0.5)]
     (draw-rect! :red hw hh (- w 100) (- h 100))))
 
+(defn transform-output [arg]
+  (cond
+    (instance? com.bulletphysics.linearmath.Transform arg)
+    [(get-transform-position arg)
+     (get-transform-rotation arg)]
+    :else arg))
 
 (defn debug-mode-pressed [world event]
   (let [{:keys [x y]} event
@@ -24,8 +29,8 @@
     (println "click:" x y)
     (println "part: " part-name)
     (println "parent: " parent-name)
-    (println "relative transform:" relative-transform)
-    (println "absolute transform:" (:transform part))
+    (println "relative transform:" (transform-output relative-transform))
+    (println "absolute transform:" (transform-output (:transform part)))
     (println "scale: " (:scale part))
     world))
 

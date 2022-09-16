@@ -1,17 +1,12 @@
 (ns mockmechanics.core
-  (:refer-clojure :exclude [println])
-  (:gen-class))
+  (:require [mockmechanics.library.vector :as vector]))
 
-(load "util")
 (load "world")
-(load "vector")
-(load "matrix")
 (load "analytic-geometry")
 (load "camera")
 (load "transforms")
 (load "window")
 (load "picture")
-(load "keymap")
 (load "debug")
 
 (load "synthesizer")
@@ -85,11 +80,11 @@
       (assoc-in [:graph-snap-value] 0.05)
 
       (assoc-in [:graph-menu]
-        (create-picture "graph-menu" 210 575 -1 30))
+                (create-picture "graph-menu" 210 575 -1 30))
       (assoc-in [:graph-subcommand] :move)
 
       (assoc-in [:motherboard-menu]
-        (create-picture "motherboard-menu" 210 575 -1 30))
+                (create-picture "motherboard-menu" 210 575 -1 30))
       (assoc-in [:motherboard-subcommand] :move)
 
       (assoc-in [:selected-property] 0)
@@ -109,14 +104,15 @@
       (place-elements)
       (create-weld-groups)
       (create-update-cube)
-
-      ;; (start-replay "atom")
       ))
-(reset-world!)
-)
+  (reset-world!)
+  )
 
 (defn update-world [world elapsed]
   (let [world (run-animation world elapsed)
+        world (if-let [dx (:camera-rotating world)]
+                (rotate-camera world dx 0)
+                world)
         world (input-indicator-update world elapsed)]
     (if (in? (:mode world) [:simulation :graph :motherboard
                             :property :avatar])
@@ -124,17 +120,28 @@
                       (set-probe-values)
                       (apply-forces elapsed)
                       (run-chips elapsed)
-                      (enforce-gears)
                       (compute-transforms (if (:use-weld-groups world)
                                             :weld-groups
                                             :parts))
-                      (update-motherboards))]
+                      (update-motherboards)
+                      (enforce-gears))]
         (recompute-body-transforms! world)
         (step-simulation! (:planet world) elapsed)
         (if (= (:mode world) :avatar)
           (avatar-mode-update world elapsed)
           world))
       world)))
+
+(defn draw-segment! [world start-point end-point]
+  (let [v (vector/subtract end-point start-point)
+        scale [0.03 (vector/length v) 0.03]
+        middle (vector/add (vector/multiply v 0.5) start-point)
+        rotation (quaternion-from-normal v)
+        transform (make-transform middle rotation)
+        mesh (-> (:rope-mesh world)
+                 (assoc-in [:scale] scale)
+                 (assoc-in [:transform] transform))]
+    (draw-mesh! world mesh)))
 
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
@@ -162,6 +169,8 @@
   (draw-lamps! world)
   (draw-displays! world)
 
+  ;; (draw-cables! world)
+
   (if-let [fun (get-function (:mode world) :draw-3d)]
     (fun world))
 
@@ -171,34 +180,34 @@
 
 (defn show-buttons? [world]
   (or
-   (= (:show-buttons world) :always)
-   (and
-    (= (:show-buttons world) :no-sim)
-    (not (= (:mode world) :simulation)))))
+    (= (:show-buttons world) :always)
+    (and
+      (= (:show-buttons world) :no-sim)
+      (not (= (:mode world) :simulation)))))
 
 (do
-1
+  1
 
-(defn draw-2d! [world]
-  (clear!)
+  (defn draw-2d! [world]
+    (clear!)
 
-  (when (show-buttons? world)
-    (let [{:keys [image x y w h]} (:action-menu world)]
-      (fill-rect! (make-color 70 70 70) x y (+ 20 w) (+ 20 h))
-      (draw-image! image x y))
+    (when (show-buttons? world)
+      (let [{:keys [image x y w h]} (:action-menu world)]
+        (fill-rect! (make-color 70 70 70) x y (+ 20 w) (+ 20 h))
+        (draw-image! image x y))
 
-    (let [{:keys [image x y w h]} (:mode-menu world)]
-      (fill-rect! (make-color 70 70 70) x y (+ 20 w) (+ 20 h))
-      (draw-image! image x y))
+      (let [{:keys [image x y w h]} (:mode-menu world)]
+        (fill-rect! (make-color 70 70 70) x y (+ 20 w) (+ 20 h))
+        (draw-image! image x y))
 
-    (if-let [fun (get-function (:mode world) :draw)]
-      (fun world)))
+      (if-let [fun (get-function (:mode world) :draw)]
+        (fun world)))
 
-  (draw-buffer! world)
-  (draw-hint! world)
-  (draw-input-indicator! world)
-  )
-(redraw!))
+    (draw-buffer! world)
+    (draw-hint! world)
+    (draw-input-indicator! world)
+    )
+  (redraw!))
 
 (defn mouse-scrolled [world event]
   (let [world (-> world
@@ -246,19 +255,19 @@
         world (replay-pressed world event)]
     (cond
       (and
-       (show-buttons? world)
-       (inside-box? (:action-menu world) x y))
+        (show-buttons? world)
+        (inside-box? (:action-menu world) x y))
       (action-menu-pressed world x y)
 
       (and
-       (show-buttons? world)
-       (inside-box? (:mode-menu world) x y))
+        (show-buttons? world)
+        (inside-box? (:mode-menu world) x y))
       (mode-menu-pressed world x y)
 
       (and
-       (in? (:button event) [:middle :right])
-       (not (and (= (:mode world) :graph)
-                 (inside-box? (:graph-box world) x y))))
+        (in? (:button event) [:middle :right])
+        (not (and (= (:mode world) :graph)
+                  (inside-box? (:graph-box world) x y))))
       (assoc-in world [:last-point] [x y])
 
       :else
@@ -276,8 +285,8 @@
   (let [elapsed (- (get-current-time) (:press-time world))
         world (if (and (< elapsed 200)
                        (= (:button event) :right)
-                       (< (distance (:press-point world)
-                                    [(:x event) (:y event)]) 10))
+                       (< (vector/distance (:press-point world)
+                                           [(:x event) (:y event)]) 10))
                 (assoc-in world [:animation]
                           (create-pivot-animation world event))
                 world)
@@ -306,3 +315,10 @@
         update-scripts
         redraw)
     world))
+
+(defn keep-active? [world]
+  (or (not (empty? (:spheres world)))
+      ;; (:forces-active? @world)
+      (spheres-moving? world)
+      (not (nil? (:mouse-force world)))
+      (:camera-rotating world)))

@@ -1,3 +1,5 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (defn enter-jumping-state [world]
   (let [block-name (get-in world [:avatar :block])]
@@ -12,7 +14,7 @@
         inverse-transform (get-inverse-transform transform)
         avatar (:avatar world)
         relative-position (apply-transform inverse-transform point)
-        absolute-direction (vector-rotate [0 0 1] [0 1 0] (:angle avatar))
+        absolute-direction (vector/rotate [0 0 1] [0 1 0] (:angle avatar))
         block-rotation (get-rotation-component (:transform block))
         inverse-rotation (get-inverse-transform block-rotation)
         relative-direction (apply-transform inverse-rotation absolute-direction)]
@@ -23,17 +25,17 @@
 
 (defn jump-handle-direction-keys [world]
   (let [acceleration (get-acceleration world)]
-    (if (not (vector= acceleration [0 0 0]))
+    (if (not (vector/equal? acceleration [0 0 0]))
       (let [avatar (:avatar world)
             velocity (:velocity avatar)
-            acceleration (vector-multiply acceleration 0.0002)
-            new-velocity (vector-add velocity acceleration)
+            acceleration (vector/multiply acceleration 0.0002)
+            new-velocity (vector/add velocity acceleration)
             max-speed (:max-speed avatar)
-            new-velocity (if (> (vector-length new-velocity) max-speed)
-                           (vector-multiply
-                            (vector-normalize new-velocity) max-speed)
+            new-velocity (if (> (vector/length new-velocity) max-speed)
+                           (vector/multiply
+                             (vector/normalize new-velocity) max-speed)
                            new-velocity)
-            angle (vector-angle [0 0 1] acceleration [0 1 0])]
+            angle (vector/angle [0 0 1] acceleration [0 1 0])]
         (-> world
             (assoc-in [:avatar :velocity] new-velocity)
             (assoc-in [:avatar :angle] angle)))
@@ -45,7 +47,7 @@
     (if-let [normal (:wall-normal world)]
       (-> world
           (assoc-in [:avatar :vertical-velocity] 0.2)
-          (assoc-in [:avatar :velocity] (vector-multiply normal 0.1)))
+          (assoc-in [:avatar :velocity] (vector/multiply normal 0.1)))
       world)
 
     (avatar-key-pressed? world "k")
@@ -54,8 +56,8 @@
         (assoc-in [:avatar :part-pressed] true))
 
     (and
-     (avatar-key-released? world "k")
-     (get-in world [:avatar :part-pressed]))
+      (avatar-key-released? world "k")
+      (get-in world [:avatar :part-pressed]))
     (-> world
         (avatar-release-part)
         (assoc-in [:avatar :part-pressed] false))
@@ -68,17 +70,17 @@
   (let [avatar (:avatar world)
         [_ _ block-point block-name] (:down-collision avatar)]
     (if (and (not-nil? block-point)
-             (< (distance block-point point) 0.3))
+             (< (vector/distance block-point point) 0.3))
       [block-name block-point]
       nil)))
 
 (defn update-jumping-state [world]
   (let [avatar (:avatar world)
         v (+ (:vertical-velocity avatar) -0.01)
-        vertical-velocity (vector-multiply [0 1 0] v)
+        vertical-velocity (vector/multiply [0 1 0] v)
         horizontal-velocity (:velocity avatar)
-        velocity (vector-add vertical-velocity horizontal-velocity)
-        new-position (vector-add (:position avatar) velocity)
+        velocity (vector/add vertical-velocity horizontal-velocity)
+        new-position (vector/add (:position avatar) velocity)
         [end-block end-point] (get-end-block world new-position)]
     (cond
       (and (< v 0.0) end-block)

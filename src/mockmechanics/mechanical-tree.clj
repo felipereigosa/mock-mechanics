@@ -1,10 +1,12 @@
+(ns mockmechanics.core
+  (:require [mockmechanics.library.vector :as vector]))
 
 (declare compute-subtree-transforms)
-  
+
 (defn compute-children-transforms [world part-name transform key]
   (reduce (fn [w [child-name relative-transform]]
             (let [new-transform (combine-transforms
-                                 relative-transform transform)]
+                                  relative-transform transform)]
               (compute-subtree-transforms w child-name new-transform key)))
           world
           (get-in world [key part-name :children])))
@@ -12,7 +14,7 @@
 (defn compute-translated-loop-fn [loop-fn]
   (let [offset (second (first loop-fn))]
     (map (fn [[t p]]
-           [t (vector-subtract p offset)])
+           [t (vector/subtract p offset)])
          loop-fn)))
 
 (defn block-compute-subtree-transforms [world name transform key]
@@ -28,7 +30,7 @@
         world (assoc-in world [key name :transform] transform)]
     (reduce (fn [w [child-name relative-transform]]
               (let [new-transform (combine-transforms
-                                   relative-transform transform)]
+                                    relative-transform transform)]
                 (compute-subtree-transforms w child-name new-transform key)))
             world
             (get-in world [key name :children]))))
@@ -43,7 +45,7 @@
                        [t (apply-transform transform v)])
                      loop-fn)
         value (within (:value wagon) 0.0 1.0)
-        position (get-function-value loop-fn value vector-interpolate)
+        position (get-function-value loop-fn value vector/interpolate)
         transform (make-transform position rotation)]
     (-> world
         (assoc-in [key name :transform] transform)
