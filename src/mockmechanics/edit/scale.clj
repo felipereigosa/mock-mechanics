@@ -377,6 +377,31 @@
           (resize-display-texture display-name)))
     world))
 
+(defn scale-cable-pressed [world event]
+  (let [cable-name (get-part-at world event)
+        cable (get-in world [:parts cable-name])]
+    (-> world
+        (assoc-in [:edited-part] cable-name)
+        (assoc-in [:start-x] (:x event))
+        (assoc-in [:start-thickness] (:thickness cable)))))
+
+(defn scale-cable-moved [world event]
+  (let [displacement (- (:x event) (:start-x world))
+        cable-name (:edited-part world)
+        cable (get-in world [:parts cable-name])
+        thickness (-> displacement
+                      (*  0.001)
+                      (/ 0.05)
+                      int
+                      (* 0.05)
+                      (+ (:start-thickness world))
+                      (within 0.05 1))]
+    (user-message! (format "thickness: %.2f" thickness))
+    (assoc-in world [:parts cable-name :thickness] thickness)))
+
+(defn scale-cable-released [world event]
+  (dissoc-in world [:edited-part]))
+
 (declare scale-mode-moved)
 
 (defn scale-mode-pressed [world event]
@@ -390,6 +415,7 @@
                   :cone (scale-cone-pressed world event)
                   :sphere (scale-sphere-pressed world event)
                   :display (scale-display-pressed world event)
+                  :cable (scale-cable-pressed world event)
                   (do
                     (user-message! "can't scale" (kw->str type))
                     world))]
@@ -404,6 +430,7 @@
     :cone (scale-cone-moved world event)
     :sphere (scale-sphere-moved world event)
     :display (scale-display-moved world event)
+    :cable (scale-cable-moved world event)
     world))
 
 (defn scale-mode-released [world event]
@@ -414,5 +441,6 @@
                 :cone (scale-cone-released world event)
                 :sphere (scale-sphere-released world event)
                 :display (scale-display-released world event)
+                :cable (scale-cable-released world event)
                 world)]
     (dissoc-in world [:scale-type])))

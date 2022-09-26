@@ -36,7 +36,8 @@
 
 (defn bake-part [world part]
   (if (or (not (in? (:layer part) (:visible-layers world)))
-          (get-in part [:model :texture-coordinates]))
+          (get-in part [:model :texture-coordinates])
+          (= (:type part) :cable))
     {}
     (let [type (:type part)
           model (or (:model part)

@@ -33,6 +33,7 @@
                        :speaker "Shift + S,Speaker"
                        :gear "Shift + G,Gear"
                        :display "I,Image"
+                       :cable "R,Rope"
                        }
                  :edit {:move "M,Move"
                         :sink "H,Change Height"

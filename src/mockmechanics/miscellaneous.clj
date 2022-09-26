@@ -131,7 +131,6 @@
   (let [oy (- (+ (* (:num-lines world) 16) 10))
         menu-offset (if (:show-submenu world) 30 0)]
     (-> world
-        (assoc-in [:add-offset] 0)
         (place-box :action-menu :rx 0.6 :ry 0.5 :oy 10)
         (place-box :mode-menu :rx -0.6 :ry 0.5 :oy 10)
         (place-box :add-menu :wx 0.5 :ry -0.6 :oy oy)
@@ -142,8 +141,7 @@
         (place-box :graph-menu :wx 0.5 :ry -0.5 :oy oy)
         (place-box :motherboard-box :wx 0.5 :ry -0.5 :oy (- oy menu-offset))
         (place-box :motherboard-menu :wx 0.5 :ry -0.5 :oy oy)
-        (place-box :property-box :wx 0.5 :ry -0.5 :oy oy)
-        )))
+        (place-box :property-box :wx 0.5 :ry -0.5 :oy oy))))
 
 (defn point-between-points? [p p1 p2 d]
   (if (vector/equal? p1 p2)

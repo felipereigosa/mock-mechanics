@@ -182,6 +182,16 @@
     :color :black
     :properties {}
     }
+
+   :cable
+   {:model (create-model-mesh "res/cylinder.obj"
+                              [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :collision-model (create-model-mesh "res/cylinder-collision.obj"
+                                        [0 0 0] [1 0 0 0] [1 1 1] :white)
+    :scale [0.2 0.2 0.2]
+    :color :red
+    :properties {:value 0 :thickness 0.04}
+    }
    })
 
 (defn create-ground-part []
@@ -358,7 +368,8 @@
 (declare use-root-relative-transform)
 
 (defn set-probe-values [world]
-  (let [probe-names (get-parts-with-type (:parts world) :probe)
+  (let [parts (filter #(not (:cable (second %))) (:parts world))
+        probe-names (get-parts-with-type parts :probe)
         positions (map (fn [probe-name]
                          (let [transform (use-root-relative-transform world probe-name)]
                            (get-transform-position transform)))

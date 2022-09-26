@@ -207,7 +207,7 @@
         avatar-force (get-in world [:avatar :force])
         forces (remove-nil (concat [mouse-force avatar-force]
                                    ;; (get-collision-forces world)
-                                   ;; (get-cables-forces world)
+                                   (get-cables-forces world)
                                    ))]
     (reduce (fn [w force]
               (apply-force w force elapsed))

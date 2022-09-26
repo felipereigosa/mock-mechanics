@@ -19,6 +19,7 @@
 (load "gears")
 (load "undo")
 (load "persistence")
+(load "cables")
 (load "forces")
 (load "modes")
 (load "replayer")
@@ -70,7 +71,6 @@
       (assoc-in [:add-menu]
                 (create-picture "add-menu" 726 675 -1 50))
       (assoc-in [:add-type] :block)
-      (assoc-in [:add-offset] 0)
 
       (assoc-in [:edit-menu]
                 (create-picture "edit-menu" 210 575 -1 50))
@@ -104,6 +104,7 @@
       (place-elements)
       (create-weld-groups)
       (create-update-cube)
+
       ))
   (reset-world!)
   )
@@ -132,17 +133,6 @@
           world))
       world)))
 
-(defn draw-segment! [world start-point end-point]
-  (let [v (vector/subtract end-point start-point)
-        scale [0.03 (vector/length v) 0.03]
-        middle (vector/add (vector/multiply v 0.5) start-point)
-        rotation (quaternion-from-normal v)
-        transform (make-transform middle rotation)
-        mesh (-> (:rope-mesh world)
-                 (assoc-in [:scale] scale)
-                 (assoc-in [:transform] transform))]
-    (draw-mesh! world mesh)))
-
 (defn draw-3d! [world]
   (doseq [mesh (vals (:background-meshes world))]
     (draw-mesh! world mesh))
@@ -159,7 +149,8 @@
       (draw-textured-parts! world))
     (doseq [[name part] (:parts world)]
       (if (or (= name :ground-part)
-              (not (in? (:layer part) (:visible-layers world))))
+              (not (in? (:layer part) (:visible-layers world)))
+              (= (:type part) :cable))
         nil
         (draw-part! world part))))
 
@@ -168,8 +159,7 @@
   (draw-buttons! world)
   (draw-lamps! world)
   (draw-displays! world)
-
-  ;; (draw-cables! world)
+  (draw-cables! world)
 
   (if-let [fun (get-function (:mode world) :draw-3d)]
     (fun world))

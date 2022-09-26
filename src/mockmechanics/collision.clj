@@ -79,14 +79,16 @@
   (or (:line spec)
       (unproject-point world [(:x spec) (:y spec)])))
 
+(declare get-replaced-cable-parts)
+
 (defn get-part-collision [world spec]
   (let [line (get-spec-line world spec)
+        parts (get-replaced-cable-parts world)
         distances (map (fn [[part-name part]]
                          (if (not (in? (:layer part)
                                        (:visible-layers world)))
                            nil
                            (let [type (:type part)
-                                 info (get-in world [:info type])
                                  mesh (get-collision-model world type)
                                  transform (if (= (:type part) :track)
                                              (get-tail-transform part)
@@ -98,8 +100,9 @@
                                {:part-name part-name
                                 :distance d
                                 :point p
-                                :index i}))))
-                       (:parts world))
+                                :index i
+                                :segment-index (:segment-index part)}))))
+                       parts)
         distances (filter (fn [distance]
                             (not (or (nil? distance)
                                      (= (:part-name distance) :ground-part))))

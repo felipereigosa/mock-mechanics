@@ -26,11 +26,12 @@
         relative-transform (get-in world [:parts parent-name
                                           :children part-name])]
     (clear-output!)
+    (println "-----")
     (println "click:" x y)
     (println "part: " part-name)
     (println "parent: " parent-name)
-    (println "relative transform:" (transform-output relative-transform))
-    (println "absolute transform:" (transform-output (:transform part)))
+    (println "transforms, relative: " (transform-output relative-transform)
+                       ", absolute: " (transform-output (:transform part)))
     (println "scale: " (:scale part))
     world))
 

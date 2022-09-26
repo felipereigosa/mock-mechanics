@@ -40,8 +40,7 @@
    ":add S-s" #(assoc-in % [:add-type] :speaker)
    ":add S-g" #(assoc-in % [:add-type] :gear)
    ":add i" #(assoc-in % [:add-type] :display)
-   ":add left" #(update-in % [:add-offset] (fn [v] (- v 58)))
-   ":add right" #(update-in % [:add-offset] (fn [v] (+ v 58)))
+   ":add r" #(assoc-in % [:add-type] :cable)
 
    "A-e" #(change-mode % :edit)
    ":edit d" #(assoc-in % [:edit-subcommand] :delete)
