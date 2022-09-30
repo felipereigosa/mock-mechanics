@@ -271,8 +271,6 @@
 (def the-window (atom nil))
 
 (defn window-init! []
-  (.start (new Thread (proxy [Runnable] []
-                        (run []
                           (GLFW/glfwInit)
                           (GLFW/glfwWindowHint GLFW/GLFW_VISIBLE GLFW/GLFW_FALSE)
                           (GLFW/glfwWindowHint GLFW/GLFW_RESIZABLE GLFW/GLFW_TRUE)
@@ -309,7 +307,7 @@
                             (loop! window)
 
                             (GLFW/glfwDestroyWindow window)
-                            (GLFW/glfwTerminate)))))))
+                            (GLFW/glfwTerminate)))
 
 (defn set-title! [text]
   (GLFW/glfwSetWindowTitle @the-window text))
@@ -337,8 +335,12 @@
 (def out (atom nil))
 
 (defn gl-println [& forms]
-  (binding [*out* @out]
-    (apply clojure.core/println forms)))
+  (println forms)
+  (try
+    (binding [*out* @out]
+      (apply clojure.core/println forms))
+    (catch Exception e (println e)))
+  )
 
 (defn check-shader [shader]
   (let [status (GL20/glGetShaderi shader GL20/GL_COMPILE_STATUS)]

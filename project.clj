@@ -4,7 +4,7 @@
             (let [artifact (symbol "org.lwjgl" name)]
               [[artifact version]
                [artifact version
-                :classifier "natives-linux"
+                :classifier "natives-macos-arm64"
                 :native-prefix ""]]))
           names))
 
@@ -19,7 +19,7 @@
   :main ^:skip-aot mockmechanics.core
   :target-path "target/%s"
   :omit-source true
-  :jvm-opts ["--illegal-access=deny"]
+  :jvm-opts ["--illegal-access=deny" "-XstartOnFirstThread" "-Djava.awt.headless=true"]
   :java-source-paths ["src/mockmechanics/java"]
   :profiles {:uberjar {:aot :all}
              :repl {:plugins [[cider/cider-nrepl "0.25.5"]]}})
