@@ -19,7 +19,7 @@ void main() {
   vertex_color += color * ambient_intensity;
   
   vec3 half_plane = normalize(vec3(0, 0, 1) - light_direction);
-  float n_dot_h = max(0.0f, dot(transformed_normal.xyz, half_plane));
+  float n_dot_h = max(0.0, dot(transformed_normal.xyz, half_plane));
   vertex_color += color * n_dot_h;
   vertex_color += vec4(1, 1, 1, 1) * n_dot_h * 0.05;
 

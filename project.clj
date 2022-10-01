@@ -5,6 +5,12 @@
               [[artifact version]
                [artifact version
                 :classifier "natives-linux"
+                :native-prefix ""]
+               [artifact version
+                :classifier "natives-macos-arm64"
+                :native-prefix ""]
+               [artifact version
+                :classifier "natives-macos"
                 :native-prefix ""]]))
           names))
 
@@ -20,6 +26,7 @@
   :target-path "target/%s"
   :omit-source true
   :jvm-opts ["--illegal-access=deny"]
+  :aliases {"osx" ["update-in" ":jvm-opts" "concat" "[\"-XstartOnFirstThread\" \"-Djava.awt.headless=true\"]"]}
   :java-source-paths ["src/mockmechanics/java"]
   :profiles {:uberjar {:aot :all}
              :repl {:plugins [[cider/cider-nrepl "0.25.5"]]}})
