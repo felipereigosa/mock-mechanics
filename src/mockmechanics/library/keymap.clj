@@ -89,8 +89,8 @@
              GLFW/GLFW_KEY_RIGHT_CONTROL           :control
              GLFW/GLFW_KEY_LEFT_ALT                :alt
              GLFW/GLFW_KEY_RIGHT_ALT               :alt
-             GLFW/GLFW_KEY_LEFT_SUPER              nil
-             GLFW/GLFW_KEY_RIGHT_SUPER             nil
+             GLFW/GLFW_KEY_LEFT_SUPER              :alt
+             GLFW/GLFW_KEY_RIGHT_SUPER             :alt
              })
 
 (def shift-keymap {GLFW/GLFW_KEY_APOSTROPHE              "@"
